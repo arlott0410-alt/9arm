@@ -107,7 +107,7 @@ export async function POST(request: Request) {
     const err = requireMutate(user);
     if (err) return err;
 
-    const body = await request.json();
+    const body = (await request.json()) as Record<string, unknown>;
     const type = body.type as 'DEPOSIT' | 'WITHDRAW';
 
     const [settingsRow] = await db
