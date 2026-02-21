@@ -20,7 +20,9 @@ export function Header({
 
   return (
     <header className="fixed right-0 top-0 z-30 flex h-16 items-center justify-between border-b border-[#1F2937] bg-[#0F172A] px-4 sm:px-6 lg:left-56">
-      <div className="flex items-center gap-3">
+      <div />
+      <div className="flex items-center gap-2 sm:gap-4">
+        <span className="truncate text-sm text-[#9CA3AF] max-w-[120px] sm:max-w-none">{username}</span>
         {onMenuClick && (
           <button
             type="button"
@@ -31,9 +33,6 @@ export function Header({
             <Menu className="h-6 w-6" />
           </button>
         )}
-      </div>
-      <div className="flex items-center gap-2 sm:gap-4">
-        <span className="truncate text-sm text-[#9CA3AF] max-w-[120px] sm:max-w-none">{username}</span>
         <Button variant="ghost" size="icon" onClick={handleLogout}>
           <LogOut className="h-4 w-4" />
         </Button>

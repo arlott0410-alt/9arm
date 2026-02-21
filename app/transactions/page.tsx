@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { formatMinorToDisplay, parseDisplayToMinor, todayStr } from '@/lib/utils';
+import { TimeInput24 } from '@/components/ui/time-input-24';
 import { convertToDisplay, convertFromDisplay } from '@/lib/rates';
 import { Copy } from 'lucide-react';
 
@@ -400,13 +401,12 @@ export default function TransactionsPage() {
                       </div>
                       <div>
                         <Label>เวลาสลิปฝาก</Label>
-                        <Input
-                          type="time"
+                        <TimeInput24
                           value={depositForm.depositSlipTime}
-                          onChange={(e) =>
+                          onChange={(v) =>
                             setDepositForm({
                               ...depositForm,
-                              depositSlipTime: e.target.value,
+                              depositSlipTime: v,
                             })
                           }
                           required
@@ -414,13 +414,12 @@ export default function TransactionsPage() {
                       </div>
                       <div>
                         <Label>เวลาระบบฝาก</Label>
-                        <Input
-                          type="time"
+                        <TimeInput24
                           value={depositForm.depositSystemTime}
-                          onChange={(e) =>
+                          onChange={(v) =>
                             setDepositForm({
                               ...depositForm,
-                              depositSystemTime: e.target.value,
+                              depositSystemTime: v,
                             })
                           }
                           required
@@ -564,13 +563,12 @@ export default function TransactionsPage() {
                       </div>
                       <div>
                         <Label>เวลาระบบถอน</Label>
-                        <Input
-                          type="time"
+                        <TimeInput24
                           value={withdrawForm.withdrawSystemTime}
-                          onChange={(e) =>
+                          onChange={(v) =>
                             setWithdrawForm({
                               ...withdrawForm,
-                              withdrawSystemTime: e.target.value,
+                              withdrawSystemTime: v,
                             })
                           }
                           required
@@ -578,13 +576,12 @@ export default function TransactionsPage() {
                       </div>
                       <div>
                         <Label>เวลาสลิปถอน</Label>
-                        <Input
-                          type="time"
+                        <TimeInput24
                           value={withdrawForm.withdrawSlipTime}
-                          onChange={(e) =>
+                          onChange={(v) =>
                             setWithdrawForm({
                               ...withdrawForm,
-                              withdrawSlipTime: e.target.value,
+                              withdrawSlipTime: v,
                             })
                           }
                           required

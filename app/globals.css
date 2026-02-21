@@ -16,7 +16,11 @@
     --border: #1F2937;
     --ring: #D4AF37;
   }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
   body {
     @apply bg-[#0B0F1A] text-[#E5E7EB] antialiased;
+    touch-action: manipulation;
   }
 }

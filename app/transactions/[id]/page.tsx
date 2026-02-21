@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { formatMinorToDisplay, parseDisplayToMinor } from '@/lib/utils';
+import { TimeInput24 } from '@/components/ui/time-input-24';
 import { ArrowLeft } from 'lucide-react';
 
 type TxnDetail = {
@@ -404,26 +405,24 @@ export default function TransactionDetailPage() {
                     </div>
                     <div>
                       <Label>เวลาสลิปฝาก</Label>
-                      <Input
-                        type="time"
+                      <TimeInput24
                         value={editForm.depositSlipTime || ''}
-                        onChange={(e) =>
+                        onChange={(v) =>
                           setEditForm({
                             ...editForm,
-                            depositSlipTime: e.target.value,
+                            depositSlipTime: v,
                           })
                         }
                       />
                     </div>
                     <div>
                       <Label>เวลาระบบฝาก</Label>
-                      <Input
-                        type="time"
+                      <TimeInput24
                         value={editForm.depositSystemTime || ''}
-                        onChange={(e) =>
+                        onChange={(v) =>
                           setEditForm({
                             ...editForm,
-                            depositSystemTime: e.target.value,
+                            depositSystemTime: v,
                           })
                         }
                       />
@@ -457,26 +456,24 @@ export default function TransactionDetailPage() {
                     </div>
                     <div>
                       <Label>เวลาระบบถอน</Label>
-                      <Input
-                        type="time"
+                      <TimeInput24
                         value={editForm.withdrawSystemTime || ''}
-                        onChange={(e) =>
+                        onChange={(v) =>
                           setEditForm({
                             ...editForm,
-                            withdrawSystemTime: e.target.value,
+                            withdrawSystemTime: v,
                           })
                         }
                       />
                     </div>
                     <div>
                       <Label>เวลาสลิปถอน</Label>
-                      <Input
-                        type="time"
+                      <TimeInput24
                         value={editForm.withdrawSlipTime || ''}
-                        onChange={(e) =>
+                        onChange={(v) =>
                           setEditForm({
                             ...editForm,
-                            withdrawSlipTime: e.target.value,
+                            withdrawSlipTime: v,
                           })
                         }
                       />

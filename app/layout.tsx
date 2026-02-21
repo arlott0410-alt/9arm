@@ -1,5 +1,12 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
 
 export const metadata: Metadata = {
   title: '9arm Ledger',
@@ -19,7 +26,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="th" className="dark">
-      <body className="min-h-screen bg-[#0B0F1A] text-[#E5E7EB] antialiased">
+      <body className="min-h-screen min-h-[100dvh] bg-[#0B0F1A] text-[#E5E7EB] antialiased">
         {children}
       </body>
     </html>
