@@ -239,7 +239,7 @@ export async function POST(request: Request) {
         .limit(1);
       if (!fromW) {
         return NextResponse.json(
-          { error: 'Invalid wallet' },
+          { error: 'กระเป๋าเงินไม่ถูกต้อง' },
           { status: 400 }
         );
       }
@@ -279,7 +279,28 @@ export async function POST(request: Request) {
         rateSnapshot
       );
     } else {
-      inputAmountMinorStored = 0;
+      if (type === 'INTERNAL') {
+        return NextResponse.json(
+          { error: 'ต้องระบุกระเป๋าต้นทางและปลายทางสำหรับโอนภายใน' },
+          { status: 400 }
+        );
+      }
+      if (type === 'EXTERNAL_OUT') {
+        return NextResponse.json(
+          { error: 'ต้องระบุกระเป๋าต้นทางสำหรับโอนออก' },
+          { status: 400 }
+        );
+      }
+      if (type === 'EXTERNAL_IN') {
+        return NextResponse.json(
+          { error: 'ต้องระบุกระเป๋าปลายทางสำหรับโอนเข้า' },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: 'ข้อมูลไม่ถูกต้อง' },
+        { status: 400 }
+      );
     }
 
     const [inserted] = await db

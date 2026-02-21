@@ -32,7 +32,7 @@ export function Sidebar({
     : nav.filter((n) => n.href !== '/settings');
 
   return (
-    <aside className="fixed left-0 top-0 z-40 h-screen w-56 border-r border-[#1F2937] bg-[#0F172A]">
+    <aside className="fixed left-0 top-0 z-40 hidden h-screen w-56 border-r border-[#1F2937] bg-[#0F172A] lg:block">
       <div className="flex h-16 items-center border-b border-[#1F2937] px-6">
         <span className="text-lg font-semibold text-[#D4AF37]">9arm Ledger</span>
       </div>

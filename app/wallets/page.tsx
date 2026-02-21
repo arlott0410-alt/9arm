@@ -60,8 +60,9 @@ export default function WalletsPage() {
         return Promise.all(
           list.map((w) =>
             fetch(`/api/wallets/${w.id}`)
-              .then((r) => r.json() as Promise<{ balance: number }>)
-              .then((d) => ({ id: w.id, balance: d.balance }))
+              .then((r) => r.json() as Promise<{ balance?: number }>)
+              .then((d) => ({ id: w.id, balance: typeof d?.balance === 'number' ? d.balance : 0 }))
+              .catch(() => ({ id: w.id, balance: 0 }))
           )
         );
       })

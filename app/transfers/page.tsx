@@ -25,6 +25,7 @@ import {
   parseDisplayToMinor,
   todayStr,
 } from '@/lib/utils';
+import { safeJson } from '@/lib/fetch-json';
 import {
   convertBetween,
   type Currency,
@@ -102,8 +103,9 @@ export default function TransfersPage() {
       const results = await Promise.all(
         list.map((w) =>
           fetch(`/api/wallets/${w.id}`)
-            .then((r) => r.json() as Promise<{ balance: number }>)
-            .then((d) => ({ id: w.id, balance: d.balance }))
+            .then((r) => r.json() as Promise<{ balance?: number }>)
+            .then((d) => ({ id: w.id, balance: typeof d?.balance === 'number' ? d.balance : 0 }))
+            .catch(() => ({ id: w.id, balance: 0 }))
         )
       );
       const m = new Map<number, number>();
@@ -164,7 +166,7 @@ export default function TransfersPage() {
           note: form.note || undefined,
         }),
       });
-      const data = (await res.json()) as { error?: string };
+      const data = (await safeJson(res)) as { error?: string };
       if (res.ok) {
         setForm({
           txnDate: todayStr(),
@@ -424,6 +426,15 @@ export default function TransfersPage() {
                         ))}
                     </SelectContent>
                   </Select>
+                  {form.type === 'INTERNAL' &&
+                    wallets.filter(
+                      (w) =>
+                        !form.fromWalletId || w.id !== form.fromWalletId
+                    ).length === 0 && (
+                      <p className="mt-1 text-sm text-[#9CA3AF]">
+                        ต้องมีอย่างน้อย 2 กระเป๋าในการโอนภายใน
+                      </p>
+                    )}
                   {form.type === 'INTERNAL' && sameWallet && (
                     <p className="mt-1 text-sm text-red-400">
                       ไม่สามารถโอนไปยังกระเป๋าเดียวกันได้
