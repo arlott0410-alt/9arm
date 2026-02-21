@@ -33,7 +33,7 @@ Copy app icon ไปที่ `public/icon.png` (แนะนำ 512×512 px ห
 1. **Workers & Pages** → **Create application** → **Workers** → **Connect to Git**
 2. เลือก GitHub repository
 3. **Build configuration**:
-   - **Build command**: `npm install && npm run deploy`
+   - **Build command**: `npm install && npm run build:cf`
    - **Build output directory**: (เว้นว่าง — OpenNext deploy เอง)
 4. **Root directory**: (เว้นว่าง หรือ `/` ถ้าต้องการ)
 
