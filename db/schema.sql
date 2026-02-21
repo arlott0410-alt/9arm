@@ -1,6 +1,3 @@
--- 9arm Ledger - Full schema for Cloudflare D1
--- Execute this in Cloudflare D1 Dashboard > Execute SQL
-
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   username TEXT NOT NULL UNIQUE,
@@ -88,7 +85,6 @@ CREATE TABLE IF NOT EXISTS settings (
   value TEXT NOT NULL
 );
 
--- Indexes
 CREATE INDEX IF NOT EXISTS idx_transactions_txn_date ON transactions(txn_date);
 CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
 CREATE INDEX IF NOT EXISTS idx_transactions_website_id ON transactions(website_id);
