@@ -20,7 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { getAllRateKeys } from '@/lib/rates';
+import { BASE_RATE_KEYS, expandRatesFromBase, getBaseRatesFromFull } from '@/lib/rates';
 
 type Website = { id: number; name: string; prefix: string };
 type AppUser = {
@@ -76,7 +76,7 @@ export default function SettingsPage() {
       setWebsites(Array.isArray(w) ? w : []);
       setUsers(Array.isArray(u) ? u : []);
       setDisplayCurrency(s.DISPLAY_CURRENCY || 'THB');
-      setRates(r.rates || {});
+      setRates(getBaseRatesFromFull(r.rates || {}));
     });
   }, [user]);
 
@@ -96,11 +96,13 @@ export default function SettingsPage() {
   async function saveRates() {
     setLoading(true);
     try {
+      const fullRates = expandRatesFromBase(rates);
       await fetch('/api/settings/exchange-rates', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rates }),
+        body: JSON.stringify({ rates: fullRates }),
       });
+      setRates(getBaseRatesFromFull(fullRates));
     } finally {
       setLoading(false);
     }
@@ -147,8 +149,6 @@ export default function SettingsPage() {
   }
 
   if (!user) return null;
-
-  const rateKeys = getAllRateKeys();
 
   return (
     <AppLayout user={user}>
@@ -251,12 +251,12 @@ export default function SettingsPage() {
           <CardHeader>
             <CardTitle className="text-[#E5E7EB]">อัตราแลกเปลี่ยน</CardTitle>
             <p className="text-sm text-[#9CA3AF]">
-              ทุกคู่ (เช่น LAK_THB = 0.0025 คือ 1 LAK = 0.0025 THB)
+              กรอก 3 คู่หลัก — ระบบคำนวณคู่ผกผันให้อัตโนมัติ
             </p>
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {rateKeys.map((key) => (
+              {BASE_RATE_KEYS.map((key) => (
                 <div key={key} className="flex items-center gap-2">
                   <Label className="w-24 shrink-0 text-[#9CA3AF]">{key}</Label>
                   <Input

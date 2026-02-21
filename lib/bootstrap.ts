@@ -2,14 +2,10 @@ import type { Db } from '@/db';
 import { settings } from '@/db/schema';
 
 const DEFAULT_DISPLAY_CURRENCY = 'THB';
-const DEFAULT_RATES: Record<string, number> = {
-  LAK_THB: 0.0025,
-  LAK_USD: 0.00007,
-  THB_LAK: 400,
-  THB_USD: 0.028,
-  USD_LAK: 14000,
-  USD_THB: 35.5,
-};
+import { expandRatesFromBase } from '@/lib/rates';
+
+const DEFAULT_BASE = { THB_LAK: 400, USD_THB: 35.5, USD_LAK: 14000 };
+const DEFAULT_RATES = expandRatesFromBase(DEFAULT_BASE);
 
 export async function bootstrapSettings(db: Db): Promise<void> {
   const rows = await db.select().from(settings);
