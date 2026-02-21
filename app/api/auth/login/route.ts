@@ -1,5 +1,3 @@
-export const runtime = 'edge';
-
 import { NextResponse } from 'next/server';
 import { eq, and } from 'drizzle-orm';
 import { users, sessions } from '@/db/schema';
@@ -129,7 +127,7 @@ export async function POST(request: Request) {
     console.error('Login error:', err);
     const msg = err instanceof Error ? err.message : String(err);
     const isSchema = /no such table|SQLITE_ERROR|syntax error/i.test(msg);
-    const isEnv = /DB_NOT_CONFIGURED|APP_SECRET|RUNTIME_ERROR|getRequestContext/i.test(msg);
+    const isEnv = /DB_NOT_CONFIGURED|APP_SECRET|RUNTIME_ERROR|getCloudflareContext/i.test(msg);
     return NextResponse.json(
       {
         error: isSchema

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getRequestContext } from '@cloudflare/next-on-pages';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getDb } from '@/db';
 
 export type Env = {
@@ -13,18 +13,18 @@ export type Env = {
 /** Validates Cloudflare env and returns db + env, or an error response. */
 export function getEnvAndDb(opts?: { requireAppSecret?: boolean }): { db: ReturnType<typeof getDb>; env: Env } | NextResponse {
   try {
-    const { env } = getRequestContext();
+    const { env } = getCloudflareContext();
     if (!env?.DB) {
-      console.error('D1 binding "DB" is not configured. Add it in Cloudflare Pages → Settings → Functions → D1 database bindings.');
+      console.error('D1 binding "DB" is not configured. Add it in wrangler.jsonc d1_databases.');
       return NextResponse.json(
-        { error: 'DB_NOT_CONFIGURED', message: 'Database binding is missing. Check Cloudflare Pages settings.' },
+        { error: 'DB_NOT_CONFIGURED', message: 'Database binding is missing. Check wrangler config.' },
         { status: 503 }
       );
     }
     if (opts?.requireAppSecret !== false && !env?.APP_SECRET) {
-      console.error('APP_SECRET environment variable is not set. Add it in Cloudflare Pages → Settings → Environment variables.');
+      console.error('APP_SECRET environment variable is not set. Set it in Cloudflare Dashboard or .dev.vars.');
       return NextResponse.json(
-        { error: 'APP_SECRET_MISSING', message: 'APP_SECRET is not configured. Check Cloudflare Pages settings.' },
+        { error: 'APP_SECRET_MISSING', message: 'APP_SECRET is not configured.' },
         { status: 503 }
       );
     }

@@ -1,0 +1,8 @@
+# Copy to .dev.vars for local development
+# Set NEXTJS_ENV=development to load .env.development
+NEXTJS_ENV=development
+
+# These are also needed for local wrangler dev (or use .env.development)
+# APP_SECRET=your-secret
+# SUPERADMIN_USERNAME=admin
+# SUPERADMIN_PASSWORD=your-password

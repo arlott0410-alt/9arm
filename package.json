@@ -4,10 +4,12 @@
   "private": true,
   "scripts": {
     "build": "next build",
-    "pages:build": "npx @cloudflare/next-on-pages"
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },
   "dependencies": {
-    "@cloudflare/next-on-pages": "^1.13.7",
+    "@opennextjs/cloudflare": "^1.16.0",
     "drizzle-orm": "^0.31.0",
     "lucide-react": "^0.468.0",
     "next": "14.2.35",
@@ -26,6 +28,7 @@
     "@radix-ui/react-toast": "^1.2.4"
   },
   "devDependencies": {
+    "wrangler": "^4.36.0",
     "@cloudflare/workers-types": "^4.20241224.0",
     "@types/node": "^22",
     "@types/react": "^18",

@@ -1,0 +1,25 @@
+---
+description: ข้อจำกัดการ deploy - ห้ามใช้ Node/Wrangler ท้องถิ่น
+alwaysApply: true
+---
+
+# ข้อจำกัดการ Deploy (จำไว้ทุกครั้ง)
+
+## กฎสำคัญ – ห้ามลืม
+
+- **ห้าม** ติดตั้ง Node.js บนเครื่องของ user
+- **ห้าม** รัน Wrangler ท้องถิ่น
+- **ห้าม** รัน npm/node ใดๆ บนเครื่องของ user
+- **ปรับตั้งค่าทั้งหมดบน Cloudflare Dashboard เท่านั้น**
+
+## สิ่งที่ต้องทำเสมอ
+
+- การ deploy ทำผ่าน **Git push** → Cloudflare build และ deploy เอง
+- Environment variables, D1 binding, Secrets ตั้งใน **Dashboard** เท่านั้น
+- Documentation และ README ต้องเขียนแบบ "Dashboard only" ไม่มีคำสั่ง local
+
+## เมื่อเขียน/แก้ไข README หรือ deployment docs
+
+1. ไม่ใส่คำสั่ง `npm install`, `npm run deploy`, `wrangler` ฯลฯ ที่ user ต้องรันเอง
+2. เน้นขั้นตอน: Push to Git → ตั้งค่าใน Dashboard → Deploy อัตโนมัติ
+3. ทุกครั้งที่แก้ deployment guide ให้ตรวจสอบว่าไม่มี local Node/Wrangler

@@ -1,5 +1,3 @@
-export const runtime = 'edge';
-
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth, requireSettings } from '@/lib/api-helpers';
 import { settings } from '@/db/schema';

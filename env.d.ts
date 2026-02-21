@@ -5,23 +5,11 @@ declare module '*.css' {
   export default content;
 }
 
-type CloudflareEnv = {
+// Run `npm run cf-typegen` to generate from wrangler.jsonc
+interface CloudflareEnv {
   DB: D1Database;
   APP_SECRET: string;
   SESSION_TTL_HOURS?: string;
   SUPERADMIN_USERNAME?: string;
   SUPERADMIN_PASSWORD?: string;
-};
-
-declare module '@cloudflare/next-on-pages' {
-  export function getRequestContext(): {
-    env: CloudflareEnv;
-    cf: IncomingRequestCfProperties | undefined;
-    ctx: ExecutionContext;
-  };
-  export function getOptionalRequestContext(): {
-    env: CloudflareEnv;
-    cf: IncomingRequestCfProperties | undefined;
-    ctx: ExecutionContext;
-  } | undefined;
 }

@@ -2,120 +2,110 @@
 
 Production-ready internal web app for recording deposit/withdraw + income/expense ledger for multiple gambling websites. Includes wallets, transfers, dashboards, reports, and CSV export.
 
+---
+
+## ⚠️ ข้อจำกัดสำคัญ – ห้ามลืม
+
+**ไม่ต้องติดตั้ง Node.js หรือ Wrangler บนเครื่อง**
+
+- ตั้งค่าทั้งหมดบน **Cloudflare Dashboard** เท่านั้น
+- Deploy โดย **Push ขึ้น Git** — Cloudflare จะ build และ deploy ให้
+- ไม่มีคำสั่ง local ที่ user ต้องรันเอง
+
+---
+
 ## PWA & Icon
 
-Copy your app icon to `public/icon.png` (recommended: 512×512 px or larger). The app uses it as favicon, PWA icon, and Apple touch icon. `public/manifest.webmanifest` is configured for PWA install.
+Copy app icon ไปที่ `public/icon.png` (แนะนำ 512×512 px หรือใหญ่กว่า)
 
-## Deployment (GitHub → Cloudflare Pages)
+## Deployment (Dashboard + Git เท่านั้น)
 
-The app is designed to deploy exclusively via **GitHub → Cloudflare Pages** integration. No local Node.js, Wrangler, or database setup is required on your machine.
+แอปใช้ **@opennextjs/cloudflare** deploy เป็น **Workers** — ตั้งค่าทั้งหมดบน Dashboard
 
-### 1. Push to GitHub
+### 1. สร้าง D1 Database
 
-Push this repository to a GitHub repository.
+1. Cloudflare Dashboard → **Workers & Pages** → **D1** → **Create database**
+2. ตั้งชื่อ (เช่น `9arm-ledger-db`)
+3. บันทึก **Database ID**
 
-### 2. Create Cloudflare Pages Project
+### 2. สร้าง Workers Project + เชื่อม Git
 
-1. Go to [Cloudflare Dashboard](https://dash.cloudflare.com) → **Workers & Pages** → **Create application** → **Pages** → **Connect to Git**.
-2. Select your GitHub repository.
-3. Configure:
-   - **Project name**: 9arm-ledger (or your choice)
-   - **Production branch**: main (or your default branch)
-   - **Framework preset**: Next.js
-   - **Build command**: `npx @cloudflare/next-on-pages`
-   - **Build output directory**: `.vercel/output/static`
+1. **Workers & Pages** → **Create application** → **Workers** → **Connect to Git**
+2. เลือก GitHub repository
+3. **Build configuration**:
+   - **Build command**: `npm install && npm run deploy`
+   - **Build output directory**: (เว้นว่าง — OpenNext deploy เอง)
+4. **Root directory**: (เว้นว่าง หรือ `/` ถ้าต้องการ)
 
-   > **Note**: `@cloudflare/next-on-pages` produces output in `.vercel/output/static`. Use this exact path as the build output directory.
+### 3. ผูก D1 กับ Workers
 
-4. Under **Build configuration** (optional): If `npm install` fails with peer dependency errors, set **Install command** to `npm install --legacy-peer-deps`.
+1. เข้า Workers project → **Settings** → **Bindings**
+2. **D1 database bindings** → **Add binding**
+3. **Variable name**: `DB`
+4. **D1 database**: เลือก database ที่สร้างในขั้นตอนที่ 1
 
-5. Under **Variables and Secrets**, add:
-   - `NODE_VERSION`: `18` (or higher)
-   - `APP_SECRET`: a long random string for signing sessions (e.g. generate with `openssl rand -hex 32`)
-   - `SUPERADMIN_USERNAME`: ชื่อผู้ใช้ Superadmin (เช่น `admin`)
-   - `SUPERADMIN_PASSWORD`: รหัสผ่าน Superadmin (ตั้งเป็น Secret) — อย่างน้อย 8 ตัว
-   - `SESSION_TTL_HOURS`: `24` (optional; default 24)
+### 4. ตั้งค่า Environment Variables
 
-6. Go to **Settings** → **Functions** → **Compatibility Flags**:
-   - Add `nodejs_compat` for both Production and Preview
-   - Set **Compatibility date** to at least `2022-11-30`
+1. Workers project → **Settings** → **Variables and Secrets**
+2. เพิ่ม:
+   - `APP_SECRET`: สตริงสุ่มยาว (เช่น สร้างจาก [generate](https://generate-secret.vercel.app/32))
+   - `SUPERADMIN_USERNAME`: ชื่อผู้ใช้ Superadmin
+   - `SUPERADMIN_PASSWORD`: รหัสผ่าน Superadmin (อย่างน้อย 8 ตัว)
+   - `SESSION_TTL_HOURS`: `24` (optional)
 
-### 3. Create D1 Database
+> สำหรับ **Workers Builds**: ต้องตั้ง Build variables ด้วย (เช็ก [OpenNext env vars](https://opennext.js.org/cloudflare/howtos/env-vars#workers-builds))
 
-1. In Cloudflare Dashboard: **Workers & Pages** → **D1** → **Create database**.
-2. Name it (e.g. `9arm-ledger-db`).
-3. Create the database and note the **Database ID**.
+### 5. แก้ wrangler.jsonc ใน repo
 
-### 4. Bind D1 to Pages Project
+แก้ `database_id` ใน `d1_databases` ให้ตรงกับ D1 จริง แล้ว push ขึ้น Git
 
-1. Go to your Pages project → **Settings** → **Functions**.
-2. Under **D1 database bindings**, click **Add binding**.
-3. **Variable name**: `DB` (must be exactly `DB`).
-4. **D1 database**: Select the database you created.
-5. Save.
+### 6. รัน Schema ใน D1
 
-### 5. Execute Schema (Required)
+1. **Workers & Pages** → **D1** → เลือก database
+2. เปิด **Console** (Execute SQL)
+3. คัดลอก `db/schema.sql` วาง แล้ว **Execute**
 
-**หากไม่รัน schema จะเกิด error 500 เมื่อสร้างบัญชีแรก**
+### 7. Deploy
 
-1. Go to **Workers & Pages** → **D1** → Select your database.
-2. Open **Console** (Execute SQL).
-3. Copy the contents of `db/schema.sql` and paste into the console.
-4. Click **Execute**.
+Push commit ขึ้น Git → Cloudflare จะ build และ deploy อัตโนมัติ
 
-### 6. Deploy
+### 8. Login
 
-After saving all settings, trigger a deploy (or push a commit). The build command runs `next build` (via `npm run build`) then produces Pages output. Use `npx @cloudflare/next-on-pages` as the build command — not `npm run build` — to avoid recursive build errors.
+เข้าสู่ระบบด้วย `SUPERADMIN_USERNAME` และ `SUPERADMIN_PASSWORD`
 
-### 7. Login
-
-เข้าสู่ระบบด้วย **SUPERADMIN_USERNAME** และ **SUPERADMIN_PASSWORD** ที่ตั้งใน Variables and Secrets
+---
 
 ## Troubleshooting
 
-### API returns 500 / 503
+### เปิด /api/health เพื่อตรวจสอบ
 
-เปิด **https://your-site.pages.dev/api/health** เพื่อตรวจสอบสถานะ — จะแสดงว่า DB, APP_SECRET, SUPERADMIN ตั้งค่าถูกต้องหรือยัง และ schema รันแล้วหรือยัง
+`https://your-worker.workers.dev/api/health` จะแสดงสถานะ DB, APP_SECRET, SUPERADMIN และ schema
 
-1. **Check D1 binding**: Cloudflare Dashboard → Pages project → **Settings** → **Functions** → **D1 database bindings**
-   - Variable name must be exactly `DB`
-   - Must be bound to your D1 database
+1. **DB binding**: ผูก D1 ใน Settings → Bindings ชื่อ `DB`
+2. **APP_SECRET**: ตั้งใน Variables and Secrets
+3. **Schema**: รัน `db/schema.sql` ใน D1 Console
+4. **SUPERADMIN**: ตั้ง `SUPERADMIN_USERNAME` และ `SUPERADMIN_PASSWORD`
 
-2. **Check environment variables**: **Settings** → **Environment variables**
-   - `APP_SECRET` must be set (e.g. `openssl rand -hex 32`)
-   - Apply to Production and Preview
+### Custom Domain
 
-3. **Check schema**: D1 → your database → **Console** → run `db/schema.sql` if tables don't exist
+Workers → **Settings** → **Domains & Routes** → Add custom domain
 
-4. **Check SUPERADMIN**: ต้องตั้ง `SUPERADMIN_USERNAME` และ `SUPERADMIN_PASSWORD` ใน Variables and Secrets เพื่อเข้าสู่ระบบครั้งแรก
-
-5. **Schema not run**: รัน `db/schema.sql` ใน D1 Console (step 5)
-
-### Node.JS Compatibility Error
-
-Add `nodejs_compat` under **Settings** → **Functions** → **Compatibility Flags** for both Production and Preview.
+---
 
 ## Features
 
-- **Auth**: Login with username/password, HttpOnly session cookies, RBAC (SUPER_ADMIN, ADMIN, AUDIT).
-- **Transactions**: Deposit/Withdraw forms, listing with filters, edit with reason + audit trail.
-- **Wallets**: Create wallets with opening balance; balances computed from transactions + transfers.
-- **Transfers**: Internal, External Out, External In.
-- **Dashboard**: Today/month deposits, withdraws, net; wallet balances.
-- **Reports**: Daily/Monthly/Yearly summaries for transactions and transfers.
-- **CSV Export**: Transactions and transfers with filters.
-- **Settings** (SUPER_ADMIN only): Websites, users, display currency, exchange rates.
-
-## Caching
-
-- **API routes** (`/api/*`): `Cache-Control: no-store, no-cache, must-revalidate, private` — responses are never cached (auth, ledger data).
-- **Static assets** (JS, CSS, images): Use default caching from Next.js/Cloudflare.
-- **Client fetch**: Relies on server headers; no client-side cache override needed.
+- **Auth**: Login, HttpOnly cookies, RBAC (SUPER_ADMIN, ADMIN, AUDIT)
+- **Transactions**: Deposit/Withdraw, listing, edit with audit trail
+- **Wallets**: Opening balance, computed balances
+- **Transfers**: Internal, External Out, External In
+- **Dashboard**: Today/month summary
+- **Reports**: Daily/Monthly/Yearly
+- **CSV Export**: Transactions and transfers
+- **Settings** (SUPER_ADMIN): Websites, users, currency, exchange rates
 
 ## Tech Stack
 
 - Next.js 14 App Router + TypeScript
-- Cloudflare Pages + Pages Functions (Workers runtime)
+- Cloudflare Workers + @opennextjs/cloudflare
 - D1 (SQLite) + Drizzle ORM
-- Zod validation, WebCrypto PBKDF2 for passwords
 - TailwindCSS + shadcn/ui + lucide-react

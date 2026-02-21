@@ -6,10 +6,12 @@ node_modules
 # Build
 .next
 .vercel
+.open-next
 out
 
 # Env
 .env
+.dev.vars
 .env.local
 .env.development.local
 .env.test.local
