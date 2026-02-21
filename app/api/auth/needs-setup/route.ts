@@ -22,6 +22,14 @@ export async function GET() {
     return NextResponse.json({ needsSetup: existing.length === 0 });
   } catch (err) {
     console.error('Needs setup error:', err);
+    const msg = err instanceof Error ? err.message : '';
+    const isDbError = /no such table|SQLITE_ERROR|syntax error/i.test(msg);
+    if (isDbError) {
+      return NextResponse.json(
+        { error: 'DB_SCHEMA', message: 'Database schema not initialized. Run db/schema.sql in D1 Console.' },
+        { status: 503 }
+      );
+    }
     return NextResponse.json({ needsSetup: false }, { status: 200 });
   }
 }

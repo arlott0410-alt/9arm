@@ -23,7 +23,7 @@ export default function LoginPage() {
     fetch('/api/auth/needs-setup')
       .then(async (r) => {
         const d = await safeJson<{ needsSetup?: boolean; error?: string; message?: string }>(r);
-        if (!r.ok && (d?.error === 'DB_NOT_CONFIGURED' || d?.error === 'APP_SECRET_MISSING' || d?.error === 'RUNTIME_ERROR')) {
+        if (!r.ok && (d?.error === 'DB_NOT_CONFIGURED' || d?.error === 'APP_SECRET_MISSING' || d?.error === 'RUNTIME_ERROR' || d?.error === 'DB_SCHEMA')) {
           setConfigError(d?.message || 'Server configuration error. Check Cloudflare Pages settings.');
         }
         setNeedsSetup(d?.needsSetup ?? false);
@@ -66,9 +66,10 @@ export default function LoginPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password: setupPassword }),
       });
-      const data = await safeJson<{ error?: string }>(res);
+      const data = await safeJson<{ error?: string; code?: string }>(res);
       if (!res.ok) {
         setError(data?.error || 'สร้างบัญชีไม่สำเร็จ');
+        if (data?.code === 'DB_SCHEMA') setConfigError(data?.error || '');
         return;
       }
       router.replace('/dashboard');
@@ -168,7 +169,7 @@ export default function LoginPage() {
             <Button type="submit" disabled={loading} className="w-full">
               {loading ? '...' : isSetupMode ? 'สร้างบัญชี' : 'เข้าสู่ระบบ'}
             </Button>
-            {!isSetupMode && (
+            {!isSetupMode && needsSetup === true && (
               <p className="text-center text-sm text-[#9CA3AF]">
                 ยังไม่มีบัญชี?{' '}
                 <button

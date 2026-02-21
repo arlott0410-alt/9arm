@@ -52,7 +52,9 @@ Push this repository to a GitHub repository.
 4. **D1 database**: Select the database you created.
 5. Save.
 
-### 5. Execute Schema
+### 5. Execute Schema (Required)
+
+**หากไม่รัน schema จะเกิด error 500 เมื่อสร้างบัญชีแรก**
 
 1. Go to **Workers & Pages** → **D1** → Select your database.
 2. Open **Console** (Execute SQL).
@@ -86,7 +88,9 @@ If `/api/auth/needs-setup` or `/api/auth/me` returns 500/503:
 
 3. **Check schema**: D1 → your database → **Console** → run `db/schema.sql` if tables don't exist
 
-4. **Check Network tab**: Open DevTools (F12) → Network → reload. If `/api/auth/needs-setup` returns 503 with `DB_NOT_CONFIGURED` or `APP_SECRET_MISSING`, fix the corresponding setting and redeploy.
+4. **Check Network tab**: Open DevTools (F12) → Network → reload. If `/api/auth/needs-setup` returns 503 with `DB_NOT_CONFIGURED`, `APP_SECRET_MISSING`, or `DB_SCHEMA`, fix the corresponding setting and redeploy.
+
+5. **Schema not run**: If you see "Database schema not initialized" — run `db/schema.sql` in D1 Console (see Deployment step 5).
 
 ### Node.JS Compatibility Error
 
@@ -102,6 +106,12 @@ Add `nodejs_compat` under **Settings** → **Functions** → **Compatibility Fla
 - **Reports**: Daily/Monthly/Yearly summaries for transactions and transfers.
 - **CSV Export**: Transactions and transfers with filters.
 - **Settings** (SUPER_ADMIN only): Websites, users, display currency, exchange rates.
+
+## Caching
+
+- **API routes** (`/api/*`): `Cache-Control: no-store, no-cache, must-revalidate, private` — responses are never cached (auth, ledger data).
+- **Static assets** (JS, CSS, images): Use default caching from Next.js/Cloudflare.
+- **Client fetch**: Relies on server headers; no client-side cache override needed.
 
 ## Tech Stack
 

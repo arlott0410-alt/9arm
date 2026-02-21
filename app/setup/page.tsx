@@ -46,7 +46,7 @@ export default function SetupPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
       });
-      const data = await safeJson<{ error?: string }>(res);
+      const data = await safeJson<{ error?: string; code?: string }>(res);
       if (!res.ok) {
         setError(data?.error || 'สร้างบัญชีไม่สำเร็จ');
         return;
