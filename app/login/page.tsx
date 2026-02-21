@@ -169,17 +169,9 @@ export default function LoginPage() {
             <Button type="submit" disabled={loading} className="w-full">
               {loading ? '...' : isSetupMode ? 'สร้างบัญชี' : 'เข้าสู่ระบบ'}
             </Button>
-            {!isSetupMode && needsSetup === true && (
+            {needsSetup === true && (
               <p className="text-center text-sm text-[#9CA3AF]">
-                ยังไม่มีบัญชี?{' '}
-                <button
-                  type="button"
-                  onClick={() => setShowSetup(true)}
-                  className="text-[#D4AF37] hover:underline"
-                >
-                  สร้างบัญชีแรก
-                </button>
-                {' · '}
+                หรือไปที่{' '}
                 <a href="/setup" className="text-[#D4AF37] hover:underline">
                   หน้า Setup
                 </a>
