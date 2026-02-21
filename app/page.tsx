@@ -2,14 +2,15 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { safeJson } from '@/lib/fetch-json';
 
 export default function Home() {
   const router = useRouter();
   useEffect(() => {
     fetch('/api/auth/me')
-      .then((r) => r.json() as Promise<{ user?: unknown }>)
+      .then((r) => safeJson<{ user?: unknown }>(r))
       .then((data) => {
-        if (data.user) {
+        if (data?.user) {
           router.replace('/dashboard');
         } else {
           router.replace('/login');

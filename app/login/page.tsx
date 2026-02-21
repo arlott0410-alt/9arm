@@ -6,11 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { safeJson } from '@/lib/fetch-json';
 
 export default function LoginPage() {
   const router = useRouter();
   const [needsSetup, setNeedsSetup] = useState<boolean | null>(null);
   const [configError, setConfigError] = useState<string | null>(null);
+  const [showSetup, setShowSetup] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [setupPassword, setSetupPassword] = useState('');
@@ -20,11 +22,11 @@ export default function LoginPage() {
   useEffect(() => {
     fetch('/api/auth/needs-setup')
       .then(async (r) => {
-        const d = (await r.json()) as { needsSetup?: boolean; error?: string; message?: string };
-        if (!r.ok && (d.error === 'DB_NOT_CONFIGURED' || d.error === 'APP_SECRET_MISSING' || d.error === 'RUNTIME_ERROR')) {
-          setConfigError(d.message || 'Server configuration error. Check Cloudflare Pages settings.');
+        const d = await safeJson<{ needsSetup?: boolean; error?: string; message?: string }>(r);
+        if (!r.ok && (d?.error === 'DB_NOT_CONFIGURED' || d?.error === 'APP_SECRET_MISSING' || d?.error === 'RUNTIME_ERROR')) {
+          setConfigError(d?.message || 'Server configuration error. Check Cloudflare Pages settings.');
         }
-        setNeedsSetup(d.needsSetup ?? false);
+        setNeedsSetup(d?.needsSetup ?? false);
       })
       .catch(() => setNeedsSetup(false));
   }, []);
@@ -39,9 +41,9 @@ export default function LoginPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
       });
-      const data = (await res.json()) as { error?: string };
+      const data = await safeJson<{ error?: string }>(res);
       if (!res.ok) {
-        setError(data.error || 'เข้าสู่ระบบไม่สำเร็จ');
+        setError(data?.error || 'เข้าสู่ระบบไม่สำเร็จ');
         return;
       }
       router.replace('/dashboard');
@@ -64,9 +66,9 @@ export default function LoginPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password: setupPassword }),
       });
-      const data = (await res.json()) as { error?: string };
+      const data = await safeJson<{ error?: string }>(res);
       if (!res.ok) {
-        setError(data.error || 'สร้างบัญชีไม่สำเร็จ');
+        setError(data?.error || 'สร้างบัญชีไม่สำเร็จ');
         return;
       }
       router.replace('/dashboard');
@@ -74,6 +76,8 @@ export default function LoginPage() {
       setLoading(false);
     }
   }
+
+  const isSetupMode = needsSetup || showSetup;
 
   if (needsSetup === null && !configError) {
     return (
@@ -106,17 +110,17 @@ export default function LoginPage() {
       <Card className="w-full max-w-md border-[#1F2937] bg-[#0F172A]">
         <CardHeader>
           <CardTitle className="text-[#D4AF37]">
-            {needsSetup ? 'สร้าง Superadmin' : 'เข้าสู่ระบบ'}
+            {isSetupMode ? 'สร้างบัญชีแรก (Superadmin)' : 'เข้าสู่ระบบ'}
           </CardTitle>
-          {needsSetup && (
+          {isSetupMode && (
             <p className="text-sm text-[#9CA3AF]">
-              การตั้งค่าครั้งแรก สร้างบัญชี Superadmin ได้เพียงครั้งเดียวเท่านั้น
+              สร้างบัญชี Superadmin ได้เพียงครั้งเดียวเท่านั้น
             </p>
           )}
         </CardHeader>
         <CardContent>
           <form
-            onSubmit={needsSetup ? handleSetup : handleLogin}
+            onSubmit={isSetupMode ? handleSetup : handleLogin}
             className="space-y-4"
           >
             <div>
@@ -130,7 +134,7 @@ export default function LoginPage() {
                 className="mt-1"
               />
             </div>
-            {needsSetup ? (
+            {isSetupMode ? (
               <div>
                 <Label htmlFor="setupPassword">รหัสผ่าน (อย่างน้อย 8 ตัว)</Label>
                 <Input
@@ -162,8 +166,35 @@ export default function LoginPage() {
               <p className="text-sm text-red-500">{error}</p>
             )}
             <Button type="submit" disabled={loading} className="w-full">
-              {loading ? '...' : needsSetup ? 'สร้าง Superadmin' : 'เข้าสู่ระบบ'}
+              {loading ? '...' : isSetupMode ? 'สร้างบัญชี' : 'เข้าสู่ระบบ'}
             </Button>
+            {!isSetupMode && (
+              <p className="text-center text-sm text-[#9CA3AF]">
+                ยังไม่มีบัญชี?{' '}
+                <button
+                  type="button"
+                  onClick={() => setShowSetup(true)}
+                  className="text-[#D4AF37] hover:underline"
+                >
+                  สร้างบัญชีแรก
+                </button>
+                {' · '}
+                <a href="/setup" className="text-[#D4AF37] hover:underline">
+                  หน้า Setup
+                </a>
+              </p>
+            )}
+            {showSetup && !needsSetup && (
+              <p className="text-center text-sm text-[#9CA3AF]">
+                <button
+                  type="button"
+                  onClick={() => setShowSetup(false)}
+                  className="text-[#D4AF37] hover:underline"
+                >
+                  ← กลับไปเข้าสู่ระบบ
+                </button>
+              </p>
+            )}
           </form>
         </CardContent>
       </Card>
