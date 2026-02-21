@@ -86,7 +86,7 @@ export default function TransactionDetailPage() {
 
   useEffect(() => {
     fetch('/api/auth/me')
-      .then((r) => r.json())
+      .then((r) => r.json() as Promise<{ user?: { username: string; role: string } }>)
       .then((d) => {
         if (!d.user) router.replace('/login');
         else setUser(d.user);
@@ -96,7 +96,7 @@ export default function TransactionDetailPage() {
   useEffect(() => {
     if (!user || !id) return;
     fetch(`/api/transactions/${id}`)
-      .then((r) => r.json())
+      .then((r) => r.json() as Promise<TxnDetail & { error?: string }>)
       .then((d) => {
         if (d.error) return;
         setTxn(d);
@@ -115,8 +115,8 @@ export default function TransactionDetailPage() {
         });
       });
     Promise.all([
-      fetch('/api/settings/websites').then((r) => r.json()),
-      fetch('/api/wallets').then((r) => r.json()),
+      fetch('/api/settings/websites').then((r) => r.json() as Promise<{ id: number; name: string; prefix: string }[]>),
+      fetch('/api/wallets').then((r) => r.json() as Promise<{ id: number; name: string; currency: string }[]>),
     ]).then(([w, wal]) => {
       setWebsites(Array.isArray(w) ? w : []);
       setWallets(Array.isArray(wal) ? wal : []);
@@ -171,7 +171,7 @@ export default function TransactionDetailPage() {
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        const d = await fetch(`/api/transactions/${id}`).then((r) => r.json());
+        const d = (await fetch(`/api/transactions/${id}`).then((r) => r.json())) as TxnDetail;
         setTxn(d);
         setEditOpen(false);
       }

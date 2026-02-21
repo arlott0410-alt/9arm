@@ -45,7 +45,7 @@ export default function ReportsPage() {
 
   useEffect(() => {
     fetch('/api/auth/me')
-      .then((r) => r.json())
+      .then((r) => r.json() as Promise<{ user?: { username: string; role: string } }>)
       .then((d) => {
         if (!d.user) router.replace('/login');
         else setUser(d.user);
@@ -60,7 +60,7 @@ export default function ReportsPage() {
       ...(period === 'yearly' && { year }),
     });
     fetch(`/api/reports?${params}`)
-      .then((r) => r.json())
+      .then((r) => r.json() as Promise<NonNullable<typeof data>>)
       .then(setData);
   }, [user, period, year, month]);
 

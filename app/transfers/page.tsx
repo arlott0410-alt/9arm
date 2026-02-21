@@ -63,7 +63,7 @@ export default function TransfersPage() {
 
   useEffect(() => {
     fetch('/api/auth/me')
-      .then((r) => r.json())
+      .then((r) => r.json() as Promise<{ user?: { username: string; role: string } }>)
       .then((d) => {
         if (!d.user) router.replace('/login');
         else setUser(d.user);
@@ -73,8 +73,8 @@ export default function TransfersPage() {
   useEffect(() => {
     if (!user) return;
     Promise.all([
-      fetch('/api/wallets').then((r) => r.json()),
-      fetch('/api/settings').then((r) => r.json()),
+      fetch('/api/wallets').then((r) => r.json() as Promise<Wallet[]>),
+      fetch('/api/settings').then((r) => r.json() as Promise<{ DISPLAY_CURRENCY?: string }>),
     ]).then(([wal, set]) => {
       setWallets(Array.isArray(wal) ? wal : []);
       setSettings({
@@ -87,7 +87,7 @@ export default function TransfersPage() {
     if (!user) return;
     const params = new URLSearchParams({ dateFrom, dateTo });
     fetch(`/api/transfers?${params}`)
-      .then((r) => r.json())
+      .then((r) => r.json() as Promise<Transfer[]>)
       .then(setTransfers);
   }, [user, dateFrom, dateTo]);
 
@@ -119,9 +119,7 @@ export default function TransfersPage() {
         });
         setOpen(false);
         const params = new URLSearchParams({ dateFrom, dateTo });
-        const list = await fetch(`/api/transfers?${params}`).then((r) =>
-          r.json()
-        );
+        const list = (await fetch(`/api/transfers?${params}`).then((r) => r.json())) as Transfer[];
         setTransfers(list);
       }
     } finally {

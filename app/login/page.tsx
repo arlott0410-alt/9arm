@@ -18,7 +18,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     fetch('/api/auth/needs-setup')
-      .then((r) => r.json())
+      .then((r) => r.json() as Promise<{ needsSetup?: boolean }>)
       .then((d) => setNeedsSetup(d.needsSetup))
       .catch(() => setNeedsSetup(false));
   }, []);
@@ -33,7 +33,7 @@ export default function LoginPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
       });
-      const data = await res.json();
+      const data = (await res.json()) as { error?: string };
       if (!res.ok) {
         setError(data.error || 'เข้าสู่ระบบไม่สำเร็จ');
         return;
@@ -58,7 +58,7 @@ export default function LoginPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password: setupPassword }),
       });
-      const data = await res.json();
+      const data = (await res.json()) as { error?: string };
       if (!res.ok) {
         setError(data.error || 'สร้างบัญชีไม่สำเร็จ');
         return;

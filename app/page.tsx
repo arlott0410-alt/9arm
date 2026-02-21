@@ -7,7 +7,7 @@ export default function Home() {
   const router = useRouter();
   useEffect(() => {
     fetch('/api/auth/me')
-      .then((r) => r.json())
+      .then((r) => r.json() as Promise<{ user?: unknown }>)
       .then((data) => {
         if (data.user) {
           router.replace('/dashboard');

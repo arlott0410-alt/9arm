@@ -20,7 +20,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetch('/api/auth/me')
-      .then((r) => r.json())
+      .then((r) => r.json() as Promise<{ user?: { username: string; role: string } }>)
       .then((d) => {
         if (!d.user) {
           router.replace('/login');
@@ -33,7 +33,12 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!user) return;
     fetch('/api/dashboard')
-      .then((r) => r.json())
+      .then((r) => r.json() as Promise<{
+        displayCurrency: string;
+        today: { deposits: number; withdraws: number; net: number };
+        month: { deposits: number; withdraws: number; net: number };
+        wallets: { id: number; name: string; currency: string; balance: number }[];
+      }>)
       .then(setData)
       .catch(console.error);
   }, [user]);

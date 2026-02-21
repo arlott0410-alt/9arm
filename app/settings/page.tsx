@@ -51,7 +51,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     fetch('/api/auth/me')
-      .then((r) => r.json())
+      .then((r) => r.json() as Promise<{ user?: { username: string; role: string } }>)
       .then((d) => {
         if (!d.user) {
           router.replace('/login');
@@ -68,10 +68,10 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!user) return;
     Promise.all([
-      fetch('/api/settings/websites').then((r) => r.json()),
-      fetch('/api/settings/users').then((r) => r.json()),
-      fetch('/api/settings').then((r) => r.json()),
-      fetch('/api/settings/exchange-rates').then((r) => r.json()),
+      fetch('/api/settings/websites').then((r) => r.json() as Promise<Website[]>),
+      fetch('/api/settings/users').then((r) => r.json() as Promise<AppUser[]>),
+      fetch('/api/settings').then((r) => r.json() as Promise<{ DISPLAY_CURRENCY?: string }>),
+      fetch('/api/settings/exchange-rates').then((r) => r.json() as Promise<{ rates?: Record<string, number> }>),
     ]).then(([w, u, s, r]) => {
       setWebsites(Array.isArray(w) ? w : []);
       setUsers(Array.isArray(u) ? u : []);
@@ -116,7 +116,7 @@ export default function SettingsPage() {
         body: JSON.stringify(websiteForm),
       });
       if (res.ok) {
-        const created = await res.json();
+        const created = (await res.json()) as Website;
         setWebsites((prev) => [...prev, created]);
         setWebsiteForm({ name: '', prefix: '' });
         setWebsiteOpen(false);
@@ -136,7 +136,7 @@ export default function SettingsPage() {
         body: JSON.stringify(userForm),
       });
       if (res.ok) {
-        const created = await res.json();
+        const created = (await res.json()) as AppUser;
         setUsers((prev) => [...prev, created]);
         setUserForm({ username: '', password: '', role: 'ADMIN' });
         setUserOpen(false);

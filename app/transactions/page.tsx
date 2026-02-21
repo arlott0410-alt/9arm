@@ -77,10 +77,10 @@ export default function TransactionsPage() {
     const [wRes, walRes, setRes] = await Promise.all([
       fetch('/api/settings/websites'),
       fetch('/api/wallets'),
-      fetch('/api/settings').then((r) => r.json()),
+      fetch('/api/settings').then((r) => r.json() as Promise<{ DISPLAY_CURRENCY?: string; EXCHANGE_RATES?: Record<string, number> }>),
     ]);
-    const wData = await wRes.json();
-    const walData = await walRes.json();
+    const wData = (await wRes.json()) as Website[];
+    const walData = (await walRes.json()) as Wallet[];
     if (Array.isArray(wData)) setWebsites(wData);
     if (Array.isArray(walData)) setWallets(walData);
     if (setRes.DISPLAY_CURRENCY)
@@ -92,7 +92,7 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     fetch('/api/auth/me')
-      .then((r) => r.json())
+      .then((r) => r.json() as Promise<{ user?: { username: string; role: string } }>)
       .then((d) => {
         if (!d.user) router.replace('/login');
         else setUser(d.user);
@@ -114,8 +114,8 @@ export default function TransactionsPage() {
       ...(filterEdited && { editedOnly: 'true' }),
     });
     fetch(`/api/transactions?${params}`)
-      .then((r) => r.json())
-      .then((list: Txn[]) => {
+      .then((r) => r.json() as Promise<Txn[]>)
+      .then((list) => {
         setDeposits(list.filter((t) => t.type === 'DEPOSIT').sort((a, b) => (a.depositSlipTime || '').localeCompare(b.depositSlipTime || '')));
         setWithdraws(list.filter((t) => t.type === 'WITHDRAW').sort((a, b) => (a.withdrawSlipTime || '').localeCompare(b.withdrawSlipTime || '')));
       });
@@ -186,9 +186,9 @@ export default function TransactionsPage() {
       if (res.ok) {
         setDepositForm({ ...depositForm, amountMinor: 0, userIdInput: '' });
         const params = new URLSearchParams({ dateFrom, dateTo });
-        const list = await fetch(`/api/transactions?${params}`).then((r) => r.json());
-        setDeposits(list.filter((t: Txn) => t.type === 'DEPOSIT'));
-        setWithdraws(list.filter((t: Txn) => t.type === 'WITHDRAW'));
+        const list = (await fetch(`/api/transactions?${params}`).then((r) => r.json())) as Txn[];
+        setDeposits(list.filter((t) => t.type === 'DEPOSIT'));
+        setWithdraws(list.filter((t) => t.type === 'WITHDRAW'));
       }
     } finally {
       setLoading(false);
@@ -221,9 +221,9 @@ export default function TransactionsPage() {
       if (res.ok) {
         setWithdrawForm({ ...withdrawForm, withdrawInputAmountMinor: 0, userIdInput: '' });
         const params = new URLSearchParams({ dateFrom, dateTo });
-        const list = await fetch(`/api/transactions?${params}`).then((r) => r.json());
-        setDeposits(list.filter((t: Txn) => t.type === 'DEPOSIT'));
-        setWithdraws(list.filter((t: Txn) => t.type === 'WITHDRAW'));
+        const list = (await fetch(`/api/transactions?${params}`).then((r) => r.json())) as Txn[];
+        setDeposits(list.filter((t) => t.type === 'DEPOSIT'));
+        setWithdraws(list.filter((t) => t.type === 'WITHDRAW'));
       }
     } finally {
       setLoading(false);

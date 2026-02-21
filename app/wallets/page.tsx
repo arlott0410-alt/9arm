@@ -42,7 +42,7 @@ export default function WalletsPage() {
 
   useEffect(() => {
     fetch('/api/auth/me')
-      .then((r) => r.json())
+      .then((r) => r.json() as Promise<{ user?: { username: string; role: string } }>)
       .then((d) => {
         if (!d.user) router.replace('/login');
         else setUser(d.user);
@@ -52,14 +52,14 @@ export default function WalletsPage() {
   useEffect(() => {
     if (!user) return;
     fetch('/api/wallets')
-      .then((r) => r.json())
-      .then((list: Wallet[]) => {
+      .then((r) => r.json() as Promise<Wallet[]>)
+      .then((list) => {
         setWallets(list);
         return Promise.all(
           list.map((w) =>
             fetch(`/api/wallets/${w.id}`)
-              .then((r) => r.json())
-              .then((d: { balance: number }) => ({ id: w.id, balance: d.balance }))
+              .then((r) => r.json() as Promise<{ balance: number }>)
+              .then((d) => ({ id: w.id, balance: d.balance }))
           )
         );
       })
@@ -85,10 +85,10 @@ export default function WalletsPage() {
         }),
       });
       if (res.ok) {
-        const created = await res.json();
+        const created = (await res.json()) as Wallet;
         setWallets((prev) => [...prev, created]);
         const balRes = await fetch(`/api/wallets/${created.id}`);
-        const balData = await balRes.json();
+        const balData = (await balRes.json()) as { balance: number };
         setBalances((prev) => new Map(prev).set(created.id, balData.balance));
         setForm({ name: '', currency: 'THB', openingBalanceMinor: 0 });
         setOpen(false);
