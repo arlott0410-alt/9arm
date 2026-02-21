@@ -9,6 +9,8 @@ type CloudflareEnv = {
   DB: D1Database;
   APP_SECRET: string;
   SESSION_TTL_HOURS?: string;
+  SUPERADMIN_USERNAME?: string;
+  SUPERADMIN_PASSWORD?: string;
 };
 
 declare module '@cloudflare/next-on-pages' {

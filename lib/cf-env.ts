@@ -2,10 +2,12 @@ import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { getDb } from '@/db';
 
-type Env = {
+export type Env = {
   DB: D1Database;
   APP_SECRET: string;
   SESSION_TTL_HOURS?: string;
+  SUPERADMIN_USERNAME?: string;
+  SUPERADMIN_PASSWORD?: string;
 };
 
 /** Validates Cloudflare env and returns db + env, or an error response. */

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,26 +10,10 @@ import { safeJson } from '@/lib/fetch-json';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [needsSetup, setNeedsSetup] = useState<boolean | null>(null);
-  const [configError, setConfigError] = useState<string | null>(null);
-  const [showSetup, setShowSetup] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [setupPassword, setSetupPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    fetch('/api/auth/needs-setup')
-      .then(async (r) => {
-        const d = await safeJson<{ needsSetup?: boolean; error?: string; message?: string }>(r);
-        if (!r.ok && (d?.error === 'DB_NOT_CONFIGURED' || d?.error === 'APP_SECRET_MISSING' || d?.error === 'RUNTIME_ERROR' || d?.error === 'DB_SCHEMA')) {
-          setConfigError(d?.message || 'Server configuration error. Check Cloudflare Pages settings.');
-        }
-        setNeedsSetup(d?.needsSetup ?? false);
-      })
-      .catch(() => setNeedsSetup(false));
-  }, []);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -52,78 +36,14 @@ export default function LoginPage() {
     }
   }
 
-  async function handleSetup(e: React.FormEvent) {
-    e.preventDefault();
-    if (!username || !setupPassword || setupPassword.length < 8) {
-      setError('กรุณาใส่ชื่อผู้ใช้ และรหัสผ่านอย่างน้อย 8 ตัว');
-      return;
-    }
-    setError('');
-    setLoading(true);
-    try {
-      const res = await fetch('/api/auth/setup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password: setupPassword }),
-      });
-      const data = await safeJson<{ error?: string; code?: string }>(res);
-      if (!res.ok) {
-        setError(data?.error || 'สร้างบัญชีไม่สำเร็จ');
-        if (data?.code === 'DB_SCHEMA') setConfigError(data?.error || '');
-        return;
-      }
-      router.replace('/dashboard');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const isSetupMode = needsSetup || showSetup;
-
-  if (needsSetup === null && !configError) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0B0F1A]">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#D4AF37] border-t-transparent" />
-      </div>
-    );
-  }
-
-  if (configError) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0B0F1A] p-4">
-        <Card className="w-full max-w-md border-red-500/50 bg-[#0F172A]">
-          <CardHeader>
-            <CardTitle className="text-red-400">ข้อผิดพลาดการตั้งค่า</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-[#9CA3AF]">{configError}</p>
-            <p className="text-xs text-[#6B7280]">
-              ตรวจสอบ README: D1 binding (DB), APP_SECRET และ Compatibility Flags (nodejs_compat)
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#0B0F1A] p-4">
       <Card className="w-full max-w-md border-[#1F2937] bg-[#0F172A]">
         <CardHeader>
-          <CardTitle className="text-[#D4AF37]">
-            {isSetupMode ? 'สร้างบัญชีแรก (Superadmin)' : 'เข้าสู่ระบบ'}
-          </CardTitle>
-          {isSetupMode && (
-            <p className="text-sm text-[#9CA3AF]">
-              สร้างบัญชี Superadmin ได้เพียงครั้งเดียวเท่านั้น
-            </p>
-          )}
+          <CardTitle className="text-[#D4AF37]">เข้าสู่ระบบ</CardTitle>
         </CardHeader>
         <CardContent>
-          <form
-            onSubmit={isSetupMode ? handleSetup : handleLogin}
-            className="space-y-4"
-          >
+          <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <Label htmlFor="username">ชื่อผู้ใช้</Label>
               <Input
@@ -135,59 +55,22 @@ export default function LoginPage() {
                 className="mt-1"
               />
             </div>
-            {isSetupMode ? (
-              <div>
-                <Label htmlFor="setupPassword">รหัสผ่าน (อย่างน้อย 8 ตัว)</Label>
-                <Input
-                  id="setupPassword"
-                  type="password"
-                  value={setupPassword}
-                  onChange={(e) => setSetupPassword(e.target.value)}
-                  required
-                  minLength={8}
-                  autoComplete="new-password"
-                  className="mt-1"
-                />
-              </div>
-            ) : (
-              <div>
-                <Label htmlFor="password">รหัสผ่าน</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  autoComplete="current-password"
-                  className="mt-1"
-                />
-              </div>
-            )}
-            {error && (
-              <p className="text-sm text-red-500">{error}</p>
-            )}
+            <div>
+              <Label htmlFor="password">รหัสผ่าน</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+                className="mt-1"
+              />
+            </div>
+            {error && <p className="text-sm text-red-500">{error}</p>}
             <Button type="submit" disabled={loading} className="w-full">
-              {loading ? '...' : isSetupMode ? 'สร้างบัญชี' : 'เข้าสู่ระบบ'}
+              {loading ? '...' : 'เข้าสู่ระบบ'}
             </Button>
-            {needsSetup === true && (
-              <p className="text-center text-sm text-[#9CA3AF]">
-                หรือไปที่{' '}
-                <a href="/setup" className="text-[#D4AF37] hover:underline">
-                  หน้า Setup
-                </a>
-              </p>
-            )}
-            {showSetup && !needsSetup && (
-              <p className="text-center text-sm text-[#9CA3AF]">
-                <button
-                  type="button"
-                  onClick={() => setShowSetup(false)}
-                  className="text-[#D4AF37] hover:underline"
-                >
-                  ← กลับไปเข้าสู่ระบบ
-                </button>
-              </p>
-            )}
           </form>
         </CardContent>
       </Card>

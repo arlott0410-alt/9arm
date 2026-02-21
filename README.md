@@ -29,9 +29,11 @@ Push this repository to a GitHub repository.
 
 4. Under **Build configuration** (optional): If `npm install` fails with peer dependency errors, set **Install command** to `npm install --legacy-peer-deps`.
 
-5. Under **Environment variables (advanced)**, add:
+5. Under **Variables and Secrets**, add:
    - `NODE_VERSION`: `18` (or higher)
    - `APP_SECRET`: a long random string for signing sessions (e.g. generate with `openssl rand -hex 32`)
+   - `SUPERADMIN_USERNAME`: ชื่อผู้ใช้ Superadmin (เช่น `admin`)
+   - `SUPERADMIN_PASSWORD`: รหัสผ่าน Superadmin (ตั้งเป็น Secret) — อย่างน้อย 8 ตัว
    - `SESSION_TTL_HOURS`: `24` (optional; default 24)
 
 6. Go to **Settings** → **Functions** → **Compatibility Flags**:
@@ -65,18 +67,15 @@ Push this repository to a GitHub repository.
 
 After saving all settings, trigger a deploy (or push a commit). The build command runs `next build` (via `npm run build`) then produces Pages output. Use `npx @cloudflare/next-on-pages` as the build command — not `npm run build` — to avoid recursive build errors.
 
-### 7. Create Superadmin (First Time Only)
+### 7. Login
 
-1. Open your deployed site URL.
-2. You will see **Create Superadmin** (no login exists yet).
-3. Enter username and password (min 8 chars), then click **Create Superadmin**.
-4. After creation, the setup UI is permanently disabled. You will be logged in and redirected to the dashboard.
+เข้าสู่ระบบด้วย **SUPERADMIN_USERNAME** และ **SUPERADMIN_PASSWORD** ที่ตั้งใน Variables and Secrets
 
 ## Troubleshooting
 
-### API returns 500 / 503 — "เข้าสู่ระบบ" instead of "สร้าง Superadmin"
+### API returns 500 / 503
 
-If `/api/auth/needs-setup` or `/api/auth/me` returns 500/503:
+If `/api/auth/login` or `/api/auth/me` returns 500/503:
 
 1. **Check D1 binding**: Cloudflare Dashboard → Pages project → **Settings** → **Functions** → **D1 database bindings**
    - Variable name must be exactly `DB`
@@ -88,9 +87,9 @@ If `/api/auth/needs-setup` or `/api/auth/me` returns 500/503:
 
 3. **Check schema**: D1 → your database → **Console** → run `db/schema.sql` if tables don't exist
 
-4. **Check Network tab**: Open DevTools (F12) → Network → reload. If `/api/auth/needs-setup` returns 503 with `DB_NOT_CONFIGURED`, `APP_SECRET_MISSING`, or `DB_SCHEMA`, fix the corresponding setting and redeploy.
+4. **Check SUPERADMIN**: ต้องตั้ง `SUPERADMIN_USERNAME` และ `SUPERADMIN_PASSWORD` ใน Variables and Secrets เพื่อเข้าสู่ระบบครั้งแรก
 
-5. **Schema not run**: If you see "Database schema not initialized" — run `db/schema.sql` in D1 Console (see Deployment step 5).
+5. **Schema not run**: รัน `db/schema.sql` ใน D1 Console (step 5)
 
 ### Node.JS Compatibility Error
 
