@@ -123,9 +123,15 @@ export async function POST(request: Request) {
     return res;
   } catch (err) {
     console.error('Login error:', err);
+    const msg = err instanceof Error ? err.message : String(err);
+    const isSchema = /no such table|SQLITE_ERROR|syntax error/i.test(msg);
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      {
+        error: isSchema
+          ? 'Database schema not initialized. Run db/schema.sql in D1 Console.'
+          : 'Internal server error',
+      },
+      { status: isSchema ? 503 : 500 }
     );
   }
 }

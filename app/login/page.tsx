@@ -67,7 +67,23 @@ export default function LoginPage() {
                 className="mt-1"
               />
             </div>
-            {error && <p className="text-sm text-red-500">{error}</p>}
+            {error && (
+              <div className="space-y-1">
+                <p className="text-sm text-red-500">{error}</p>
+                <p className="text-xs text-[#6B7280]">
+                  ตรวจสอบ{' '}
+                  <a
+                    href="/api/health"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#D4AF37] hover:underline"
+                  >
+                    /api/health
+                  </a>{' '}
+                  เพื่อดูสถานะระบบ
+                </p>
+              </div>
+            )}
             <Button type="submit" disabled={loading} className="w-full">
               {loading ? '...' : 'เข้าสู่ระบบ'}
             </Button>

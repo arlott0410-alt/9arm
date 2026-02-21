@@ -75,7 +75,7 @@ After saving all settings, trigger a deploy (or push a commit). The build comman
 
 ### API returns 500 / 503
 
-If `/api/auth/login` or `/api/auth/me` returns 500/503:
+เปิด **https://your-site.pages.dev/api/health** เพื่อตรวจสอบสถานะ — จะแสดงว่า DB, APP_SECRET, SUPERADMIN ตั้งค่าถูกต้องหรือยัง และ schema รันแล้วหรือยัง
 
 1. **Check D1 binding**: Cloudflare Dashboard → Pages project → **Settings** → **Functions** → **D1 database bindings**
    - Variable name must be exactly `DB`
