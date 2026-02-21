@@ -18,7 +18,7 @@ Push this repository to a GitHub repository.
    - **Project name**: 9arm-ledger (or your choice)
    - **Production branch**: main (or your default branch)
    - **Framework preset**: Next.js
-   - **Build command**: `npm run build`
+   - **Build command**: `npx @cloudflare/next-on-pages`
    - **Build output directory**: `.vercel/output/static`
 
    > **Note**: `@cloudflare/next-on-pages` produces output in `.vercel/output/static`. Use this exact path as the build output directory.
@@ -57,7 +57,7 @@ Push this repository to a GitHub repository.
 
 ### 6. Deploy
 
-After saving all settings, trigger a deploy (or push a commit). The build will run `next build` followed by `npx @cloudflare/next-on-pages`.
+After saving all settings, trigger a deploy (or push a commit). The build command runs `next build` (via `npm run build`) then produces Pages output. Use `npx @cloudflare/next-on-pages` as the build command — not `npm run build` — to avoid recursive build errors.
 
 ### 7. Create Superadmin (First Time Only)
 

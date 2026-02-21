@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "next build && npx @cloudflare/next-on-pages",
-    "pages:build": "next build && npx @cloudflare/next-on-pages"
+    "build": "next build",
+    "pages:build": "npx @cloudflare/next-on-pages"
   },
   "dependencies": {
     "@cloudflare/next-on-pages": "^1.13.7",
