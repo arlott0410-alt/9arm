@@ -2,6 +2,10 @@
 
 Production-ready internal web app for recording deposit/withdraw + income/expense ledger for multiple gambling websites. Includes wallets, transfers, dashboards, reports, and CSV export.
 
+## PWA & Icon
+
+Copy your app icon to `public/icon.png` (recommended: 512×512 px or larger). The app uses it as favicon, PWA icon, and Apple touch icon. `public/manifest.webmanifest` is configured for PWA install.
+
 ## Deployment (GitHub → Cloudflare Pages)
 
 The app is designed to deploy exclusively via **GitHub → Cloudflare Pages** integration. No local Node.js, Wrangler, or database setup is required on your machine.

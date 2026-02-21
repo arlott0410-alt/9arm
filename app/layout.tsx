@@ -4,6 +4,12 @@ import './globals.css';
 export const metadata: Metadata = {
   title: '9arm Ledger',
   description: 'Internal gambling ledger',
+  manifest: '/manifest.webmanifest',
+  icons: {
+    icon: '/icon.png',
+    apple: '/icon.png',
+  },
+  themeColor: '#D4AF37',
 };
 
 export default function RootLayout({

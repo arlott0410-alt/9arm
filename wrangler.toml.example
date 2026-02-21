@@ -10,7 +10,7 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "9arm-ledger-db"
-database_id = "<YOUR_D1_DATABASE_ID>"
+database_id = "9ac85f4f-9e20-445a-bd04-9a66c052840b"
 
 # Environment variables (APP_SECRET, SESSION_TTL_HOURS) must be set in
 # Cloudflare Dashboard → Settings → Environment variables
