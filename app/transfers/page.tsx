@@ -41,7 +41,9 @@ type Transfer = {
   txnTime: string | null;
   type: string;
   fromWalletName: string | null;
+  fromWalletCurrency: string | null;
   toWalletName: string | null;
+  toWalletCurrency: string | null;
   inputAmountMinor: number;
   fromWalletAmountMinor: number | null;
   toWalletAmountMinor: number | null;
@@ -200,7 +202,16 @@ export default function TransfersPage() {
     window.open(`/api/transfers/export?${params}`, '_blank');
   }
 
-  const dispCur = (settings?.displayCurrency || 'THB') as Currency;
+  function getTransferAmountAndCurrency(t: Transfer): { amount: number; currency: string } {
+    if (t.type === 'EXTERNAL_OUT') {
+      const amt = t.fromWalletAmountMinor ?? t.inputAmountMinor;
+      const cur = t.fromWalletCurrency ?? 'THB';
+      return { amount: amt, currency: cur };
+    }
+    const amt = t.toWalletAmountMinor ?? t.fromWalletAmountMinor ?? t.inputAmountMinor;
+    const cur = t.toWalletCurrency ?? t.fromWalletCurrency ?? 'THB';
+    return { amount: amt, currency: cur };
+  }
   const rates = settings?.rates || {};
   const fromWallet =
     form.type !== 'EXTERNAL_IN' && form.fromWalletId
@@ -298,17 +309,26 @@ export default function TransfersPage() {
                           <span className="ml-2 text-[#9CA3AF]">{formatSlipTimeHHMM(t.txnTime)}</span>
                         )}
                       </td>
-                      <td className="py-3 text-[#9CA3AF]">{t.type}</td>
+                      <td className="py-3 text-[#9CA3AF]">
+                        {t.type === 'INTERNAL' ? 'ภายใน' : t.type === 'EXTERNAL_IN' ? 'รับจากภายนอก' : 'โอนออกภายนอก'}
+                      </td>
                       <td className="py-3 text-[#E5E7EB]">
                         {t.fromWalletName || '-'}
                       </td>
                       <td className="py-3 text-[#E5E7EB]">
                         {t.toWalletName || '-'}
                       </td>
-                      <td className="py-3 text-right font-medium text-[#D4AF37]">
-                        {formatMinorToDisplay(t.inputAmountMinor, dispCur)}
+                      <td className="py-3 text-right min-w-[100px]">
+                        {(() => {
+                          const { amount, currency } = getTransferAmountAndCurrency(t);
+                          return (
+                            <span className="font-medium text-[#D4AF37]">
+                              {formatMinorToDisplay(amount, currency)} {currency}
+                            </span>
+                          );
+                        })()}
                       </td>
-                      <td className="py-3 text-[#9CA3AF]">
+                      <td className="py-3 text-[#9CA3AF] max-w-[140px] truncate" title={t.note ?? undefined}>
                         {t.note || '-'}
                       </td>
                       <td className="py-3 text-[#9CA3AF]">

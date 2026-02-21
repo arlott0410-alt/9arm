@@ -57,35 +57,40 @@ export async function GET(request: Request) {
 
     const withNames = await Promise.all(
       list.map(async (t) => {
-        let fromName = null;
-        let toName = null;
-        let createdByUsername = '';
+        let fromName: string | null = null;
+        let fromCurrency: string | null = null;
+        let toName: string | null = null;
+        let toCurrency: string | null = null;
         if (t.fromWalletId) {
           const [w] = await db
-            .select({ name: wallets.name })
+            .select({ name: wallets.name, currency: wallets.currency })
             .from(wallets)
             .where(eq(wallets.id, t.fromWalletId))
             .limit(1);
           fromName = w?.name ?? null;
+          fromCurrency = w?.currency ?? null;
         }
         if (t.toWalletId) {
           const [w] = await db
-            .select({ name: wallets.name })
+            .select({ name: wallets.name, currency: wallets.currency })
             .from(wallets)
             .where(eq(wallets.id, t.toWalletId))
             .limit(1);
           toName = w?.name ?? null;
+          toCurrency = w?.currency ?? null;
         }
         const [u] = await db
           .select({ username: users.username })
           .from(users)
           .where(eq(users.id, t.createdBy))
           .limit(1);
-        createdByUsername = u?.username ?? '?';
+        const createdByUsername = u?.username ?? '?';
         return {
           ...t,
           fromWalletName: fromName,
+          fromWalletCurrency: fromCurrency,
           toWalletName: toName,
+          toWalletCurrency: toCurrency,
           createdByUsername,
         };
       })
