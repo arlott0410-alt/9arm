@@ -23,12 +23,14 @@ Push this repository to a GitHub repository.
 
    > **Note**: `@cloudflare/next-on-pages` produces output in `.vercel/output/static`. Use this exact path as the build output directory.
 
-4. Under **Environment variables (advanced)**, add:
+4. Under **Build configuration** (optional): If `npm install` fails with peer dependency errors, set **Install command** to `npm install --legacy-peer-deps`.
+
+5. Under **Environment variables (advanced)**, add:
    - `NODE_VERSION`: `18` (or higher)
    - `APP_SECRET`: a long random string for signing sessions (e.g. generate with `openssl rand -hex 32`)
    - `SESSION_TTL_HOURS`: `24` (optional; default 24)
 
-5. Go to **Settings** → **Functions** → **Compatibility Flags**:
+6. Go to **Settings** → **Functions** → **Compatibility Flags**:
    - Add `nodejs_compat` for both Production and Preview
    - Set **Compatibility date** to at least `2022-11-30`
 
