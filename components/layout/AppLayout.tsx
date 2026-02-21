@@ -14,14 +14,16 @@ export function AppLayout({
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const canAccessSettings = user.role === 'SUPER_ADMIN';
+  const canAccessWallets = user.role === 'SUPER_ADMIN';
 
   return (
     <div className="min-h-screen bg-[#0B0F1A]">
-      <Sidebar canAccessSettings={canAccessSettings} />
+      <Sidebar canAccessSettings={canAccessSettings} canAccessWallets={canAccessWallets} />
       <MobileDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         canAccessSettings={canAccessSettings}
+        canAccessWallets={canAccessWallets}
       />
       <Header
         username={user.username}

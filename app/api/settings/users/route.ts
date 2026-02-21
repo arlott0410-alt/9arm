@@ -62,7 +62,7 @@ export async function POST(request: Request) {
       .limit(1);
     if (existing.length > 0) {
       return NextResponse.json(
-        { error: 'Username already exists' },
+        { error: 'ชื่อผู้ใช้นี้มีอยู่ในระบบแล้ว' },
         { status: 400 }
       );
     }

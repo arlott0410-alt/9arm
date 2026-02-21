@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDbAndUser, requireAuth, requireMutate } from '@/lib/api-helpers';
+import { getDbAndUser, requireAuth, requireWallets } from '@/lib/api-helpers';
 import { wallets, transactions, transfers } from '@/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 
@@ -94,11 +94,8 @@ export async function DELETE(
     const result = await getDbAndUser(request);
     if (result instanceof NextResponse) return result;
     const { db, user } = result;
-    const err = requireMutate(user);
+    const err = requireWallets(user);
     if (err) return err;
-    if (user!.role !== 'SUPER_ADMIN') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
 
     const { id } = await params;
     const idNum = parseInt(id, 10);

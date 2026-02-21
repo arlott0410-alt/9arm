@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDbAndUser, requireAuth, requireMutate } from '@/lib/api-helpers';
+import { getDbAndUser, requireAuth, requireWallets } from '@/lib/api-helpers';
 import { wallets } from '@/db/schema';
 import { walletSchema } from '@/lib/validations';
 
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     const result = await getDbAndUser(request);
     if (result instanceof NextResponse) return result;
     const { db, user } = result;
-    const err = requireMutate(user);
+    const err = requireWallets(user);
     if (err) return err;
 
     const body = await request.json();

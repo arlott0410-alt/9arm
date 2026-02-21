@@ -9,27 +9,33 @@ import {
   Wallet,
   FileText,
   Settings,
+  User,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const nav = [
+const navAll = [
   { href: '/dashboard', label: 'แดชบอร์ด', icon: LayoutDashboard },
   { href: '/transactions', label: 'ธุรกรรม', icon: CreditCard },
   { href: '/wallets', label: 'กระเป๋าเงิน', icon: Wallet },
   { href: '/transfers', label: 'โอนเงิน', icon: ArrowLeftRight },
   { href: '/reports', label: 'รายงาน', icon: FileText },
+  { href: '/profile', label: 'โปรไฟล์', icon: User },
   { href: '/settings', label: 'ตั้งค่า', icon: Settings },
 ];
 
 export function Sidebar({
   canAccessSettings,
+  canAccessWallets,
 }: {
   canAccessSettings: boolean;
+  canAccessWallets?: boolean;
 }) {
   const pathname = usePathname();
-  const items = canAccessSettings
-    ? nav
-    : nav.filter((n) => n.href !== '/settings');
+  const items = navAll.filter((n) => {
+    if (n.href === '/settings' && !canAccessSettings) return false;
+    if (n.href === '/wallets' && !canAccessWallets) return false;
+    return true;
+  });
 
   return (
     <aside className="fixed left-0 top-0 z-40 hidden h-screen w-56 border-r border-[#1F2937] bg-[#0F172A] lg:block">

@@ -48,3 +48,13 @@ export function requireSettings(user: User | null): NextResponse | null {
   }
   return null;
 }
+
+export function requireWallets(user: User | null): NextResponse | null {
+  const authErr = requireAuth(user);
+  if (authErr) return authErr;
+  const role = user!.role as Role;
+  if (role !== 'SUPER_ADMIN') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  return null;
+}

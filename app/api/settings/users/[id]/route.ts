@@ -3,6 +3,7 @@ import { getDbAndUser, requireSettings } from '@/lib/api-helpers';
 import { users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { updateUserSchema } from '@/lib/validations';
+import { hashPassword, generateSalt, saltToHex } from '@/lib/auth';
 
 export async function PATCH(
   request: Request,
@@ -49,6 +50,11 @@ export async function PATCH(
     if (parsed.data.role !== undefined) updates.role = parsed.data.role;
     if (parsed.data.isActive !== undefined)
       updates.isActive = parsed.data.isActive;
+    if (parsed.data.password) {
+      const salt = generateSalt();
+      updates.passwordHash = await hashPassword(parsed.data.password, salt);
+      updates.salt = saltToHex(salt);
+    }
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json(target[0]);

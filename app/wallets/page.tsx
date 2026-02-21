@@ -47,6 +47,7 @@ export default function WalletsPage() {
       .then((r) => r.json() as Promise<{ user?: { username: string; role: string } }>)
       .then((d) => {
         if (!d.user) router.replace('/login');
+        else if (d.user.role !== 'SUPER_ADMIN') router.replace('/dashboard');
         else setUser(d.user);
       });
   }, [router]);

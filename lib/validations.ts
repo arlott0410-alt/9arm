@@ -78,6 +78,12 @@ export const createUserSchema = z.object({
 export const updateUserSchema = z.object({
   role: z.enum(['ADMIN', 'AUDIT']).optional(),
   isActive: z.boolean().optional(),
+  password: z.string().min(8, 'รหัสผ่านอย่างน้อย 8 ตัว').optional(),
+});
+
+export const changeOwnPasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'กรุณากรอกรหัสผ่านปัจจุบัน'),
+  newPassword: z.string().min(8, 'รหัสผ่านใหม่อย่างน้อย 8 ตัว'),
 });
 
 export const displayCurrencySchema = z.object({

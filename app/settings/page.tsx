@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { BASE_RATE_KEYS, expandRatesFromBase, getBaseRatesFromFull } from '@/lib/rates';
+import { KeyRound, Power, PowerOff } from 'lucide-react';
 
 type Website = { id: number; name: string; prefix: string };
 type AppUser = {
@@ -41,6 +42,10 @@ export default function SettingsPage() {
   const [rates, setRates] = useState<Record<string, number>>({});
   const [websiteOpen, setWebsiteOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
+  const [changePwOpen, setChangePwOpen] = useState(false);
+  const [changePwTarget, setChangePwTarget] = useState<AppUser | null>(null);
+  const [changePwNew, setChangePwNew] = useState('');
+  const [addUserError, setAddUserError] = useState('');
   const [websiteForm, setWebsiteForm] = useState({ name: '', prefix: '' });
   const [userForm, setUserForm] = useState({
     username: '',
@@ -128,8 +133,53 @@ export default function SettingsPage() {
     }
   }
 
+  async function toggleUserActive(u: AppUser) {
+    if (u.role === 'SUPER_ADMIN') return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/settings/users/${u.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: !u.isActive }),
+      });
+      if (res.ok) {
+        const updated = (await res.json()) as AppUser;
+        setUsers((prev) => prev.map((x) => (x.id === u.id ? updated : x)));
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function openChangePassword(u: AppUser) {
+    setChangePwTarget(u);
+    setChangePwNew('');
+    setChangePwOpen(true);
+  }
+
+  async function submitChangePassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!changePwTarget || changePwNew.length < 8) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/settings/users/${changePwTarget.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: changePwNew }),
+      });
+      if (res.ok) {
+        setChangePwOpen(false);
+        setChangePwTarget(null);
+        setChangePwNew('');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function addUser(e: React.FormEvent) {
     e.preventDefault();
+    setAddUserError('');
     setLoading(true);
     try {
       const res = await fetch('/api/settings/users', {
@@ -137,11 +187,13 @@ export default function SettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(userForm),
       });
+      const data = (await res.json()) as AppUser & { error?: string };
       if (res.ok) {
-        const created = (await res.json()) as AppUser;
-        setUsers((prev) => [...prev, created]);
+        setUsers((prev) => [...prev, data]);
         setUserForm({ username: '', password: '', role: 'ADMIN' });
         setUserOpen(false);
+      } else {
+        setAddUserError(typeof data.error === 'string' ? data.error : 'เกิดข้อผิดพลาด');
       }
     } finally {
       setLoading(false);
@@ -226,6 +278,7 @@ export default function SettingsPage() {
                     <th className="py-2 text-left text-[#9CA3AF]">ชื่อผู้ใช้</th>
                     <th className="py-2 text-left text-[#9CA3AF]">บทบาท</th>
                     <th className="py-2 text-left text-[#9CA3AF]">ใช้งาน</th>
+                    <th className="py-2 text-right text-[#9CA3AF]">ดำเนินการ</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -238,6 +291,43 @@ export default function SettingsPage() {
                       <td className="py-2 text-[#9CA3AF]">{u.role}</td>
                       <td className="py-2 text-[#9CA3AF]">
                         {u.isActive ? 'ใช่' : 'ไม่'}
+                      </td>
+                      <td className="py-2 text-right">
+                        <div className="flex justify-end gap-2">
+                          {u.role !== 'SUPER_ADMIN' && (
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => toggleUserActive(u)}
+                                disabled={loading}
+                                title={u.isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
+                              >
+                                {u.isActive ? (
+                                  <>
+                                    <PowerOff className="mr-1 h-4 w-4 text-red-400" />
+                                    ปิด
+                                  </>
+                                ) : (
+                                  <>
+                                    <Power className="mr-1 h-4 w-4 text-green-400" />
+                                    เปิด
+                                  </>
+                                )}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openChangePassword(u)}
+                                disabled={loading}
+                                title="เปลี่ยนรหัสผ่าน"
+                              >
+                                <KeyRound className="mr-1 h-4 w-4" />
+                                เปลี่ยนรหัส
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -318,12 +408,58 @@ export default function SettingsPage() {
           </DialogContent>
         </Dialog>
 
-        <Dialog open={userOpen} onOpenChange={setUserOpen}>
+        <Dialog
+          open={changePwOpen}
+          onOpenChange={(o) => {
+            setChangePwOpen(o);
+            if (!o) setChangePwTarget(null);
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                เปลี่ยนรหัสผ่าน — {changePwTarget?.username}
+              </DialogTitle>
+            </DialogHeader>
+            <form onSubmit={submitChangePassword} className="space-y-4">
+              <div>
+                <Label>รหัสผ่านใหม่ (อย่างน้อย 8 ตัว)</Label>
+                <Input
+                  type="password"
+                  value={changePwNew}
+                  onChange={(e) => setChangePwNew(e.target.value)}
+                  required
+                  minLength={8}
+                  className="mt-1"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setChangePwOpen(false)}
+                >
+                  ยกเลิก
+                </Button>
+                <Button type="submit" disabled={loading || changePwNew.length < 8}>
+                  เปลี่ยนรหัส
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={userOpen} onOpenChange={(o) => { setUserOpen(o); if (!o) setAddUserError(''); }}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>เพิ่มผู้ใช้</DialogTitle>
             </DialogHeader>
             <form onSubmit={addUser} className="space-y-4">
+              {addUserError && (
+                <div className="rounded bg-red-500/20 px-4 py-2 text-sm text-red-400">
+                  {addUserError}
+                </div>
+              )}
               <div>
                 <Label>ชื่อผู้ใช้</Label>
                 <Input
