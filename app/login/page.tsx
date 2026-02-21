@@ -19,7 +19,7 @@ export default function LoginPage() {
   useEffect(() => {
     fetch('/api/auth/needs-setup')
       .then((r) => r.json() as Promise<{ needsSetup?: boolean }>)
-      .then((d) => setNeedsSetup(d.needsSetup))
+      .then((d) => setNeedsSetup(d.needsSetup ?? false))
       .catch(() => setNeedsSetup(false));
   }, []);
 
