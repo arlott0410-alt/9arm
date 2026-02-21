@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getDbAndUser, requireAuth } from '@/lib/api-helpers';
-import { wallets } from '@/db/schema';
+import { getDbAndUser, requireAuth, requireMutate } from '@/lib/api-helpers';
+import { wallets, transactions, transfers } from '@/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 
 export async function GET(
@@ -29,7 +29,6 @@ export async function GET(
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    const { transactions, transfers } = await import('@/db/schema');
     const depositSum = await db
       .select({
         sum: sql<number>`coalesce(sum(${transactions.amountMinor}), 0)`,
@@ -78,6 +77,71 @@ export async function GET(
       toTotal;
 
     return NextResponse.json({ ...wallet, balance });
+  } catch (e) {
+    console.error(e);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const result = await getDbAndUser(request);
+    if (result instanceof NextResponse) return result;
+    const { db, user } = result;
+    const err = requireMutate(user);
+    if (err) return err;
+    if (user!.role !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const { id } = await params;
+    const idNum = parseInt(id, 10);
+    if (isNaN(idNum)) {
+      return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
+    }
+
+    const [wallet] = await db
+      .select()
+      .from(wallets)
+      .where(eq(wallets.id, idNum))
+      .limit(1);
+    if (!wallet) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    const [txnCount] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(transactions)
+      .where(eq(transactions.walletId, idNum));
+    const [fromCount] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(transfers)
+      .where(eq(transfers.fromWalletId, idNum));
+    const [toCount] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(transfers)
+      .where(eq(transfers.toWalletId, idNum));
+
+    const hasRefs =
+      Number(txnCount?.count ?? 0) > 0 ||
+      Number(fromCount?.count ?? 0) > 0 ||
+      Number(toCount?.count ?? 0) > 0;
+
+    if (hasRefs) {
+      return NextResponse.json(
+        { error: 'Cannot delete wallet with transactions or transfers' },
+        { status: 400 }
+      );
+    }
+
+    await db.delete(wallets).where(eq(wallets.id, idNum));
+    return NextResponse.json({ ok: true });
   } catch (e) {
     console.error(e);
     return NextResponse.json(

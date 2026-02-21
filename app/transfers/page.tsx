@@ -20,7 +20,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { formatMinorToDisplay, parseDisplayToMinor, todayStr } from '@/lib/utils';
+import {
+  formatMinorToDisplay,
+  parseDisplayToMinor,
+  todayStr,
+} from '@/lib/utils';
+import {
+  convertBetween,
+  type Currency,
+} from '@/lib/rates';
 
 type Wallet = { id: number; name: string; currency: string };
 type Transfer = {
@@ -44,9 +52,10 @@ export default function TransfersPage() {
   );
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [wallets, setWallets] = useState<Wallet[]>([]);
-  const [settings, setSettings] = useState<{ displayCurrency: string } | null>(
-    null
-  );
+  const [settings, setSettings] = useState<{
+    displayCurrency: string;
+    rates: Record<string, number>;
+  } | null>(null);
   const [dateFrom, setDateFrom] = useState(todayStr());
   const [dateTo, setDateTo] = useState(todayStr());
   const [open, setOpen] = useState(false);
@@ -74,11 +83,18 @@ export default function TransfersPage() {
     if (!user) return;
     Promise.all([
       fetch('/api/wallets').then((r) => r.json() as Promise<Wallet[]>),
-      fetch('/api/settings').then((r) => r.json() as Promise<{ DISPLAY_CURRENCY?: string }>),
+      fetch('/api/settings').then(
+        (r) =>
+          r.json() as Promise<{
+            DISPLAY_CURRENCY?: string;
+            EXCHANGE_RATES?: Record<string, number>;
+          }>
+      ),
     ]).then(([wal, set]) => {
       setWallets(Array.isArray(wal) ? wal : []);
       setSettings({
         displayCurrency: set.DISPLAY_CURRENCY || 'THB',
+        rates: set.EXCHANGE_RATES || {},
       });
     });
   }, [user]);
@@ -132,7 +148,33 @@ export default function TransfersPage() {
     window.open(`/api/transfers/export?${params}`, '_blank');
   }
 
-  const dispCur = settings?.displayCurrency || 'THB';
+  const dispCur = (settings?.displayCurrency || 'THB') as Currency;
+  const rates = settings?.rates || {};
+  const fromWallet =
+    form.type !== 'EXTERNAL_IN' && form.fromWalletId
+      ? wallets.find((w) => w.id === form.fromWalletId)
+      : null;
+  const toWallet =
+    form.type !== 'EXTERNAL_OUT' && form.toWalletId
+      ? wallets.find((w) => w.id === form.toWalletId)
+      : null;
+  const inputCurrency: Currency =
+    form.type === 'EXTERNAL_IN'
+      ? (toWallet?.currency as Currency) || 'THB'
+      : (fromWallet?.currency as Currency) || 'THB';
+  const toAmountMinor =
+    form.type === 'INTERNAL' &&
+    fromWallet &&
+    toWallet &&
+    fromWallet.currency !== toWallet.currency &&
+    form.inputAmountMinor
+      ? convertBetween(
+          form.inputAmountMinor,
+          fromWallet.currency as Currency,
+          toWallet.currency as Currency,
+          rates
+        )
+      : form.inputAmountMinor;
 
   if (!user) return null;
 
@@ -291,7 +333,7 @@ export default function TransfersPage() {
                     <SelectContent>
                       {wallets.map((w) => (
                         <SelectItem key={w.id} value={String(w.id)}>
-                          {w.name}
+                          {w.name} ({w.currency})
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -314,7 +356,7 @@ export default function TransfersPage() {
                     <SelectContent>
                       {wallets.map((w) => (
                         <SelectItem key={w.id} value={String(w.id)}>
-                          {w.name}
+                          {w.name} ({w.currency})
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -322,7 +364,7 @@ export default function TransfersPage() {
                 </div>
               )}
               <div>
-                <Label>จำนวน ({dispCur})</Label>
+                <Label>จำนวน ({inputCurrency})</Label>
                 <Input
                   type="text"
                   placeholder="0"
@@ -330,16 +372,26 @@ export default function TransfersPage() {
                     form.inputAmountMinor
                       ? formatMinorToDisplay(
                           form.inputAmountMinor,
-                          dispCur
+                          inputCurrency
                         )
                       : ''
                   }
                   onChange={(e) => {
-                    const v = parseDisplayToMinor(e.target.value, dispCur);
+                    const v = parseDisplayToMinor(e.target.value, inputCurrency);
                     setForm({ ...form, inputAmountMinor: v });
                   }}
                   required
                 />
+                {form.type === 'INTERNAL' &&
+                  fromWallet &&
+                  toWallet &&
+                  fromWallet.currency !== toWallet.currency &&
+                  form.inputAmountMinor > 0 && (
+                    <p className="mt-1 text-xs text-[#9CA3AF]">
+                      ≈ {formatMinorToDisplay(toAmountMinor, toWallet.currency)}{' '}
+                      {toWallet.currency} (ตามอัตราแลกเปลี่ยนที่ตั้งไว้)
+                    </p>
+                  )}
               </div>
               <div>
                 <Label>หมายเหตุ</Label>

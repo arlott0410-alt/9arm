@@ -5,7 +5,11 @@ import { eq, gte, lte, and } from 'drizzle-orm';
 import { transferSchema } from '@/lib/validations';
 import { settings } from '@/db/schema';
 import type { Currency } from '@/lib/rates';
-import { convertFromDisplay, type RateSnapshot } from '@/lib/rates';
+import {
+  convertBetween,
+  convertToDisplay,
+  type RateSnapshot,
+} from '@/lib/rates';
 
 export async function GET(request: Request) {
   try {
@@ -138,6 +142,7 @@ export async function POST(request: Request) {
 
     let fromWalletAmountMinor: number | null = null;
     let toWalletAmountMinor: number | null = null;
+    let inputAmountMinorStored: number;
 
     if (type === 'INTERNAL' && parsed.data.fromWalletId && parsed.data.toWalletId) {
       const [fromW] = await db
@@ -156,16 +161,22 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
-      fromWalletAmountMinor = convertFromDisplay(
+      const fromCur = fromW.currency as Currency;
+      const toCur = toW.currency as Currency;
+      fromWalletAmountMinor = parsed.data.inputAmountMinor;
+      toWalletAmountMinor =
+        fromCur === toCur
+          ? parsed.data.inputAmountMinor
+          : convertBetween(
+              parsed.data.inputAmountMinor,
+              fromCur,
+              toCur,
+              rateSnapshot
+            );
+      inputAmountMinorStored = convertToDisplay(
         parsed.data.inputAmountMinor,
+        fromCur,
         displayCurrency,
-        fromW.currency as Currency,
-        rateSnapshot
-      );
-      toWalletAmountMinor = convertFromDisplay(
-        parsed.data.inputAmountMinor,
-        displayCurrency,
-        toW.currency as Currency,
         rateSnapshot
       );
     } else if (type === 'EXTERNAL_OUT' && parsed.data.fromWalletId) {
@@ -180,10 +191,12 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
-      fromWalletAmountMinor = convertFromDisplay(
+      const fromCur = fromW.currency as Currency;
+      fromWalletAmountMinor = parsed.data.inputAmountMinor;
+      inputAmountMinorStored = convertToDisplay(
         parsed.data.inputAmountMinor,
+        fromCur,
         displayCurrency,
-        fromW.currency as Currency,
         rateSnapshot
       );
     } else if (type === 'EXTERNAL_IN' && parsed.data.toWalletId) {
@@ -198,12 +211,16 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
-      toWalletAmountMinor = convertFromDisplay(
+      const toCur = toW.currency as Currency;
+      toWalletAmountMinor = parsed.data.inputAmountMinor;
+      inputAmountMinorStored = convertToDisplay(
         parsed.data.inputAmountMinor,
+        toCur,
         displayCurrency,
-        toW.currency as Currency,
         rateSnapshot
       );
+    } else {
+      inputAmountMinorStored = 0;
     }
 
     const [inserted] = await db
@@ -214,7 +231,7 @@ export async function POST(request: Request) {
         fromWalletId: parsed.data.fromWalletId,
         toWalletId: parsed.data.toWalletId,
         displayCurrency,
-        inputAmountMinor: parsed.data.inputAmountMinor,
+        inputAmountMinor: inputAmountMinorStored,
         fromWalletAmountMinor,
         toWalletAmountMinor,
         rateSnapshot,

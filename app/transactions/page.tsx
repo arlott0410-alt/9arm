@@ -49,7 +49,7 @@ export default function TransactionsPage() {
   const [withdraws, setWithdraws] = useState<Txn[]>([]);
   const [dateFrom, setDateFrom] = useState(todayStr());
   const [dateTo, setDateTo] = useState(todayStr());
-  const [filterWebsite, setFilterWebsite] = useState('');
+  const [filterWebsite, setFilterWebsite] = useState('__all__');
   const [filterUserFull, setFilterUserFull] = useState('');
   const [filterEdited, setFilterEdited] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -109,7 +109,7 @@ export default function TransactionsPage() {
     const params = new URLSearchParams({
       dateFrom,
       dateTo,
-      ...(filterWebsite && { websiteId: filterWebsite }),
+      ...(filterWebsite && filterWebsite !== '__all__' && { websiteId: filterWebsite }),
       ...(filterUserFull && { userFull: filterUserFull }),
       ...(filterEdited && { editedOnly: 'true' }),
     });
@@ -234,7 +234,7 @@ export default function TransactionsPage() {
     const params = new URLSearchParams({
       dateFrom,
       dateTo,
-      ...(filterWebsite && { websiteId: filterWebsite }),
+      ...(filterWebsite && filterWebsite !== '__all__' && { websiteId: filterWebsite }),
       ...(filterUserFull && { userFull: filterUserFull }),
       ...(filterEdited && { editedOnly: 'true' }),
     });
@@ -618,7 +618,7 @@ export default function TransactionsPage() {
                     <SelectValue placeholder="เว็บไซต์" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">ทั้งหมด</SelectItem>
+                    <SelectItem value="__all__">ทั้งหมด</SelectItem>
                     {websites.map((w) => (
                       <SelectItem key={w.id} value={String(w.id)}>
                         {w.name}

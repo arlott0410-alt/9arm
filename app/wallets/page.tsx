@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { formatMinorToDisplay, parseDisplayToMinor } from '@/lib/utils';
+import { Trash2 } from 'lucide-react';
 
 type Wallet = { id: number; name: string; currency: string; balance?: number };
 
@@ -39,6 +40,7 @@ export default function WalletsPage() {
   });
   const [loading, setLoading] = useState(false);
   const canMutate = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -98,6 +100,28 @@ export default function WalletsPage() {
     }
   }
 
+  async function handleDelete(w: Wallet) {
+    if (!isSuperAdmin) return;
+    if (!confirm(`ลบกระเป๋า "${w.name}"? (ลบได้เฉพาะเมื่อไม่มีธุรกรรม/โอนเงิน)`)) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/wallets/${w.id}`, { method: 'DELETE' });
+      const data = (await res.json()) as { error?: string };
+      if (res.ok) {
+        setWallets((prev) => prev.filter((x) => x.id !== w.id));
+        setBalances((prev) => {
+          const m = new Map(prev);
+          m.delete(w.id);
+          return m;
+        });
+      } else {
+        alert(data.error || 'ลบไม่ได้');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
   if (!user) return null;
 
   return (
@@ -125,6 +149,11 @@ export default function WalletsPage() {
                     <th className="py-3 text-right font-medium text-[#9CA3AF]">
                       ยอดคงเหลือ
                     </th>
+                    {isSuperAdmin && (
+                      <th className="py-3 text-right font-medium text-[#9CA3AF] w-16">
+                        ลบ
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -141,12 +170,26 @@ export default function WalletsPage() {
                           w.currency
                         )}
                       </td>
+                      {isSuperAdmin && (
+                        <td className="py-3 text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                            onClick={() => handleDelete(w)}
+                            disabled={loading}
+                            title="ลบกระเป๋าเงิน"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                   {wallets.length === 0 && (
                     <tr>
                       <td
-                        colSpan={3}
+                        colSpan={isSuperAdmin ? 4 : 3}
                         className="py-6 text-center text-[#9CA3AF]"
                       >
                         ไม่มีกระเป๋าเงิน
