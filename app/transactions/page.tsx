@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { formatMinorToDisplay, parseDisplayToMinor, todayStr } from '@/lib/utils';
+import { formatMinorToDisplay, parseDisplayToMinor, todayStr, formatSlipTimeHHMM, formatDateThailand } from '@/lib/utils';
 import { TimeInput24 } from '@/components/ui/time-input-24';
 import { convertToDisplay, convertFromDisplay } from '@/lib/rates';
 import { Copy } from 'lucide-react';
@@ -74,6 +74,7 @@ export default function TransactionsPage() {
     withdrawSlipTime: '00:00',
   });
   const canMutate = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
   const loadData = useCallback(async () => {
     const [wRes, walRes, setRes] = await Promise.all([
@@ -660,8 +661,7 @@ export default function TransactionsPage() {
                         <th className="py-2 text-left text-[#9CA3AF]">ผู้ใช้</th>
                         <th className="py-2 text-left text-[#9CA3AF]">เว็บไซต์</th>
                         <th className="py-2 text-left text-[#9CA3AF]">กระเป๋า</th>
-                        <th className="py-2 text-right text-[#9CA3AF]">จำนวน</th>
-                        <th className="py-2 text-left text-[#9CA3AF]">เวลาสลิป</th>
+                        <th className="py-2 text-right text-[#9CA3AF]">จำนวน / เวลาสลิป</th>
                         <th className="py-2 text-left text-[#9CA3AF]">ผู้ดำเนินการ</th>
                         <th className="py-2 text-left text-[#9CA3AF]">ดำเนินการ</th>
                       </tr>
@@ -669,28 +669,54 @@ export default function TransactionsPage() {
                     <tbody>
                       {deposits.map((t) => (
                         <tr key={t.id} className="border-b border-[#1F2937]">
-                          <td className="py-2">{t.txnDate}</td>
+                          <td className="py-2 text-[#E5E7EB]">{formatDateThailand(t.txnDate)}</td>
                           <td className="py-2">{t.userFull}</td>
                           <td className="py-2">{t.websiteName}</td>
                           <td className="py-2">{t.walletName}</td>
-                          <td className="py-2 text-right text-[#D4AF37]">
-                            {formatMinorToDisplay(t.amountMinor, t.walletCurrency)}
+                          <td className="py-2 text-right">
+                            <div className="space-y-0.5">
+                              <div className="font-medium text-[#D4AF37]">
+                                {formatMinorToDisplay(t.amountMinor, t.walletCurrency)}{' '}
+                                {t.walletCurrency}
+                              </div>
+                              <div className="text-xs text-[#9CA3AF]">
+                                สลิป {formatSlipTimeHHMM(t.depositSlipTime)}
+                              </div>
+                            </div>
                           </td>
-                          <td className="py-2">{t.depositSlipTime || '-'}</td>
                           <td className="py-2">{t.createdByUsername}</td>
-                          <td className="py-2">
+                          <td className="py-2 flex items-center gap-2">
                             <Link
                               href={`/transactions/${t.id}`}
                               className="text-[#D4AF37] hover:underline"
                             >
                               ดู
                             </Link>
+                            {isSuperAdmin && (
+                              <button
+                                onClick={async () => {
+                                  if (!confirm('ลบธุรกรรมนี้?')) return;
+                                  const res = await fetch(`/api/transactions/${t.id}`, {
+                                    method: 'DELETE',
+                                  });
+                                  if (res.ok) {
+                                    setDeposits((p) => p.filter((x) => x.id !== t.id));
+                                  } else {
+                                    const data = (await res.json()) as { error?: string };
+                                    alert(data.error ?? 'ลบไม่ได้');
+                                  }
+                                }}
+                                className="text-red-400 hover:text-red-300 text-xs"
+                              >
+                                ลบ
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}
                       {deposits.length === 0 && (
                         <tr>
-                          <td colSpan={8} className="py-6 text-center text-[#9CA3AF]">
+                          <td colSpan={7} className="py-6 text-center text-[#9CA3AF]">
                             ไม่มีรายการฝาก
                           </td>
                         </tr>
@@ -708,8 +734,7 @@ export default function TransactionsPage() {
                         <th className="py-2 text-left text-[#9CA3AF]">ผู้ใช้</th>
                         <th className="py-2 text-left text-[#9CA3AF]">เว็บไซต์</th>
                         <th className="py-2 text-left text-[#9CA3AF]">กระเป๋า</th>
-                        <th className="py-2 text-right text-[#9CA3AF]">จำนวน</th>
-                        <th className="py-2 text-left text-[#9CA3AF]">เวลาสลิป</th>
+                        <th className="py-2 text-right text-[#9CA3AF]">จำนวน / เวลาสลิป</th>
                         <th className="py-2 text-left text-[#9CA3AF]">ผู้ดำเนินการ</th>
                         <th className="py-2 text-left text-[#9CA3AF]">ดำเนินการ</th>
                       </tr>
@@ -717,28 +742,54 @@ export default function TransactionsPage() {
                     <tbody>
                       {withdraws.map((t) => (
                         <tr key={t.id} className="border-b border-[#1F2937]">
-                          <td className="py-2">{t.txnDate}</td>
+                          <td className="py-2 text-[#E5E7EB]">{formatDateThailand(t.txnDate)}</td>
                           <td className="py-2">{t.userFull}</td>
                           <td className="py-2">{t.websiteName}</td>
                           <td className="py-2">{t.walletName}</td>
-                          <td className="py-2 text-right text-[#D4AF37]">
-                            {formatMinorToDisplay(t.amountMinor, t.walletCurrency)}
+                          <td className="py-2 text-right">
+                            <div className="space-y-0.5">
+                              <div className="font-medium text-[#D4AF37]">
+                                {formatMinorToDisplay(t.amountMinor, t.walletCurrency)}{' '}
+                                {t.walletCurrency}
+                              </div>
+                              <div className="text-xs text-[#9CA3AF]">
+                                สลิป {formatSlipTimeHHMM(t.withdrawSlipTime)}
+                              </div>
+                            </div>
                           </td>
-                          <td className="py-2">{t.withdrawSlipTime || '-'}</td>
                           <td className="py-2">{t.createdByUsername}</td>
-                          <td className="py-2">
+                          <td className="py-2 flex items-center gap-2">
                             <Link
                               href={`/transactions/${t.id}`}
                               className="text-[#D4AF37] hover:underline"
                             >
                               ดู
                             </Link>
+                            {isSuperAdmin && (
+                              <button
+                                onClick={async () => {
+                                  if (!confirm('ลบธุรกรรมนี้?')) return;
+                                  const res = await fetch(`/api/transactions/${t.id}`, {
+                                    method: 'DELETE',
+                                  });
+                                  if (res.ok) {
+                                    setWithdraws((p) => p.filter((x) => x.id !== t.id));
+                                  } else {
+                                    const data = (await res.json()) as { error?: string };
+                                    alert(data.error ?? 'ลบไม่ได้');
+                                  }
+                                }}
+                                className="text-red-400 hover:text-red-300 text-xs"
+                              >
+                                ลบ
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}
                       {withdraws.length === 0 && (
                         <tr>
-                          <td colSpan={8} className="py-6 text-center text-[#9CA3AF]">
+                          <td colSpan={7} className="py-6 text-center text-[#9CA3AF]">
                             ไม่มีรายการถอน
                           </td>
                         </tr>

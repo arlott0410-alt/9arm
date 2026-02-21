@@ -3,6 +3,7 @@ import { getDbAndUser, requireAuth } from '@/lib/api-helpers';
 import { transactions, transfers, settings, wallets } from '@/db/schema';
 import { eq, sql, gte, lte, and } from 'drizzle-orm';
 import { convertToDisplay, type Currency, type RateSnapshot } from '@/lib/rates';
+import { todayStrThailand } from '@/lib/utils';
 
 export async function GET(request: Request) {
   try {
@@ -19,7 +20,7 @@ export async function GET(request: Request) {
     const dateFromParam = url.searchParams.get('dateFrom');
     const dateToParam = url.searchParams.get('dateTo');
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayStrThailand();
 
     let dateFrom = '';
     let dateTo = today;

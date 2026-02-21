@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDbAndUser, requireAuth } from '@/lib/api-helpers';
+import { getDbAndUser, requireAuth, requireSettings } from '@/lib/api-helpers';
 import {
   transactions,
   websites,
@@ -91,6 +91,44 @@ export async function GET(
       ...txn,
       edits: editWithUsers,
     });
+  } catch (e) {
+    console.error(e);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const result = await getDbAndUser(request);
+    if (result instanceof NextResponse) return result;
+    const { db, user } = result;
+    const err = requireSettings(user);
+    if (err) return err;
+
+    const { id } = await params;
+    const idNum = parseInt(id, 10);
+    if (isNaN(idNum)) {
+      return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
+    }
+
+    const [txn] = await db
+      .select({ id: transactions.id })
+      .from(transactions)
+      .where(eq(transactions.id, idNum))
+      .limit(1);
+
+    if (!txn) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    await db.delete(transactions).where(eq(transactions.id, idNum));
+    return NextResponse.json({ ok: true });
   } catch (e) {
     console.error(e);
     return NextResponse.json(

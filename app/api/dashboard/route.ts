@@ -4,6 +4,7 @@ import type { Db } from '@/db';
 import { transactions, wallets, transfers, settings } from '@/db/schema';
 import { eq, and, gte, lte, sql } from 'drizzle-orm';
 import { convertToDisplay, type Currency, type RateSnapshot } from '@/lib/rates';
+import { todayStrThailand } from '@/lib/utils';
 
 async function sumInDisplayCurrency(
   db: Db,
@@ -71,7 +72,7 @@ export async function GET(request: Request) {
         ? JSON.parse(ratesRow.value)
         : {};
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayStrThailand();
     const startOfMonth = today.slice(0, 7) + '-01';
     const endOfMonth = today.slice(0, 7) + '-31';
 

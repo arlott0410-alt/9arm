@@ -24,6 +24,8 @@ import {
   formatMinorToDisplay,
   parseDisplayToMinor,
   todayStr,
+  formatDateThailand,
+  formatSlipTimeHHMM,
 } from '@/lib/utils';
 import { TimeInput24 } from '@/components/ui/time-input-24';
 import { safeJson } from '@/lib/fetch-json';
@@ -291,9 +293,9 @@ export default function TransfersPage() {
                       className="border-b border-[#1F2937] last:border-0"
                     >
                       <td className="py-3 text-[#E5E7EB]">
-                        {t.txnDate}
+                        {formatDateThailand(t.txnDate)}
                         {t.txnTime && (
-                          <span className="ml-2 text-[#9CA3AF]">{t.txnTime}</span>
+                          <span className="ml-2 text-[#9CA3AF]">{formatSlipTimeHHMM(t.txnTime)}</span>
                         )}
                       </td>
                       <td className="py-3 text-[#9CA3AF]">{t.type}</td>

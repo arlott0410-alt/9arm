@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { formatMinorToDisplay, parseDisplayToMinor } from '@/lib/utils';
+import { formatMinorToDisplay, parseDisplayToMinor, formatDateTimeThailand, formatSlipTimeHHMM, formatDateThailand } from '@/lib/utils';
 import { TimeInput24 } from '@/components/ui/time-input-24';
 import { ArrowLeft } from 'lucide-react';
 
@@ -84,6 +84,7 @@ export default function TransactionDetailPage() {
   }>>({});
   const [loading, setLoading] = useState(false);
   const canEdit = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -196,22 +197,44 @@ export default function TransactionDetailPage() {
 
         <Card className="border-[#1F2937] bg-[#0F172A]">
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <CardTitle className="text-[#E5E7EB]">
                 ธุรกรรม #{txn.id} ({txn.type === 'DEPOSIT' ? 'ฝาก' : 'ถอน'})
               </CardTitle>
-              {canEdit && (
-                <Button variant="outline" size="sm" onClick={openEdit}>
-                  แก้ไข
-                </Button>
-              )}
+              <div className="flex gap-2">
+                {canEdit && (
+                  <Button variant="outline" size="sm" onClick={openEdit}>
+                    แก้ไข
+                  </Button>
+                )}
+                {isSuperAdmin && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-red-400 border-red-400/50 hover:bg-red-500/10"
+                    onClick={async () => {
+                      if (!confirm('ลบธุรกรรมนี้? การกระทำนี้ไม่สามารถย้อนกลับได้')) return;
+                      const res = await fetch(`/api/transactions/${id}`, {
+                        method: 'DELETE',
+                      });
+                      if (res.ok) router.replace('/transactions');
+                      else {
+                        const data = (await res.json()) as { error?: string };
+                        alert(data.error ?? 'ลบไม่ได้');
+                      }
+                    }}
+                  >
+                    ลบ
+                  </Button>
+                )}
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <span className="text-sm text-[#9CA3AF]">วันที่</span>
-                <p className="text-[#E5E7EB]">{txn.txnDate}</p>
+                <p className="text-[#E5E7EB]">{formatDateThailand(txn.txnDate)}</p>
               </div>
               <div>
                 <span className="text-sm text-[#9CA3AF]">เว็บไซต์</span>
@@ -240,11 +263,11 @@ export default function TransactionDetailPage() {
                 <>
                   <div>
                     <span className="text-sm text-[#9CA3AF]">เวลาสลิปฝาก</span>
-                    <p className="text-[#E5E7EB]">{txn.depositSlipTime || '-'}</p>
+                    <p className="text-[#E5E7EB]">{formatSlipTimeHHMM(txn.depositSlipTime)}</p>
                   </div>
                   <div>
                     <span className="text-sm text-[#9CA3AF]">เวลาระบบฝาก</span>
-                    <p className="text-[#E5E7EB]">{txn.depositSystemTime || '-'}</p>
+                    <p className="text-[#E5E7EB]">{formatSlipTimeHHMM(txn.depositSystemTime)}</p>
                   </div>
                 </>
               )}
@@ -252,21 +275,21 @@ export default function TransactionDetailPage() {
                 <>
                   <div>
                     <span className="text-sm text-[#9CA3AF]">เวลาระบบถอน</span>
-                    <p className="text-[#E5E7EB]">{txn.withdrawSystemTime || '-'}</p>
+                    <p className="text-[#E5E7EB]">{formatSlipTimeHHMM(txn.withdrawSystemTime)}</p>
                   </div>
                   <div>
                     <span className="text-sm text-[#9CA3AF]">เวลาสลิปถอน</span>
-                    <p className="text-[#E5E7EB]">{txn.withdrawSlipTime || '-'}</p>
+                    <p className="text-[#E5E7EB]">{formatSlipTimeHHMM(txn.withdrawSlipTime)}</p>
                   </div>
                 </>
               )}
               <div>
                 <span className="text-sm text-[#9CA3AF]">สร้างเมื่อ</span>
-                <p className="text-[#E5E7EB]">{txn.createdAt}</p>
+                <p className="text-[#E5E7EB]">{formatDateTimeThailand(txn.createdAt)}</p>
               </div>
               <div>
                 <span className="text-sm text-[#9CA3AF]">อัปเดตเมื่อ</span>
-                <p className="text-[#E5E7EB]">{txn.updatedAt}</p>
+                <p className="text-[#E5E7EB]">{formatDateTimeThailand(txn.updatedAt)}</p>
               </div>
             </div>
           </CardContent>
@@ -286,7 +309,7 @@ export default function TransactionDetailPage() {
                   >
                     <div className="flex justify-between text-sm text-[#9CA3AF]">
                       <span>{e.editedByUsername}</span>
-                      <span>{e.editedAt}</span>
+                      <span>{formatDateTimeThailand(e.editedAt)}</span>
                     </div>
                     <p className="mt-2 text-[#E5E7EB]">{e.editReason}</p>
                   </div>

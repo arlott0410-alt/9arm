@@ -11,11 +11,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { formatMinorToDisplay } from '@/lib/utils';
+import { formatMinorToDisplay, formatDateThailand } from '@/lib/utils';
 
-const now = new Date();
-const currentYear = now.getFullYear();
-const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+const now = new Date(Date.now() + 7 * 60 * 60 * 1000); // Thailand UTC+7
+const currentYear = now.getUTCFullYear();
+const currentMonth = String(now.getUTCMonth() + 1).padStart(2, '0');
 
 export default function ReportsPage() {
   const router = useRouter();
@@ -25,8 +25,14 @@ export default function ReportsPage() {
   const [period, setPeriod] = useState<'daily' | 'monthly' | 'yearly' | 'custom'>('daily');
   const [year, setYear] = useState(String(currentYear));
   const [month, setMonth] = useState(currentMonth);
-  const [dateFrom, setDateFrom] = useState(now.toISOString().slice(0, 10));
-  const [dateTo, setDateTo] = useState(now.toISOString().slice(0, 10));
+  const [dateFrom, setDateFrom] = useState(() => {
+    const t = new Date(Date.now() + 7 * 60 * 60 * 1000);
+    return t.toISOString().slice(0, 10);
+  });
+  const [dateTo, setDateTo] = useState(() => {
+    const t = new Date(Date.now() + 7 * 60 * 60 * 1000);
+    return t.toISOString().slice(0, 10);
+  });
   const [data, setData] = useState<{
     period: string;
     dateFrom: string;
@@ -194,7 +200,7 @@ export default function ReportsPage() {
             <Card className="border-[#1F2937] bg-[#0F172A]">
               <CardHeader>
                 <CardTitle className="text-[#E5E7EB]">
-                  ธุรกรรม ({data.dateFrom} ถึง {data.dateTo})
+                  ธุรกรรม ({formatDateThailand(data.dateFrom)} ถึง {formatDateThailand(data.dateTo)})
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -232,7 +238,7 @@ export default function ReportsPage() {
             <Card className="border-[#1F2937] bg-[#0F172A]">
               <CardHeader>
                 <CardTitle className="text-[#E5E7EB]">
-                  โอนเงิน ({data.dateFrom} ถึง {data.dateTo})
+                  โอนเงิน ({formatDateThailand(data.dateFrom)} ถึง {formatDateThailand(data.dateTo)})
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">

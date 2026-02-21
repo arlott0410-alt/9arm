@@ -19,6 +19,7 @@ import {
   type Currency,
   type RateSnapshot,
 } from '@/lib/rates';
+import { getWalletBalance } from '@/lib/wallet-balance';
 
 export async function GET(request: Request) {
   try {
@@ -204,6 +205,14 @@ export async function POST(request: Request) {
         wallet.currency as Currency,
         rateSnapshot
       );
+
+      const balance = await getWalletBalance(db, parsed.data.walletId);
+      if (balance < walletAmountMinor) {
+        return NextResponse.json(
+          { error: 'ยอดเงินคงเหลือไม่เพียงพอ' },
+          { status: 400 }
+        );
+      }
 
       const [inserted] = await db
         .insert(transactions)
