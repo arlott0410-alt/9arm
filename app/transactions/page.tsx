@@ -76,19 +76,16 @@ export default function TransactionsPage() {
   const canMutate = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
 
   const loadData = useCallback(async () => {
-    const [wRes, walRes, setRes, ratesRes] = await Promise.all([
+    const [wRes, walRes, setRes] = await Promise.all([
       fetch('/api/settings/websites'),
       fetch('/api/wallets'),
       fetch('/api/settings').then((r) => r.json() as Promise<{ DISPLAY_CURRENCY?: string; EXCHANGE_RATES?: Record<string, number> }>),
-      fetch('/api/settings/exchange-rates').then((r) => r.json() as Promise<{ rates?: Record<string, number> }>),
     ]);
     const wData = (await wRes.json()) as Website[];
     const walData = (await walRes.json()) as Wallet[];
     if (Array.isArray(wData)) setWebsites(wData);
     if (Array.isArray(walData)) setWallets(walData);
-    const rates = setRes.EXCHANGE_RATES && Object.keys(setRes.EXCHANGE_RATES).length > 0
-      ? setRes.EXCHANGE_RATES
-      : ratesRes.rates || {};
+    const rates = setRes.EXCHANGE_RATES ?? {};
     if (setRes.DISPLAY_CURRENCY)
       setSettings({
         displayCurrency: setRes.DISPLAY_CURRENCY,

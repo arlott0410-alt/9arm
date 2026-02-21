@@ -54,22 +54,15 @@ export default function WalletsPage() {
 
   useEffect(() => {
     if (!user) return;
-    fetch('/api/wallets')
-      .then((r) => r.json() as Promise<Wallet[]>)
+    fetch('/api/wallets?withBalance=1')
+      .then((r) => r.json() as Promise<Array<Wallet & { balance?: number }>>)
       .then((list) => {
-        setWallets(list);
-        return Promise.all(
-          list.map((w) =>
-            fetch(`/api/wallets/${w.id}`)
-              .then((r) => r.json() as Promise<{ balance?: number }>)
-              .then((d) => ({ id: w.id, balance: typeof d?.balance === 'number' ? d.balance : 0 }))
-              .catch(() => ({ id: w.id, balance: 0 }))
-          )
-        );
-      })
-      .then((results) => {
+        const arr = Array.isArray(list) ? list : [];
+        setWallets(arr);
         const m = new Map<number, number>();
-        results.forEach((r) => m.set(r.id, r.balance));
+        arr.forEach((w) =>
+          m.set(w.id, typeof w.balance === 'number' ? w.balance : 0)
+        );
         setBalances(m);
       });
   }, [user]);
@@ -89,11 +82,16 @@ export default function WalletsPage() {
         }),
       });
       if (res.ok) {
-        const created = (await res.json()) as Wallet;
-        setWallets((prev) => [...prev, created]);
-        const balRes = await fetch(`/api/wallets/${created.id}`);
-        const balData = (await balRes.json()) as { balance: number };
-        setBalances((prev) => new Map(prev).set(created.id, balData.balance));
+        await res.json();
+        const fullList = (await fetch('/api/wallets?withBalance=1').then(
+          (r) => r.json()
+        )) as Array<Wallet & { balance?: number }>;
+        setWallets(fullList);
+        const m = new Map<number, number>();
+        fullList.forEach((w) =>
+          m.set(w.id, typeof w.balance === 'number' ? w.balance : 0)
+        );
+        setBalances(m);
         setForm({ name: '', currency: 'THB', openingBalanceMinor: 0 });
         setOpen(false);
       }

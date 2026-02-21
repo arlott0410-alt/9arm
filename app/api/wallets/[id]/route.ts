@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth, requireWallets } from '@/lib/api-helpers';
 import { wallets, transactions, transfers } from '@/db/schema';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, or, sql } from 'drizzle-orm';
 
 export async function GET(
   request: Request,
@@ -112,29 +112,43 @@ export async function DELETE(
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    const [txnCount] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(transactions)
-      .where(eq(transactions.walletId, idNum));
-    const [fromCount] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(transfers)
-      .where(eq(transfers.fromWalletId, idNum));
-    const [toCount] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(transfers)
-      .where(eq(transfers.toWalletId, idNum));
+    const isSuperAdmin = user!.role === 'SUPER_ADMIN';
 
-    const hasRefs =
-      Number(txnCount?.count ?? 0) > 0 ||
-      Number(fromCount?.count ?? 0) > 0 ||
-      Number(toCount?.count ?? 0) > 0;
+    if (!isSuperAdmin) {
+      const [txnCount] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(transactions)
+        .where(eq(transactions.walletId, idNum));
+      const [fromCount] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(transfers)
+        .where(eq(transfers.fromWalletId, idNum));
+      const [toCount] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(transfers)
+        .where(eq(transfers.toWalletId, idNum));
 
-    if (hasRefs) {
-      return NextResponse.json(
-        { error: 'Cannot delete wallet with transactions or transfers' },
-        { status: 400 }
-      );
+      const hasRefs =
+        Number(txnCount?.count ?? 0) > 0 ||
+        Number(fromCount?.count ?? 0) > 0 ||
+        Number(toCount?.count ?? 0) > 0;
+
+      if (hasRefs) {
+        return NextResponse.json(
+          { error: 'Cannot delete wallet with transactions or transfers' },
+          { status: 400 }
+        );
+      }
+    } else {
+      await db.delete(transactions).where(eq(transactions.walletId, idNum));
+      await db
+        .delete(transfers)
+        .where(
+          or(
+            eq(transfers.fromWalletId, idNum),
+            eq(transfers.toWalletId, idNum)
+          )
+        );
     }
 
     await db.delete(wallets).where(eq(wallets.id, idNum));

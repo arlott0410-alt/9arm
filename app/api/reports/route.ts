@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth } from '@/lib/api-helpers';
-import { transactions, transfers, settings } from '@/db/schema';
+import { transactions, transfers, settings, wallets } from '@/db/schema';
 import { eq, sql, gte, lte, and } from 'drizzle-orm';
+import { convertToDisplay, type Currency, type RateSnapshot } from '@/lib/rates';
 
 export async function GET(request: Request) {
   try {
@@ -47,40 +48,85 @@ export async function GET(request: Request) {
       dateTo = today;
     }
 
-    const depResult = await db
-      .select({
-        sum: sql<number>`coalesce(sum(${transactions.amountMinor}), 0)`,
-      })
-      .from(transactions)
-      .where(
-        and(
-          eq(transactions.type, 'DEPOSIT'),
-          gte(transactions.txnDate, dateFrom),
-          lte(transactions.txnDate, dateTo)
-        )
-      );
-    const withResult = await db
-      .select({
-        sum: sql<number>`coalesce(sum(${transactions.amountMinor}), 0)`,
-      })
-      .from(transactions)
-      .where(
-        and(
-          eq(transactions.type, 'WITHDRAW'),
-          gte(transactions.txnDate, dateFrom),
-          lte(transactions.txnDate, dateTo)
-        )
-      );
+    const [dcRow, ratesRow, depRows, withRows] = await Promise.all([
+      db.select().from(settings).where(eq(settings.key, 'DISPLAY_CURRENCY')).limit(1),
+      db.select().from(settings).where(eq(settings.key, 'EXCHANGE_RATES')).limit(1),
+      db
+        .select({
+          amountMinor: transactions.amountMinor,
+          walletId: transactions.walletId,
+        })
+        .from(transactions)
+        .where(
+          and(
+            eq(transactions.type, 'DEPOSIT'),
+            gte(transactions.txnDate, dateFrom),
+            lte(transactions.txnDate, dateTo)
+          )
+        ),
+      db
+        .select({
+          amountMinor: transactions.amountMinor,
+          walletId: transactions.walletId,
+        })
+        .from(transactions)
+        .where(
+          and(
+            eq(transactions.type, 'WITHDRAW'),
+            gte(transactions.txnDate, dateFrom),
+            lte(transactions.txnDate, dateTo)
+          )
+        ),
+    ]);
 
-    const depositsTotal = Number(depResult[0]?.sum ?? 0);
-    const withdrawsTotal = Number(withResult[0]?.sum ?? 0);
+    const displayCurrency: Currency =
+      (dcRow[0]?.value && typeof dcRow[0].value === 'string' && JSON.parse(dcRow[0].value)) || 'THB';
+    const rates: RateSnapshot =
+      ratesRow[0]?.value && typeof ratesRow[0].value === 'string'
+        ? JSON.parse(ratesRow[0].value)
+        : {};
+
+    let depositsTotal = 0;
+    for (const r of depRows) {
+      const [w] = await db
+        .select({ currency: wallets.currency })
+        .from(wallets)
+        .where(eq(wallets.id, r.walletId))
+        .limit(1);
+      const walletCurrency = (w?.currency ?? 'THB') as Currency;
+      depositsTotal += convertToDisplay(
+        r.amountMinor,
+        walletCurrency,
+        displayCurrency,
+        rates
+      );
+    }
+    let withdrawsTotal = 0;
+    for (const r of withRows) {
+      const [w] = await db
+        .select({ currency: wallets.currency })
+        .from(wallets)
+        .where(eq(wallets.id, r.walletId))
+        .limit(1);
+      const walletCurrency = (w?.currency ?? 'THB') as Currency;
+      withdrawsTotal += convertToDisplay(
+        r.amountMinor,
+        walletCurrency,
+        displayCurrency,
+        rates
+      );
+    }
+    depositsTotal = Math.round(depositsTotal);
+    withdrawsTotal = Math.round(withdrawsTotal);
     const netTransactions = depositsTotal - withdrawsTotal;
 
-    const intResult = await db
+    const intRows = await db
       .select({
-        sum: sql<number>`coalesce(sum(${transfers.inputAmountMinor}), 0)`,
+        amount: transfers.fromWalletAmountMinor,
+        currency: wallets.currency,
       })
       .from(transfers)
+      .innerJoin(wallets, eq(transfers.fromWalletId, wallets.id))
       .where(
         and(
           eq(transfers.type, 'INTERNAL'),
@@ -88,11 +134,13 @@ export async function GET(request: Request) {
           lte(transfers.txnDate, dateTo)
         )
       );
-    const extInResult = await db
+    const extInRows = await db
       .select({
-        sum: sql<number>`coalesce(sum(${transfers.toWalletAmountMinor}), 0)`,
+        amount: transfers.toWalletAmountMinor,
+        currency: wallets.currency,
       })
       .from(transfers)
+      .innerJoin(wallets, eq(transfers.toWalletId, wallets.id))
       .where(
         and(
           eq(transfers.type, 'EXTERNAL_IN'),
@@ -100,11 +148,13 @@ export async function GET(request: Request) {
           lte(transfers.txnDate, dateTo)
         )
       );
-    const extOutResult = await db
+    const extOutRows = await db
       .select({
-        sum: sql<number>`coalesce(sum(${transfers.fromWalletAmountMinor}), 0)`,
+        amount: transfers.fromWalletAmountMinor,
+        currency: wallets.currency,
       })
       .from(transfers)
+      .innerJoin(wallets, eq(transfers.fromWalletId, wallets.id))
       .where(
         and(
           eq(transfers.type, 'EXTERNAL_OUT'),
@@ -113,20 +163,22 @@ export async function GET(request: Request) {
         )
       );
 
-    const internalTotal = Number(intResult[0]?.sum ?? 0);
-    const externalInTotal = Number(extInResult[0]?.sum ?? 0);
-    const externalOutTotal = Number(extOutResult[0]?.sum ?? 0);
-    const netExternal = externalInTotal - externalOutTotal;
+    const externalInByCurrency: Record<string, number> = {};
+    for (const r of extInRows) {
+      const cur = r.currency ?? 'THB';
+      externalInByCurrency[cur] = (externalInByCurrency[cur] ?? 0) + Number(r.amount ?? 0);
+    }
+    const externalOutByCurrency: Record<string, number> = {};
+    for (const r of extOutRows) {
+      const cur = r.currency ?? 'THB';
+      externalOutByCurrency[cur] = (externalOutByCurrency[cur] ?? 0) + Number(r.amount ?? 0);
+    }
 
-    const [dcRow] = await db
-      .select()
-      .from(settings)
-      .where(eq(settings.key, 'DISPLAY_CURRENCY'))
-      .limit(1);
-    const displayCurrency =
-      dcRow?.value && typeof dcRow.value === 'string'
-        ? JSON.parse(dcRow.value)
-        : 'THB';
+    const internalByCurrency: Record<string, number> = {};
+    for (const r of intRows) {
+      const cur = r.currency ?? 'THB';
+      internalByCurrency[cur] = (internalByCurrency[cur] ?? 0) + Number(r.amount ?? 0);
+    }
 
     return NextResponse.json({
       displayCurrency,
@@ -139,10 +191,9 @@ export async function GET(request: Request) {
         net: netTransactions,
       },
       transfers: {
-        internalTotal,
-        externalInTotal,
-        externalOutTotal,
-        netExternal,
+        internalByCurrency,
+        externalInByCurrency,
+        externalOutByCurrency,
       },
     });
   } catch (e) {

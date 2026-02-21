@@ -150,8 +150,13 @@ export async function POST(request: Request) {
     const body = await request.json();
     const parsed = transferSchema.safeParse(body);
     if (!parsed.success) {
+      const flat = parsed.error.flatten();
+      const msg =
+        flat.formErrors?.[0] ??
+        Object.values(flat.fieldErrors ?? {}).flat()[0] ??
+        'ข้อมูลไม่ถูกต้อง';
       return NextResponse.json(
-        { error: parsed.error.flatten().fieldErrors },
+        { error: typeof msg === 'string' ? msg : 'ข้อมูลไม่ถูกต้อง' },
         { status: 400 }
       );
     }

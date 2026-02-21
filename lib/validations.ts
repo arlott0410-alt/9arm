@@ -62,13 +62,30 @@ export const transferSchema = z.object({
   txnDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   txnTime: z.string().optional(),
   type: z.enum(['INTERNAL', 'EXTERNAL_OUT', 'EXTERNAL_IN']),
-  fromWalletId: z.number().int().positive().nullable(),
-  toWalletId: z.number().int().positive().nullable(),
+  fromWalletId: z
+    .number()
+    .int()
+    .nullable()
+    .transform((v) => (v === 0 ? null : v)),
+  toWalletId: z
+    .number()
+    .int()
+    .nullable()
+    .transform((v) => (v === 0 ? null : v)),
   inputAmountMinor: z.number().int().positive(),
   fromWalletAmountMinor: z.number().int().nullable(),
   toWalletAmountMinor: z.number().int().nullable(),
   note: z.string().optional(),
-});
+}).refine(
+  (data) => {
+    if (data.type === 'INTERNAL')
+      return (data.fromWalletId ?? 0) > 0 && (data.toWalletId ?? 0) > 0;
+    if (data.type === 'EXTERNAL_OUT') return (data.fromWalletId ?? 0) > 0;
+    if (data.type === 'EXTERNAL_IN') return (data.toWalletId ?? 0) > 0;
+    return false;
+  },
+  { message: 'ต้องระบุกระเป๋าต้นทาง/ปลายทางให้ถูกต้อง' }
+);
 
 export const createUserSchema = z.object({
   username: z.string().min(1).max(64),

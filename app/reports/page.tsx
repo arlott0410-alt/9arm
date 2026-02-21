@@ -37,10 +37,9 @@ export default function ReportsPage() {
       net: number;
     };
     transfers: {
-      internalTotal: number;
-      externalInTotal: number;
-      externalOutTotal: number;
-      netExternal: number;
+      internalByCurrency: Record<string, number>;
+      externalInByCurrency: Record<string, number>;
+      externalOutByCurrency: Record<string, number>;
     };
     displayCurrency?: string;
   } | null>(null);
@@ -237,48 +236,94 @@ export default function ReportsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex justify-between">
-                  <span className="text-[#9CA3AF]">รวมภายใน</span>
-                  <span className="font-medium text-[#D4AF37]">
-                    {formatMinorToDisplay(
-                      data.transfers.internalTotal,
-                      dispCur
+                <div>
+                  <span className="text-[#9CA3AF]">รวมภายใน (แยกตามสกุลเงิน)</span>
+                  <ul className="mt-1 space-y-1">
+                    {Object.entries(data.transfers.internalByCurrency ?? {})
+                      .filter(([, v]) => v !== 0)
+                      .sort(([a], [b]) => a.localeCompare(b))
+                      .map(([cur, amt]) => (
+                        <li key={cur} className="flex justify-between text-sm">
+                          <span className="text-[#9CA3AF]">{cur}</span>
+                          <span className="font-medium text-[#D4AF37]">
+                            {formatMinorToDisplay(amt, cur)}
+                          </span>
+                        </li>
+                      ))}
+                    {Object.keys(data.transfers.internalByCurrency ?? {}).length === 0 && (
+                      <li className="text-sm text-[#6B7280]">-</li>
                     )}
-                  </span>
+                  </ul>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-[#9CA3AF]">รวมรับจากภายนอก</span>
-                  <span className="font-medium text-[#D4AF37]">
-                    {formatMinorToDisplay(
-                      data.transfers.externalInTotal,
-                      dispCur
+                <div>
+                  <span className="text-[#9CA3AF]">รวมรับจากภายนอก (แยกตามสกุลเงิน)</span>
+                  <ul className="mt-1 space-y-1">
+                    {Object.entries(data.transfers.externalInByCurrency ?? {})
+                      .filter(([, v]) => v !== 0)
+                      .sort(([a], [b]) => a.localeCompare(b))
+                      .map(([cur, amt]) => (
+                        <li key={cur} className="flex justify-between text-sm">
+                          <span className="text-[#9CA3AF]">{cur}</span>
+                          <span className="font-medium text-[#D4AF37]">
+                            {formatMinorToDisplay(amt, cur)}
+                          </span>
+                        </li>
+                      ))}
+                    {Object.keys(data.transfers.externalInByCurrency ?? {}).length === 0 && (
+                      <li className="text-sm text-[#6B7280]">-</li>
                     )}
-                  </span>
+                  </ul>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-[#9CA3AF]">รวมโอนออกภายนอก</span>
-                  <span className="font-medium text-[#D4AF37]">
-                    {formatMinorToDisplay(
-                      data.transfers.externalOutTotal,
-                      dispCur
+                <div>
+                  <span className="text-[#9CA3AF]">รวมโอนออกภายนอก (แยกตามสกุลเงิน)</span>
+                  <ul className="mt-1 space-y-1">
+                    {Object.entries(data.transfers.externalOutByCurrency ?? {})
+                      .filter(([, v]) => v !== 0)
+                      .sort(([a], [b]) => a.localeCompare(b))
+                      .map(([cur, amt]) => (
+                        <li key={cur} className="flex justify-between text-sm">
+                          <span className="text-[#9CA3AF]">{cur}</span>
+                          <span className="font-medium text-[#D4AF37]">
+                            {formatMinorToDisplay(amt, cur)}
+                          </span>
+                        </li>
+                      ))}
+                    {Object.keys(data.transfers.externalOutByCurrency ?? {}).length === 0 && (
+                      <li className="text-sm text-[#6B7280]">-</li>
                     )}
-                  </span>
+                  </ul>
                 </div>
-                <div className="flex justify-between border-t border-[#1F2937] pt-4">
-                  <span className="text-[#9CA3AF]">สุทธิภายนอก</span>
-                  <span
-                    className={`font-medium ${
-                      data.transfers.netExternal >= 0
-                        ? 'text-[#D4AF37]'
-                        : 'text-red-400'
-                    }`}
-                  >
-                    {formatMinorToDisplay(
-                      Math.abs(data.transfers.netExternal),
-                      dispCur
-                    )}
-                    {data.transfers.netExternal < 0 ? ' (ถอนออก)' : ''}
-                  </span>
+                <div className="border-t border-[#1F2937] pt-4">
+                  <span className="text-[#9CA3AF]">สุทธิภายนอก (แยกตามสกุลเงิน)</span>
+                  <ul className="mt-1 space-y-1">
+                    {(() => {
+                      const allCur = Array.from(
+                        new Set([
+                          ...Object.keys(data.transfers.externalInByCurrency ?? {}),
+                          ...Object.keys(data.transfers.externalOutByCurrency ?? {}),
+                        ])
+                      ).sort();
+                      const items = allCur.map((cur) => {
+                        const inAmt = data.transfers.externalInByCurrency?.[cur] ?? 0;
+                        const outAmt = data.transfers.externalOutByCurrency?.[cur] ?? 0;
+                        return { cur, net: inAmt - outAmt };
+                      }).filter((x) => x.net !== 0);
+                      if (items.length === 0) return <li className="text-sm text-[#6B7280]">-</li>;
+                      return items.map(({ cur, net }) => (
+                        <li key={cur} className="flex justify-between text-sm">
+                          <span className="text-[#9CA3AF]">{cur}</span>
+                          <span
+                            className={`font-medium ${
+                              net >= 0 ? 'text-[#D4AF37]' : 'text-red-400'
+                            }`}
+                          >
+                            {formatMinorToDisplay(Math.abs(net), cur)}
+                            {net < 0 ? ' (ถอนออก)' : ' (รับเข้า)'}
+                          </span>
+                        </li>
+                      ));
+                    })()}
+                  </ul>
                 </div>
               </CardContent>
             </Card>

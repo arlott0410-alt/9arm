@@ -66,8 +66,8 @@ export default function TransfersPage() {
     txnDate: todayStr(),
     txnTime: '00:00',
     type: 'INTERNAL' as 'INTERNAL' | 'EXTERNAL_OUT' | 'EXTERNAL_IN',
-    fromWalletId: 0 as number | null,
-    toWalletId: 0 as number | null,
+    fromWalletId: null as number | null,
+    toWalletId: null as number | null,
     inputAmountMinor: 0,
     note: '',
   });
@@ -88,7 +88,12 @@ export default function TransfersPage() {
   useEffect(() => {
     if (!user) return;
     Promise.all([
-      fetch('/api/wallets').then((r) => r.json() as Promise<Wallet[]>),
+      fetch('/api/wallets?withBalance=1').then(
+        (r) =>
+          r.json() as Promise<
+            Array<Wallet & { balance?: number }>
+          >
+      ),
       fetch('/api/settings').then(
         (r) =>
           r.json() as Promise<{
@@ -96,23 +101,17 @@ export default function TransfersPage() {
             EXCHANGE_RATES?: Record<string, number>;
           }>
       ),
-    ]).then(async ([wal, set]) => {
-      setWallets(Array.isArray(wal) ? wal : []);
+    ]).then(([wal, set]) => {
+      const list = Array.isArray(wal) ? wal : [];
+      setWallets(list);
       setSettings({
         displayCurrency: set.DISPLAY_CURRENCY || 'THB',
         rates: set.EXCHANGE_RATES || {},
       });
-      const list = Array.isArray(wal) ? wal : [];
-      const results = await Promise.all(
-        list.map((w) =>
-          fetch(`/api/wallets/${w.id}`)
-            .then((r) => r.json() as Promise<{ balance?: number }>)
-            .then((d) => ({ id: w.id, balance: typeof d?.balance === 'number' ? d.balance : 0 }))
-            .catch(() => ({ id: w.id, balance: 0 }))
-        )
-      );
       const m = new Map<number, number>();
-      results.forEach((r) => m.set(r.id, r.balance));
+      list.forEach((w) =>
+        m.set(w.id, typeof w.balance === 'number' ? w.balance : 0)
+      );
       setBalances(m);
     });
   }, [user]);
@@ -164,8 +163,8 @@ export default function TransfersPage() {
           txnDate: form.txnDate,
           txnTime: form.txnTime || undefined,
           type: form.type,
-          fromWalletId: form.type === 'EXTERNAL_IN' ? null : form.fromWalletId,
-          toWalletId: form.type === 'EXTERNAL_OUT' ? null : form.toWalletId,
+          fromWalletId: form.type === 'EXTERNAL_IN' ? null : (form.fromWalletId || null),
+          toWalletId: form.type === 'EXTERNAL_OUT' ? null : (form.toWalletId || null),
           inputAmountMinor: form.inputAmountMinor,
           note: form.note || undefined,
         }),
