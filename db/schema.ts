@@ -86,6 +86,7 @@ export const transactionEdits = sqliteTable('transaction_edits', {
 export const transfers = sqliteTable('transfers', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   txnDate: text('txn_date').notNull(),
+  txnTime: text('txn_time'),
   type: text('type', {
     enum: ['INTERNAL', 'EXTERNAL_OUT', 'EXTERNAL_IN'],
   }).notNull(),

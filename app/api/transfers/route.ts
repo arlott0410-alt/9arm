@@ -72,6 +72,7 @@ export async function GET(request: Request) {
       .select({
         id: transfers.id,
         txnDate: transfers.txnDate,
+        txnTime: transfers.txnTime,
         type: transfers.type,
         fromWalletId: transfers.fromWalletId,
         toWalletId: transfers.toWalletId,
@@ -303,10 +304,15 @@ export async function POST(request: Request) {
       );
     }
 
+    const txnTime = parsed.data.txnTime?.match(/^\d{2}:\d{2}$/)
+      ? parsed.data.txnTime
+      : null;
+
     const [inserted] = await db
       .insert(transfers)
       .values({
         txnDate: parsed.data.txnDate,
+        txnTime,
         type,
         fromWalletId: parsed.data.fromWalletId,
         toWalletId: parsed.data.toWalletId,

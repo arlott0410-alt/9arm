@@ -64,6 +64,7 @@ export async function GET(request: Request) {
     const header = [
       'id',
       'txnDate',
+      'txnTime',
       'type',
       'fromWalletId',
       'fromWalletName',
@@ -81,6 +82,7 @@ export async function GET(request: Request) {
     const rows = withNames.map((r) => [
       r.id,
       r.txnDate,
+      r.txnTime ?? '',
       r.type,
       r.fromWalletId ?? '',
       r.fromWalletName ?? '',

@@ -25,6 +25,7 @@ import {
   parseDisplayToMinor,
   todayStr,
 } from '@/lib/utils';
+import { TimeInput24 } from '@/components/ui/time-input-24';
 import { safeJson } from '@/lib/fetch-json';
 import {
   convertBetween,
@@ -35,6 +36,7 @@ type Wallet = { id: number; name: string; currency: string };
 type Transfer = {
   id: number;
   txnDate: string;
+  txnTime: string | null;
   type: string;
   fromWalletName: string | null;
   toWalletName: string | null;
@@ -62,6 +64,7 @@ export default function TransfersPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     txnDate: todayStr(),
+    txnTime: '00:00',
     type: 'INTERNAL' as 'INTERNAL' | 'EXTERNAL_OUT' | 'EXTERNAL_IN',
     fromWalletId: 0 as number | null,
     toWalletId: 0 as number | null,
@@ -159,6 +162,7 @@ export default function TransfersPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           txnDate: form.txnDate,
+          txnTime: form.txnTime || undefined,
           type: form.type,
           fromWalletId: form.type === 'EXTERNAL_IN' ? null : form.fromWalletId,
           toWalletId: form.type === 'EXTERNAL_OUT' ? null : form.toWalletId,
@@ -170,6 +174,7 @@ export default function TransfersPage() {
       if (res.ok) {
         setForm({
           txnDate: todayStr(),
+          txnTime: '00:00',
           type: 'INTERNAL',
           fromWalletId: null,
           toWalletId: null,
@@ -258,7 +263,7 @@ export default function TransfersPage() {
                 <thead>
                   <tr className="border-b border-[#1F2937]">
                     <th className="py-3 text-left font-medium text-[#9CA3AF]">
-                      วันที่
+                      วันที่ / เวลา
                     </th>
                     <th className="py-3 text-left font-medium text-[#9CA3AF]">
                       ประเภท
@@ -286,7 +291,12 @@ export default function TransfersPage() {
                       key={t.id}
                       className="border-b border-[#1F2937] last:border-0"
                     >
-                      <td className="py-3 text-[#E5E7EB]">{t.txnDate}</td>
+                      <td className="py-3 text-[#E5E7EB]">
+                        {t.txnDate}
+                        {t.txnTime && (
+                          <span className="ml-2 text-[#9CA3AF]">{t.txnTime}</span>
+                        )}
+                      </td>
                       <td className="py-3 text-[#9CA3AF]">{t.type}</td>
                       <td className="py-3 text-[#E5E7EB]">
                         {t.fromWalletName || '-'}
@@ -332,16 +342,25 @@ export default function TransfersPage() {
                   {error}
                 </div>
               )}
-              <div>
-                <Label>วันที่</Label>
-                <Input
-                  type="date"
-                  value={form.txnDate}
-                  onChange={(e) =>
-                    setForm({ ...form, txnDate: e.target.value })
-                  }
-                  required
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>วันที่</Label>
+                  <Input
+                    type="date"
+                    value={form.txnDate}
+                    onChange={(e) =>
+                      setForm({ ...form, txnDate: e.target.value })
+                    }
+                    required
+                  />
+                </div>
+                <div>
+                  <Label>เวลา</Label>
+                  <TimeInput24
+                    value={form.txnTime}
+                    onChange={(v) => setForm({ ...form, txnTime: v })}
+                  />
+                </div>
               </div>
               <div>
                 <Label>ประเภท</Label>

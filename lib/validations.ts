@@ -60,6 +60,7 @@ export const editTransactionSchema = z.object({
 
 export const transferSchema = z.object({
   txnDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  txnTime: z.string().optional(),
   type: z.enum(['INTERNAL', 'EXTERNAL_OUT', 'EXTERNAL_IN']),
   fromWalletId: z.number().int().positive().nullable(),
   toWalletId: z.number().int().positive().nullable(),
