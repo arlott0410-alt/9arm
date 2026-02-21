@@ -7,7 +7,7 @@ import {
   users,
   transactionEdits,
 } from '@/db/schema';
-import { eq, and, gte, lte, sql, desc } from 'drizzle-orm';
+import { eq, and, gte, lte, sql, desc, isNull, isNotNull, inArray } from 'drizzle-orm';
 import {
   depositTransactionSchema,
   withdrawTransactionSchema,
@@ -37,6 +37,7 @@ export async function GET(request: Request) {
     const createdBy = url.searchParams.get('createdBy');
     const type = url.searchParams.get('type');
     const editedOnly = url.searchParams.get('editedOnly') === 'true';
+    const deletedOnly = url.searchParams.get('deletedOnly') === 'true';
 
     const conditions: Parameters<typeof and>[0][] = [];
     if (dateFrom) conditions.push(gte(transactions.txnDate, dateFrom));
@@ -45,6 +46,7 @@ export async function GET(request: Request) {
     if (userFull) conditions.push(eq(transactions.userFull, userFull));
     if (createdBy) conditions.push(eq(transactions.createdBy, parseInt(createdBy)));
     if (type) conditions.push(eq(transactions.type, type as 'DEPOSIT' | 'WITHDRAW'));
+    conditions.push(deletedOnly ? isNotNull(transactions.deletedAt) : isNull(transactions.deletedAt));
 
     const baseQuery = db
       .select({
@@ -61,11 +63,15 @@ export async function GET(request: Request) {
         depositSlipTime: transactions.depositSlipTime,
         depositSystemTime: transactions.depositSystemTime,
         withdrawInputAmountMinor: transactions.withdrawInputAmountMinor,
+        withdrawFeeMinor: transactions.withdrawFeeMinor,
         withdrawSystemTime: transactions.withdrawSystemTime,
         withdrawSlipTime: transactions.withdrawSlipTime,
         createdAt: transactions.createdAt,
         updatedAt: transactions.updatedAt,
         createdBy: transactions.createdBy,
+        deletedAt: transactions.deletedAt,
+        deletedBy: transactions.deletedBy,
+        deleteReason: transactions.deleteReason,
         websiteName: websites.name,
         websitePrefix: websites.prefix,
         walletName: wallets.name,
@@ -92,7 +98,18 @@ export async function GET(request: Request) {
       list = list.filter((r) => idSet.has(r.id));
     }
 
-    return NextResponse.json(list);
+    const deletedByIds = [...new Set(list.filter((r) => r.deletedBy != null).map((r) => r.deletedBy!))];
+    const deletedByUsers =
+      deletedByIds.length > 0
+        ? await db.select({ id: users.id, username: users.username }).from(users).where(inArray(users.id, deletedByIds))
+        : [];
+    const deletedByMap = new Map(deletedByUsers.map((u) => [u.id, u.username]));
+    const listWithDeletedBy = list.map((r) => ({
+      ...r,
+      deletedByUsername: r.deletedBy ? (deletedByMap.get(r.deletedBy) ?? '?') : null,
+    }));
+
+    return NextResponse.json(listWithDeletedBy);
   } catch (e) {
     console.error(e);
     return NextResponse.json(
@@ -206,8 +223,10 @@ export async function POST(request: Request) {
         rateSnapshot
       );
 
+      const feeMinor = parsed.data.withdrawFeeMinor ?? 0;
+      const totalDebit = walletAmountMinor + feeMinor;
       const balance = await getWalletBalance(db, parsed.data.walletId);
-      if (balance < walletAmountMinor) {
+      if (balance < totalDebit) {
         return NextResponse.json(
           { error: 'ยอดเงินคงเหลือไม่เพียงพอ' },
           { status: 400 }
@@ -229,6 +248,7 @@ export async function POST(request: Request) {
           depositSlipTime: null,
           depositSystemTime: null,
           withdrawInputAmountMinor: parsed.data.withdrawInputAmountMinor,
+          withdrawFeeMinor: feeMinor,
           withdrawSystemTime: parsed.data.withdrawSystemTime,
           withdrawSlipTime: parsed.data.withdrawSlipTime,
           createdAt: now,

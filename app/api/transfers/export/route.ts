@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth } from '@/lib/api-helpers';
 import { transfers, wallets, users } from '@/db/schema';
-import { eq, gte, lte, and } from 'drizzle-orm';
+import { eq, gte, lte, and, isNull } from 'drizzle-orm';
 import { formatMinorToDisplay } from '@/lib/utils';
 
 export async function GET(request: Request) {
@@ -19,16 +19,15 @@ export async function GET(request: Request) {
     const conditions: Parameters<typeof and>[0][] = [];
     if (dateFrom) conditions.push(gte(transfers.txnDate, dateFrom));
     if (dateTo) conditions.push(lte(transfers.txnDate, dateTo));
+    conditions.push(isNull(transfers.deletedAt));
 
     const baseQuery = db
       .select()
       .from(transfers)
+      .where(and(...conditions))
       .orderBy(transfers.txnDate, transfers.id);
 
-    const list =
-      conditions.length > 0
-        ? await baseQuery.where(and(...conditions))
-        : await baseQuery;
+    const list = await baseQuery;
 
     const withNames = await Promise.all(
       list.map(async (t) => {

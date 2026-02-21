@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth } from '@/lib/api-helpers';
 import type { Db } from '@/db';
 import { transactions, wallets, transfers, settings } from '@/db/schema';
-import { eq, and, gte, lte, sql } from 'drizzle-orm';
+import { eq, and, gte, lte, sql, isNull } from 'drizzle-orm';
 import { convertToDisplay, type Currency, type RateSnapshot } from '@/lib/rates';
 import { todayStrThailand } from '@/lib/utils';
 
@@ -23,7 +23,8 @@ async function sumInDisplayCurrency(
       and(
         eq(transactions.type, filters.type),
         gte(transactions.txnDate, filters.dateFrom),
-        lte(transactions.txnDate, filters.dateTo)
+        lte(transactions.txnDate, filters.dateTo),
+        isNull(transactions.deletedAt)
       )
     );
   let total = 0;
@@ -112,18 +113,20 @@ export async function GET(request: Request) {
           .where(
             and(
               eq(transactions.walletId, w.id),
-              eq(transactions.type, 'DEPOSIT')
+              eq(transactions.type, 'DEPOSIT'),
+              isNull(transactions.deletedAt)
             )
           );
         const withSum = await db
           .select({
-            sum: sql<number>`coalesce(sum(${transactions.amountMinor}), 0)`,
+            sum: sql<number>`coalesce(sum(${transactions.amountMinor} + coalesce(${transactions.withdrawFeeMinor}, 0)), 0)`,
           })
           .from(transactions)
           .where(
             and(
               eq(transactions.walletId, w.id),
-              eq(transactions.type, 'WITHDRAW')
+              eq(transactions.type, 'WITHDRAW'),
+              isNull(transactions.deletedAt)
             )
           );
         const fromSum = await db
@@ -131,13 +134,13 @@ export async function GET(request: Request) {
             sum: sql<number>`coalesce(sum(${transfers.fromWalletAmountMinor}), 0)`,
           })
           .from(transfers)
-          .where(eq(transfers.fromWalletId, w.id));
+          .where(and(eq(transfers.fromWalletId, w.id), isNull(transfers.deletedAt)));
         const toSum = await db
           .select({
             sum: sql<number>`coalesce(sum(${transfers.toWalletAmountMinor}), 0)`,
           })
           .from(transfers)
-          .where(eq(transfers.toWalletId, w.id));
+          .where(and(eq(transfers.toWalletId, w.id), isNull(transfers.deletedAt)));
 
         const dep = Number(depSum[0]?.sum ?? 0);
         const wth = Number(withSum[0]?.sum ?? 0);

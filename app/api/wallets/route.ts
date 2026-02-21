@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth, requireWallets } from '@/lib/api-helpers';
 import { wallets, transactions, transfers } from '@/db/schema';
 import { walletSchema } from '@/lib/validations';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, isNull } from 'drizzle-orm';
 
 export async function GET(request: Request) {
   try {
@@ -31,18 +31,20 @@ export async function GET(request: Request) {
           .where(
             and(
               eq(transactions.walletId, w.id),
-              eq(transactions.type, 'DEPOSIT')
+              eq(transactions.type, 'DEPOSIT'),
+              isNull(transactions.deletedAt)
             )
           );
         const [withRow] = await db
           .select({
-            sum: sql<number>`coalesce(sum(${transactions.amountMinor}), 0)`,
+            sum: sql<number>`coalesce(sum(${transactions.amountMinor} + coalesce(${transactions.withdrawFeeMinor}, 0)), 0)`,
           })
           .from(transactions)
           .where(
             and(
               eq(transactions.walletId, w.id),
-              eq(transactions.type, 'WITHDRAW')
+              eq(transactions.type, 'WITHDRAW'),
+              isNull(transactions.deletedAt)
             )
           );
         const [fromRow] = await db
@@ -50,13 +52,13 @@ export async function GET(request: Request) {
             sum: sql<number>`coalesce(sum(${transfers.fromWalletAmountMinor}), 0)`,
           })
           .from(transfers)
-          .where(eq(transfers.fromWalletId, w.id));
+          .where(and(eq(transfers.fromWalletId, w.id), isNull(transfers.deletedAt)));
         const [toRow] = await db
           .select({
             sum: sql<number>`coalesce(sum(${transfers.toWalletAmountMinor}), 0)`,
           })
           .from(transfers)
-          .where(eq(transfers.toWalletId, w.id));
+          .where(and(eq(transfers.toWalletId, w.id), isNull(transfers.deletedAt)));
         const dep = Number((depRow as { sum: number })?.sum ?? 0);
         const wth = Number((withRow as { sum: number })?.sum ?? 0);
         const from = Number((fromRow as { sum: number })?.sum ?? 0);

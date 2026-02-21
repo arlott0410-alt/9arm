@@ -42,6 +42,7 @@ type TxnDetail = {
   depositSlipTime: string | null;
   depositSystemTime: string | null;
   withdrawInputAmountMinor: number | null;
+  withdrawFeeMinor: number | null;
   withdrawSystemTime: string | null;
   withdrawSlipTime: string | null;
   createdAt: string;
@@ -84,7 +85,8 @@ export default function TransactionDetailPage() {
   }>>({});
   const [loading, setLoading] = useState(false);
   const canEdit = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
-  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteReason, setDeleteReason] = useState('');
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -207,22 +209,12 @@ export default function TransactionDetailPage() {
                     แก้ไข
                   </Button>
                 )}
-                {isSuperAdmin && (
+                {canEdit && (
                   <Button
                     variant="outline"
                     size="sm"
                     className="text-red-400 border-red-400/50 hover:bg-red-500/10"
-                    onClick={async () => {
-                      if (!confirm('ลบธุรกรรมนี้? การกระทำนี้ไม่สามารถย้อนกลับได้')) return;
-                      const res = await fetch(`/api/transactions/${id}`, {
-                        method: 'DELETE',
-                      });
-                      if (res.ok) router.replace('/transactions');
-                      else {
-                        const data = (await res.json()) as { error?: string };
-                        alert(data.error ?? 'ลบไม่ได้');
-                      }
-                    }}
+                    onClick={() => { setDeleteReason(''); setDeleteOpen(true); }}
                   >
                     ลบ
                   </Button>
@@ -273,6 +265,14 @@ export default function TransactionDetailPage() {
               )}
               {txn.type === 'WITHDRAW' && (
                 <>
+                  {(txn.withdrawFeeMinor ?? 0) > 0 && (
+                    <div>
+                      <span className="text-sm text-[#9CA3AF]">ค่าธรรมเนียมถอน</span>
+                      <p className="text-[#D4AF37] font-medium">
+                        {formatMinorToDisplay(txn.withdrawFeeMinor ?? 0, txn.walletCurrency)} {txn.walletCurrency}
+                      </p>
+                    </div>
+                  )}
                   <div>
                     <span className="text-sm text-[#9CA3AF]">เวลาระบบถอน</span>
                     <p className="text-[#E5E7EB]">{formatSlipTimeHHMM(txn.withdrawSystemTime)}</p>
@@ -318,6 +318,51 @@ export default function TransactionDetailPage() {
             </CardContent>
           </Card>
         )}
+
+        <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>ลบธุรกรรม</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-[#9CA3AF]">ระบุเหตุผลในการลบ</p>
+            <Input
+              value={deleteReason}
+              onChange={(e) => setDeleteReason(e.target.value)}
+              placeholder="เหตุผลที่ลบ"
+              className="mt-2"
+            />
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => setDeleteOpen(false)}>
+                ยกเลิก
+              </Button>
+              <Button
+                disabled={!deleteReason.trim() || loading}
+                className="bg-red-600 hover:bg-red-700"
+                onClick={async () => {
+                  if (!deleteReason.trim()) return;
+                  setLoading(true);
+                  try {
+                    const res = await fetch(`/api/transactions/${id}`, {
+                      method: 'DELETE',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ deleteReason: deleteReason.trim() }),
+                    });
+                    const data = (await res.json()) as { error?: string };
+                    if (res.ok) {
+                      router.replace('/transactions');
+                    } else {
+                      alert(typeof data.error === 'string' ? data.error : 'ลบไม่ได้');
+                    }
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+              >
+                ยืนยันลบ
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={editOpen} onOpenChange={setEditOpen}>
           <DialogContent>

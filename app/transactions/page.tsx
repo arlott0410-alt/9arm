@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { formatMinorToDisplay, parseDisplayToMinor, todayStr, formatSlipTimeHHMM, formatDateThailand } from '@/lib/utils';
 import { TimeInput24 } from '@/components/ui/time-input-24';
 import { convertToDisplay, convertFromDisplay } from '@/lib/rates';
@@ -36,6 +37,9 @@ type Txn = {
   withdrawSlipTime: string | null;
   createdByUsername: string;
   displayCurrency: string;
+  deletedAt?: string | null;
+  deletedByUsername?: string | null;
+  deleteReason?: string | null;
 };
 
 export default function TransactionsPage() {
@@ -54,6 +58,10 @@ export default function TransactionsPage() {
   const [filterWebsite, setFilterWebsite] = useState('__all__');
   const [filterUserFull, setFilterUserFull] = useState('');
   const [filterEdited, setFilterEdited] = useState(false);
+  const [filterDeleted, setFilterDeleted] = useState(false);
+  const [deleteModal, setDeleteModal] = useState<Txn | null>(null);
+  const [deleteReason, setDeleteReason] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [depositForm, setDepositForm] = useState({
     txnDate: todayStr(),
@@ -70,11 +78,11 @@ export default function TransactionsPage() {
     userIdInput: '',
     walletId: 0,
     withdrawInputAmountMinor: 0,
+    withdrawFeeMinor: 0,
     withdrawSystemTime: '00:00',
     withdrawSlipTime: '00:00',
   });
   const canMutate = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
-  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
   const loadData = useCallback(async () => {
     const [wRes, walRes, setRes] = await Promise.all([
@@ -116,6 +124,7 @@ export default function TransactionsPage() {
       ...(filterWebsite && filterWebsite !== '__all__' && { websiteId: filterWebsite }),
       ...(filterUserFull && { userFull: filterUserFull }),
       ...(filterEdited && { editedOnly: 'true' }),
+      ...(filterDeleted && { deletedOnly: 'true' }),
     });
     fetch(`/api/transactions?${params}`)
       .then((r) => r.json() as Promise<Txn[]>)
@@ -123,7 +132,7 @@ export default function TransactionsPage() {
         setDeposits(list.filter((t) => t.type === 'DEPOSIT').sort((a, b) => (a.depositSlipTime || '').localeCompare(b.depositSlipTime || '')));
         setWithdraws(list.filter((t) => t.type === 'WITHDRAW').sort((a, b) => (a.withdrawSlipTime || '').localeCompare(b.withdrawSlipTime || '')));
       });
-  }, [user, dateFrom, dateTo, filterWebsite, filterUserFull, filterEdited]);
+  }, [user, dateFrom, dateTo, filterWebsite, filterUserFull, filterEdited, filterDeleted]);
 
   function getSelectedWebsite() {
     const id = depositForm.websiteId || withdrawForm.websiteId;
@@ -213,6 +222,7 @@ export default function TransactionsPage() {
       userFull,
       walletId: withdrawForm.walletId,
       withdrawInputAmountMinor: withdrawForm.withdrawInputAmountMinor,
+      withdrawFeeMinor: withdrawForm.withdrawFeeMinor ?? 0,
       withdrawSystemTime: `${withdrawForm.txnDate}T${withdrawForm.withdrawSystemTime}`,
       withdrawSlipTime: `${withdrawForm.txnDate}T${withdrawForm.withdrawSlipTime}`,
     };
@@ -223,7 +233,7 @@ export default function TransactionsPage() {
         body: JSON.stringify(body),
       });
       if (res.ok) {
-        setWithdrawForm({ ...withdrawForm, withdrawInputAmountMinor: 0, userIdInput: '' });
+        setWithdrawForm({ ...withdrawForm, withdrawInputAmountMinor: 0, withdrawFeeMinor: 0, userIdInput: '' });
         const params = new URLSearchParams({ dateFrom, dateTo });
         const list = (await fetch(`/api/transactions?${params}`).then((r) => r.json())) as Txn[];
         setDeposits(list.filter((t) => t.type === 'DEPOSIT'));
@@ -560,6 +570,31 @@ export default function TransactionsPage() {
                         />
                       </div>
                       <div>
+                        <Label>ค่าธรรมเนียมถอน ({withdrawWallet?.currency ?? 'THB'})</Label>
+                        <Input
+                          type="text"
+                          placeholder="0"
+                          value={
+                            withdrawForm.withdrawFeeMinor
+                              ? formatMinorToDisplay(
+                                  withdrawForm.withdrawFeeMinor,
+                                  withdrawWallet?.currency || 'THB'
+                                )
+                              : ''
+                          }
+                          onChange={(e) => {
+                            const v = parseDisplayToMinor(
+                              e.target.value,
+                              withdrawWallet?.currency || 'THB'
+                            );
+                            setWithdrawForm({ ...withdrawForm, withdrawFeeMinor: v });
+                          }}
+                        />
+                        <p className="mt-1 text-xs text-[#9CA3AF]">
+                          สกุลเงินตามกระเป๋าที่เลือก
+                        </p>
+                      </div>
+                      <div>
                         <Label>เวลาระบบถอน</Label>
                         <TimeInput24
                           value={withdrawForm.withdrawSystemTime}
@@ -640,6 +675,14 @@ export default function TransactionsPage() {
                   />
                   แก้ไขแล้วเท่านั้น
                 </label>
+                <label className="flex items-center gap-2 text-sm text-[#9CA3AF]">
+                  <input
+                    type="checkbox"
+                    checked={filterDeleted}
+                    onChange={(e) => setFilterDeleted(e.target.checked)}
+                  />
+                  รายการที่ลบ
+                </label>
                 <Button variant="outline" size="sm" onClick={exportCsv}>
                   ส่งออก CSV
                 </Button>
@@ -663,6 +706,12 @@ export default function TransactionsPage() {
                         <th className="py-2 text-left text-[#9CA3AF]">กระเป๋า</th>
                         <th className="py-2 text-right text-[#9CA3AF]">จำนวน / เวลาสลิป</th>
                         <th className="py-2 text-left text-[#9CA3AF]">ผู้ดำเนินการ</th>
+                        {filterDeleted && (
+                          <>
+                            <th className="py-2 text-left text-[#9CA3AF]">ลบโดย</th>
+                            <th className="py-2 text-left text-[#9CA3AF]">เหตุผล</th>
+                          </>
+                        )}
                         <th className="py-2 text-left text-[#9CA3AF]">ดำเนินการ</th>
                       </tr>
                     </thead>
@@ -685,6 +734,12 @@ export default function TransactionsPage() {
                             </div>
                           </td>
                           <td className="py-2">{t.createdByUsername}</td>
+                          {filterDeleted && (
+                            <>
+                              <td className="py-2 text-red-400/90">{t.deletedByUsername ?? '-'}</td>
+                              <td className="py-2 text-[#9CA3AF] max-w-[160px] truncate" title={t.deleteReason ?? undefined}>{t.deleteReason ?? '-'}</td>
+                            </>
+                          )}
                           <td className="py-2 flex items-center gap-2">
                             <Link
                               href={`/transactions/${t.id}`}
@@ -692,20 +747,9 @@ export default function TransactionsPage() {
                             >
                               ดู
                             </Link>
-                            {isSuperAdmin && (
+                            {canMutate && !filterDeleted && (
                               <button
-                                onClick={async () => {
-                                  if (!confirm('ลบธุรกรรมนี้?')) return;
-                                  const res = await fetch(`/api/transactions/${t.id}`, {
-                                    method: 'DELETE',
-                                  });
-                                  if (res.ok) {
-                                    setDeposits((p) => p.filter((x) => x.id !== t.id));
-                                  } else {
-                                    const data = (await res.json()) as { error?: string };
-                                    alert(data.error ?? 'ลบไม่ได้');
-                                  }
-                                }}
+                                onClick={() => setDeleteModal(t)}
                                 className="text-red-400 hover:text-red-300 text-xs"
                               >
                                 ลบ
@@ -716,7 +760,7 @@ export default function TransactionsPage() {
                       ))}
                       {deposits.length === 0 && (
                         <tr>
-                          <td colSpan={7} className="py-6 text-center text-[#9CA3AF]">
+                          <td colSpan={filterDeleted ? 9 : 7} className="py-6 text-center text-[#9CA3AF]">
                             ไม่มีรายการฝาก
                           </td>
                         </tr>
@@ -736,6 +780,12 @@ export default function TransactionsPage() {
                         <th className="py-2 text-left text-[#9CA3AF]">กระเป๋า</th>
                         <th className="py-2 text-right text-[#9CA3AF]">จำนวน / เวลาสลิป</th>
                         <th className="py-2 text-left text-[#9CA3AF]">ผู้ดำเนินการ</th>
+                        {filterDeleted && (
+                          <>
+                            <th className="py-2 text-left text-[#9CA3AF]">ลบโดย</th>
+                            <th className="py-2 text-left text-[#9CA3AF]">เหตุผล</th>
+                          </>
+                        )}
                         <th className="py-2 text-left text-[#9CA3AF]">ดำเนินการ</th>
                       </tr>
                     </thead>
@@ -758,6 +808,12 @@ export default function TransactionsPage() {
                             </div>
                           </td>
                           <td className="py-2">{t.createdByUsername}</td>
+                          {filterDeleted && (
+                            <>
+                              <td className="py-2 text-red-400/90">{t.deletedByUsername ?? '-'}</td>
+                              <td className="py-2 text-[#9CA3AF] max-w-[160px] truncate" title={t.deleteReason ?? undefined}>{t.deleteReason ?? '-'}</td>
+                            </>
+                          )}
                           <td className="py-2 flex items-center gap-2">
                             <Link
                               href={`/transactions/${t.id}`}
@@ -765,20 +821,9 @@ export default function TransactionsPage() {
                             >
                               ดู
                             </Link>
-                            {isSuperAdmin && (
+                            {canMutate && !filterDeleted && (
                               <button
-                                onClick={async () => {
-                                  if (!confirm('ลบธุรกรรมนี้?')) return;
-                                  const res = await fetch(`/api/transactions/${t.id}`, {
-                                    method: 'DELETE',
-                                  });
-                                  if (res.ok) {
-                                    setWithdraws((p) => p.filter((x) => x.id !== t.id));
-                                  } else {
-                                    const data = (await res.json()) as { error?: string };
-                                    alert(data.error ?? 'ลบไม่ได้');
-                                  }
-                                }}
+                                onClick={() => setDeleteModal(t)}
                                 className="text-red-400 hover:text-red-300 text-xs"
                               >
                                 ลบ
@@ -789,7 +834,7 @@ export default function TransactionsPage() {
                       ))}
                       {withdraws.length === 0 && (
                         <tr>
-                          <td colSpan={7} className="py-6 text-center text-[#9CA3AF]">
+                          <td colSpan={filterDeleted ? 9 : 7} className="py-6 text-center text-[#9CA3AF]">
                             ไม่มีรายการถอน
                           </td>
                         </tr>
@@ -801,6 +846,63 @@ export default function TransactionsPage() {
             </Tabs>
           </CardContent>
         </Card>
+
+        <Dialog open={!!deleteModal} onOpenChange={(o) => { if (!o) { setDeleteModal(null); setDeleteReason(''); } }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>ลบธุรกรรม</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-[#9CA3AF]">ระบุเหตุผลในการลบ</p>
+            <Input
+              value={deleteReason}
+              onChange={(e) => setDeleteReason(e.target.value)}
+              placeholder="เหตุผลที่ลบ"
+              className="mt-2"
+            />
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => { setDeleteModal(null); setDeleteReason(''); }}>
+                ยกเลิก
+              </Button>
+              <Button
+                disabled={!deleteReason.trim() || deleteLoading}
+                className="bg-red-600 hover:bg-red-700"
+                onClick={async () => {
+                  if (!deleteModal || !deleteReason.trim()) return;
+                  setDeleteLoading(true);
+                  try {
+                    const res = await fetch(`/api/transactions/${deleteModal.id}`, {
+                      method: 'DELETE',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ deleteReason: deleteReason.trim() }),
+                    });
+                    const data = (await res.json()) as { error?: string };
+                    if (res.ok) {
+                      setDeleteModal(null);
+                      setDeleteReason('');
+                      const params = new URLSearchParams({
+                        dateFrom,
+                        dateTo,
+                        ...(filterWebsite && filterWebsite !== '__all__' && { websiteId: filterWebsite }),
+                        ...(filterUserFull && { userFull: filterUserFull }),
+                        ...(filterEdited && { editedOnly: 'true' }),
+                        ...(filterDeleted && { deletedOnly: 'true' }),
+                      });
+                      const list = (await fetch(`/api/transactions?${params}`).then((r) => r.json())) as Txn[];
+                      setDeposits(list.filter((t) => t.type === 'DEPOSIT').sort((a, b) => (a.depositSlipTime || '').localeCompare(b.depositSlipTime || '')));
+                      setWithdraws(list.filter((t) => t.type === 'WITHDRAW').sort((a, b) => (a.withdrawSlipTime || '').localeCompare(b.withdrawSlipTime || '')));
+                    } else {
+                      alert(typeof data.error === 'string' ? data.error : 'ลบไม่ได้');
+                    }
+                  } finally {
+                    setDeleteLoading(false);
+                  }
+                }}
+              >
+                ยืนยันลบ
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   );

@@ -1,6 +1,6 @@
 import type { Db } from '@/db';
 import { wallets, transactions, transfers } from '@/db/schema';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, isNull } from 'drizzle-orm';
 
 export async function getWalletBalance(db: Db, walletId: number): Promise<number> {
   const [wallet] = await db
@@ -14,25 +14,25 @@ export async function getWalletBalance(db: Db, walletId: number): Promise<number
       sum: sql<number>`coalesce(sum(${transactions.amountMinor}), 0)`,
     })
     .from(transactions)
-    .where(and(eq(transactions.walletId, walletId), eq(transactions.type, 'DEPOSIT')));
+    .where(and(eq(transactions.walletId, walletId), eq(transactions.type, 'DEPOSIT'), isNull(transactions.deletedAt)));
   const [withdrawRow] = await db
     .select({
-      sum: sql<number>`coalesce(sum(${transactions.amountMinor}), 0)`,
+      sum: sql<number>`coalesce(sum(${transactions.amountMinor} + coalesce(${transactions.withdrawFeeMinor}, 0)), 0)`,
     })
     .from(transactions)
-    .where(and(eq(transactions.walletId, walletId), eq(transactions.type, 'WITHDRAW')));
+    .where(and(eq(transactions.walletId, walletId), eq(transactions.type, 'WITHDRAW'), isNull(transactions.deletedAt)));
   const [fromRow] = await db
     .select({
       sum: sql<number>`coalesce(sum(${transfers.fromWalletAmountMinor}), 0)`,
     })
     .from(transfers)
-    .where(eq(transfers.fromWalletId, walletId));
+    .where(and(eq(transfers.fromWalletId, walletId), isNull(transfers.deletedAt)));
   const [toRow] = await db
     .select({
       sum: sql<number>`coalesce(sum(${transfers.toWalletAmountMinor}), 0)`,
     })
     .from(transfers)
-    .where(eq(transfers.toWalletId, walletId));
+    .where(and(eq(transfers.toWalletId, walletId), isNull(transfers.deletedAt)));
   const depTotal = Number((depositRow as { sum: number })?.sum ?? 0);
   const wthTotal = Number((withdrawRow as { sum: number })?.sum ?? 0);
   const fromTotal = Number((fromRow as { sum: number })?.sum ?? 0);

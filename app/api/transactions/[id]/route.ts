@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDbAndUser, requireAuth, requireSettings } from '@/lib/api-helpers';
+import { getDbAndUser, requireAuth, requireMutate } from '@/lib/api-helpers';
 import {
   transactions,
   websites,
@@ -41,6 +41,7 @@ export async function GET(
         depositSlipTime: transactions.depositSlipTime,
         depositSystemTime: transactions.depositSystemTime,
         withdrawInputAmountMinor: transactions.withdrawInputAmountMinor,
+        withdrawFeeMinor: transactions.withdrawFeeMinor,
         withdrawSystemTime: transactions.withdrawSystemTime,
         withdrawSlipTime: transactions.withdrawSlipTime,
         createdAt: transactions.createdAt,
@@ -108,13 +109,22 @@ export async function DELETE(
     const result = await getDbAndUser(request);
     if (result instanceof NextResponse) return result;
     const { db, user } = result;
-    const err = requireSettings(user);
+    const err = requireMutate(user);
     if (err) return err;
 
     const { id } = await params;
     const idNum = parseInt(id, 10);
     if (isNaN(idNum)) {
       return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
+    }
+
+    const body = (await request.json()) as { deleteReason?: string } | null;
+    const deleteReason = typeof body?.deleteReason === 'string' ? body.deleteReason.trim() : '';
+    if (!deleteReason) {
+      return NextResponse.json(
+        { error: 'ต้องระบุเหตุผลในการลบ' },
+        { status: 400 }
+      );
     }
 
     const [txn] = await db
@@ -127,7 +137,15 @@ export async function DELETE(
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    await db.delete(transactions).where(eq(transactions.id, idNum));
+    const now = new Date();
+    await db
+      .update(transactions)
+      .set({
+        deletedAt: now,
+        deletedBy: user!.id,
+        deleteReason,
+      })
+      .where(eq(transactions.id, idNum));
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error(e);

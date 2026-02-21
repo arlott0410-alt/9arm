@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth } from '@/lib/api-helpers';
 import { transactions, transfers, settings, wallets } from '@/db/schema';
-import { eq, sql, gte, lte, and } from 'drizzle-orm';
+import { eq, sql, gte, lte, and, isNull } from 'drizzle-orm';
 import { convertToDisplay, type Currency, type RateSnapshot } from '@/lib/rates';
 import { todayStrThailand } from '@/lib/utils';
 
@@ -62,7 +62,8 @@ export async function GET(request: Request) {
           and(
             eq(transactions.type, 'DEPOSIT'),
             gte(transactions.txnDate, dateFrom),
-            lte(transactions.txnDate, dateTo)
+            lte(transactions.txnDate, dateTo),
+            isNull(transactions.deletedAt)
           )
         ),
       db
@@ -75,7 +76,8 @@ export async function GET(request: Request) {
           and(
             eq(transactions.type, 'WITHDRAW'),
             gte(transactions.txnDate, dateFrom),
-            lte(transactions.txnDate, dateTo)
+            lte(transactions.txnDate, dateTo),
+            isNull(transactions.deletedAt)
           )
         ),
     ]);
@@ -132,7 +134,8 @@ export async function GET(request: Request) {
         and(
           eq(transfers.type, 'INTERNAL'),
           gte(transfers.txnDate, dateFrom),
-          lte(transfers.txnDate, dateTo)
+          lte(transfers.txnDate, dateTo),
+          isNull(transfers.deletedAt)
         )
       );
     const extInRows = await db
@@ -146,7 +149,8 @@ export async function GET(request: Request) {
         and(
           eq(transfers.type, 'EXTERNAL_IN'),
           gte(transfers.txnDate, dateFrom),
-          lte(transfers.txnDate, dateTo)
+          lte(transfers.txnDate, dateTo),
+          isNull(transfers.deletedAt)
         )
       );
     const extOutRows = await db
@@ -160,7 +164,8 @@ export async function GET(request: Request) {
         and(
           eq(transfers.type, 'EXTERNAL_OUT'),
           gte(transfers.txnDate, dateFrom),
-          lte(transfers.txnDate, dateTo)
+          lte(transfers.txnDate, dateTo),
+          isNull(transfers.deletedAt)
         )
       );
 
@@ -181,6 +186,30 @@ export async function GET(request: Request) {
       internalByCurrency[cur] = (internalByCurrency[cur] ?? 0) + Number(r.amount ?? 0);
     }
 
+    const feeRows = await db
+      .select({
+        fee: transactions.withdrawFeeMinor,
+        currency: wallets.currency,
+      })
+      .from(transactions)
+      .innerJoin(wallets, eq(transactions.walletId, wallets.id))
+      .where(
+        and(
+          eq(transactions.type, 'WITHDRAW'),
+          gte(transactions.txnDate, dateFrom),
+          lte(transactions.txnDate, dateTo),
+          isNull(transactions.deletedAt)
+        )
+      );
+    const withdrawFeesByCurrency: Record<string, number> = {};
+    for (const r of feeRows) {
+      const cur = r.currency ?? 'THB';
+      const fee = Number(r.fee ?? 0);
+      if (fee > 0) {
+        withdrawFeesByCurrency[cur] = (withdrawFeesByCurrency[cur] ?? 0) + fee;
+      }
+    }
+
     return NextResponse.json({
       displayCurrency,
       period,
@@ -196,6 +225,7 @@ export async function GET(request: Request) {
         externalInByCurrency,
         externalOutByCurrency,
       },
+      withdrawFeesByCurrency,
     });
   } catch (e) {
     console.error(e);

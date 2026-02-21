@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth, requireMutate } from '@/lib/api-helpers';
 import { transfers, transactions, wallets, users } from '@/db/schema';
-import { eq, gte, lte, and, sql } from 'drizzle-orm';
+import { eq, gte, lte, and, isNull, isNotNull } from 'drizzle-orm';
 import { transferSchema } from '@/lib/validations';
 import { settings } from '@/db/schema';
 import type { Currency } from '@/lib/rates';
@@ -24,11 +24,13 @@ export async function GET(request: Request) {
     const dateFrom = url.searchParams.get('dateFrom') || '';
     const dateTo = url.searchParams.get('dateTo') || '';
     const type = url.searchParams.get('type');
+    const deletedOnly = url.searchParams.get('deletedOnly') === 'true';
 
     const conditions: Parameters<typeof and>[0][] = [];
     if (dateFrom) conditions.push(gte(transfers.txnDate, dateFrom));
     if (dateTo) conditions.push(lte(transfers.txnDate, dateTo));
     if (type) conditions.push(eq(transfers.type, type as 'INTERNAL' | 'EXTERNAL_OUT' | 'EXTERNAL_IN'));
+    conditions.push(deletedOnly ? isNotNull(transfers.deletedAt) : isNull(transfers.deletedAt));
 
     const baseQuery = db
       .select({
@@ -46,14 +48,15 @@ export async function GET(request: Request) {
         note: transfers.note,
         createdBy: transfers.createdBy,
         createdAt: transfers.createdAt,
+        deletedAt: transfers.deletedAt,
+        deletedBy: transfers.deletedBy,
+        deleteReason: transfers.deleteReason,
       })
       .from(transfers)
+      .where(and(...conditions))
       .orderBy(transfers.txnDate, transfers.id);
 
-    const list =
-      conditions.length > 0
-        ? await baseQuery.where(and(...conditions))
-        : await baseQuery;
+    const list = await baseQuery;
 
     const withNames = await Promise.all(
       list.map(async (t) => {
@@ -85,6 +88,15 @@ export async function GET(request: Request) {
           .where(eq(users.id, t.createdBy))
           .limit(1);
         const createdByUsername = u?.username ?? '?';
+        let deletedByUsername: string | null = null;
+        if (t.deletedBy) {
+          const [du] = await db
+            .select({ username: users.username })
+            .from(users)
+            .where(eq(users.id, t.deletedBy))
+            .limit(1);
+          deletedByUsername = du?.username ?? '?';
+        }
         return {
           ...t,
           fromWalletName: fromName,
@@ -92,6 +104,7 @@ export async function GET(request: Request) {
           toWalletName: toName,
           toWalletCurrency: toCurrency,
           createdByUsername,
+          deletedByUsername,
         };
       })
     );

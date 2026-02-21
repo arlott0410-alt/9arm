@@ -20,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   formatMinorToDisplay,
   parseDisplayToMinor,
@@ -50,6 +51,9 @@ type Transfer = {
   note: string | null;
   createdByUsername: string;
   displayCurrency: string;
+  deletedAt?: string | null;
+  deletedByUsername?: string | null;
+  deleteReason?: string | null;
 };
 
 export default function TransfersPage() {
@@ -78,6 +82,10 @@ export default function TransfersPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [balances, setBalances] = useState<Map<number, number>>(new Map());
+  const [tab, setTab] = useState<'active' | 'deleted'>('active');
+  const [deleteModal, setDeleteModal] = useState<Transfer | null>(null);
+  const [deleteReason, setDeleteReason] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const canMutate = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
 
   useEffect(() => {
@@ -122,11 +130,11 @@ export default function TransfersPage() {
 
   useEffect(() => {
     if (!user) return;
-    const params = new URLSearchParams({ dateFrom, dateTo });
+    const params = new URLSearchParams({ dateFrom, dateTo, ...(tab === 'deleted' && { deletedOnly: 'true' }) });
     fetch(`/api/transfers?${params}`)
       .then((r) => r.json() as Promise<Transfer[]>)
       .then(setTransfers);
-  }, [user, dateFrom, dateTo]);
+  }, [user, dateFrom, dateTo, tab]);
 
   const sameWallet =
     form.type === 'INTERNAL' &&
@@ -270,6 +278,12 @@ export default function TransfersPage() {
 
         <Card className="border-[#1F2937] bg-[#0F172A]">
           <CardContent className="pt-6">
+            <Tabs value={tab} onValueChange={(v) => setTab(v as 'active' | 'deleted')}>
+              <TabsList>
+                <TabsTrigger value="active">รายการปกติ</TabsTrigger>
+                <TabsTrigger value="deleted">รายการที่ลบ</TabsTrigger>
+              </TabsList>
+              <TabsContent value="active">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -295,6 +309,9 @@ export default function TransfersPage() {
                     <th className="py-3 text-left font-medium text-[#9CA3AF]">
                       โดย
                     </th>
+                    {canMutate && tab === 'active' && (
+                      <th className="py-3 text-left font-medium text-[#9CA3AF] w-16">ดำเนินการ</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -318,7 +335,7 @@ export default function TransfersPage() {
                       <td className="py-3 text-[#E5E7EB]">
                         {t.toWalletName || '-'}
                       </td>
-                      <td className="py-3 text-right min-w-[100px]">
+                      <td className="py-3 text-right min-w-[100px] pr-6">
                         {(() => {
                           const { amount, currency } = getTransferAmountAndCurrency(t);
                           return (
@@ -328,29 +345,151 @@ export default function TransfersPage() {
                           );
                         })()}
                       </td>
-                      <td className="py-3 text-[#9CA3AF] max-w-[140px] truncate" title={t.note ?? undefined}>
+                      <td className="py-3 text-[#9CA3AF] max-w-[140px] truncate pl-2" title={t.note ?? undefined}>
                         {t.note || '-'}
                       </td>
                       <td className="py-3 text-[#9CA3AF]">
                         {t.createdByUsername}
                       </td>
+                      {canMutate && tab === 'active' && (
+                        <td className="py-3">
+                          <button
+                            onClick={() => setDeleteModal(t)}
+                            className="text-red-400 hover:text-red-300 text-xs"
+                          >
+                            ลบ
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                   {transfers.length === 0 && (
                     <tr>
                       <td
-                        colSpan={7}
+                        colSpan={canMutate && tab === 'active' ? 8 : 7}
                         className="py-6 text-center text-[#9CA3AF]"
                       >
-                        ไม่มีรายการโอนเงิน
+                        {tab === 'active' ? 'ไม่มีรายการโอนเงิน' : 'ไม่มีรายการที่ลบ'}
                       </td>
                     </tr>
                   )}
                 </tbody>
               </table>
             </div>
+              </TabsContent>
+              <TabsContent value="deleted">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-[#1F2937]">
+                    <th className="py-3 text-left font-medium text-[#9CA3AF]">วันที่ / เวลา</th>
+                    <th className="py-3 text-left font-medium text-[#9CA3AF]">ประเภท</th>
+                    <th className="py-3 text-left font-medium text-[#9CA3AF]">จาก</th>
+                    <th className="py-3 text-left font-medium text-[#9CA3AF]">ไปยัง</th>
+                    <th className="py-3 text-right font-medium text-[#9CA3AF]">จำนวน</th>
+                    <th className="py-3 text-left font-medium text-[#9CA3AF]">หมายเหตุ</th>
+                    <th className="py-3 text-left font-medium text-[#9CA3AF]">โดย</th>
+                    <th className="py-3 text-left font-medium text-[#9CA3AF]">ลบโดย</th>
+                    <th className="py-3 text-left font-medium text-[#9CA3AF]">เหตุผล</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transfers.map((t) => (
+                    <tr key={t.id} className="border-b border-[#1F2937] last:border-0 opacity-80">
+                      <td className="py-3 text-[#E5E7EB]">
+                        {formatDateThailand(t.txnDate)}
+                        {t.txnTime && (
+                          <span className="ml-2 text-[#9CA3AF]">{formatSlipTimeHHMM(t.txnTime)}</span>
+                        )}
+                      </td>
+                      <td className="py-3 text-[#9CA3AF]">
+                        {t.type === 'INTERNAL' ? 'ภายใน' : t.type === 'EXTERNAL_IN' ? 'รับจากภายนอก' : 'โอนออกภายนอก'}
+                      </td>
+                      <td className="py-3 text-[#E5E7EB]">{t.fromWalletName || '-'}</td>
+                      <td className="py-3 text-[#E5E7EB]">{t.toWalletName || '-'}</td>
+                      <td className="py-3 text-right min-w-[100px] pr-6">
+                        {(() => {
+                          const { amount, currency } = getTransferAmountAndCurrency(t);
+                          return (
+                            <span className="font-medium text-[#D4AF37]">
+                              {formatMinorToDisplay(amount, currency)} {currency}
+                            </span>
+                          );
+                        })()}
+                      </td>
+                      <td className="py-3 text-[#9CA3AF] max-w-[140px] truncate pl-2" title={t.note ?? undefined}>
+                        {t.note || '-'}
+                      </td>
+                      <td className="py-3 text-[#9CA3AF]">{t.createdByUsername}</td>
+                      <td className="py-3 text-red-400/90">{t.deletedByUsername ?? '-'}</td>
+                      <td className="py-3 text-[#9CA3AF] max-w-[180px] truncate" title={t.deleteReason ?? undefined}>
+                        {t.deleteReason || '-'}
+                      </td>
+                    </tr>
+                  ))}
+                  {transfers.length === 0 && (
+                    <tr>
+                      <td colSpan={9} className="py-6 text-center text-[#9CA3AF]">
+                        ไม่มีรายการที่ลบ
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
+
+        <Dialog open={!!deleteModal} onOpenChange={(o) => { if (!o) { setDeleteModal(null); setDeleteReason(''); } }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>ลบรายการโอนเงิน</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-[#9CA3AF]">ระบุเหตุผลในการลบ</p>
+            <Input
+              value={deleteReason}
+              onChange={(e) => setDeleteReason(e.target.value)}
+              placeholder="เหตุผลที่ลบ"
+              className="mt-2"
+            />
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => { setDeleteModal(null); setDeleteReason(''); }}>
+                ยกเลิก
+              </Button>
+              <Button
+                disabled={!deleteReason.trim() || deleteLoading}
+                className="bg-red-600 hover:bg-red-700"
+                onClick={async () => {
+                  if (!deleteModal || !deleteReason.trim()) return;
+                  setDeleteLoading(true);
+                  try {
+                    const res = await fetch(`/api/transfers/${deleteModal.id}`, {
+                      method: 'DELETE',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ deleteReason: deleteReason.trim() }),
+                    });
+                    const data = (await safeJson(res)) as { error?: string };
+                    if (res.ok) {
+                      setDeleteModal(null);
+                      setDeleteReason('');
+                      const params = new URLSearchParams({ dateFrom, dateTo });
+                      const list = (await fetch(`/api/transfers?${params}`).then((r) => r.json())) as Transfer[];
+                      setTransfers(list);
+                    } else {
+                      alert(typeof data.error === 'string' ? data.error : 'ลบไม่ได้');
+                    }
+                  } finally {
+                    setDeleteLoading(false);
+                  }
+                }}
+              >
+                ยืนยันลบ
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setError(null); }}>
           <DialogContent>

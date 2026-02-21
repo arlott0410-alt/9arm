@@ -47,6 +47,7 @@ export default function ReportsPage() {
       externalInByCurrency: Record<string, number>;
       externalOutByCurrency: Record<string, number>;
     };
+    withdrawFeesByCurrency?: Record<string, number>;
     displayCurrency?: string;
   } | null>(null);
 
@@ -329,6 +330,36 @@ export default function ReportsPage() {
                         </li>
                       ));
                     })()}
+                  </ul>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-[#1F2937] bg-[#0F172A]">
+              <CardHeader>
+                <CardTitle className="text-[#E5E7EB]">
+                  ค่าธรรมเนียมถอน ({formatDateThailand(data.dateFrom)} ถึง {formatDateThailand(data.dateTo)})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div>
+                  <span className="text-[#9CA3AF]">แยกตามสกุลเงิน</span>
+                  <ul className="mt-1 space-y-1">
+                    {Object.entries(data.withdrawFeesByCurrency ?? {})
+                      .filter(([, v]) => v > 0)
+                      .sort(([a], [b]) => a.localeCompare(b))
+                      .map(([cur, amt]) => (
+                        <li key={cur} className="flex justify-between text-sm">
+                          <span className="text-[#9CA3AF]">{cur}</span>
+                          <span className="font-medium text-[#D4AF37]">
+                            {formatMinorToDisplay(amt, cur)}
+                          </span>
+                        </li>
+                      ))}
+                    {(!data.withdrawFeesByCurrency || Object.keys(data.withdrawFeesByCurrency).length === 0 ||
+                      Object.values(data.withdrawFeesByCurrency).every((v) => v === 0)) && (
+                      <li className="text-sm text-[#6B7280]">-</li>
+                    )}
                   </ul>
                 </div>
               </CardContent>

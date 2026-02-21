@@ -60,6 +60,7 @@ export const transactions = sqliteTable('transactions', {
   depositSlipTime: text('deposit_slip_time'),
   depositSystemTime: text('deposit_system_time'),
   withdrawInputAmountMinor: integer('withdraw_input_amount_minor'),
+  withdrawFeeMinor: integer('withdraw_fee_minor'),
   withdrawSystemTime: text('withdraw_system_time'),
   withdrawSlipTime: text('withdraw_slip_time'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
@@ -67,6 +68,9 @@ export const transactions = sqliteTable('transactions', {
   createdBy: integer('created_by')
     .notNull()
     .references(() => users.id, { onDelete: 'restrict' }),
+  deletedAt: integer('deleted_at', { mode: 'timestamp' }),
+  deletedBy: integer('deleted_by').references(() => users.id),
+  deleteReason: text('delete_reason'),
 });
 
 export const transactionEdits = sqliteTable('transaction_edits', {
@@ -106,6 +110,9 @@ export const transfers = sqliteTable('transfers', {
     .notNull()
     .references(() => users.id, { onDelete: 'restrict' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  deletedAt: integer('deleted_at', { mode: 'timestamp' }),
+  deletedBy: integer('deleted_by').references(() => users.id),
+  deleteReason: text('delete_reason'),
 });
 
 export const settings = sqliteTable('settings', {

@@ -65,7 +65,9 @@ Copy app icon ไปที่ `public/icon.png` (แนะนำ 512×512 px ห
 2. เปิด **Console** (Execute SQL)
 3. คัดลอก `db/schema.sql` วาง แล้ว **Execute**
 
-**สำหรับฐานข้อมูลที่มีอยู่แล้ว:** รัน `db/migrations/0001_add_transfer_time.sql` ใน D1 Console เพื่อเพิ่มคอลัมน์เวลาโอนเงิน
+**สำหรับฐานข้อมูลที่มีอยู่แล้ว:** รัน migrations ตามลำดับใน D1 Console:
+- `db/migrations/0001_add_transfer_time.sql`
+- `db/migrations/0002_add_withdraw_fee.sql` (ค่าธรรมเนียมถอน)
 
 ### 7. Deploy
 

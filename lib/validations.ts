@@ -39,6 +39,7 @@ export const withdrawTransactionSchema = z.object({
   userFull: z.string().min(1),
   walletId: z.number().int().positive(),
   withdrawInputAmountMinor: z.number().int().nonnegative(),
+  withdrawFeeMinor: z.number().int().nonnegative().optional(),
   withdrawSystemTime: z.string().min(1),
   withdrawSlipTime: z.string().min(1),
 });

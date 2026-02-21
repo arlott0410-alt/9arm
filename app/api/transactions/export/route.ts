@@ -7,7 +7,7 @@ import {
   users,
   transactionEdits,
 } from '@/db/schema';
-import { eq, and, gte, lte, desc } from 'drizzle-orm';
+import { eq, and, gte, lte, desc, isNull } from 'drizzle-orm';
 import { formatMinorToDisplay } from '@/lib/utils';
 
 export async function GET(request: Request) {
@@ -34,6 +34,7 @@ export async function GET(request: Request) {
     if (userFull) conditions.push(eq(transactions.userFull, userFull));
     if (createdBy) conditions.push(eq(transactions.createdBy, parseInt(createdBy)));
     if (type) conditions.push(eq(transactions.type, type as 'DEPOSIT' | 'WITHDRAW'));
+    conditions.push(isNull(transactions.deletedAt));
 
     const baseQuery = db
       .select({
