@@ -1,10 +1,9 @@
 export const runtime = 'edge';
 
 import { NextResponse } from 'next/server';
-import { getRequestContext } from '@cloudflare/next-on-pages';
-import { getDb } from '@/db';
 import { getSessionUser } from '@/lib/auth';
 import { getSessionIdFromRequest } from '@/lib/session-cookie';
+import { getEnvAndDb } from '@/lib/cf-env';
 
 export async function GET(request: Request) {
   try {
@@ -12,8 +11,9 @@ export async function GET(request: Request) {
     if (!sessionId) {
       return NextResponse.json({ user: null }, { status: 200 });
     }
-    const { env } = getRequestContext();
-    const db = getDb(env.DB);
+    const result = getEnvAndDb();
+    if (result instanceof NextResponse) return result;
+    const { db, env } = result;
     const user = await getSessionUser(db, sessionId, env.APP_SECRET);
     if (!user) {
       return NextResponse.json({ user: null }, { status: 200 });

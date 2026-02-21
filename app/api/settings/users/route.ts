@@ -13,7 +13,9 @@ import {
 
 export async function GET(request: Request) {
   try {
-    const { db, user } = await getDbAndUser(request);
+    const result = await getDbAndUser(request);
+    if (result instanceof NextResponse) return result;
+    const { db, user } = result;
     const err = requireSettings(user);
     if (err) return err;
 
@@ -40,7 +42,9 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { db, user } = await getDbAndUser(request);
+    const result = await getDbAndUser(request);
+    if (result instanceof NextResponse) return result;
+    const { db, user } = result;
     const err = requireSettings(user);
     if (err) return err;
 

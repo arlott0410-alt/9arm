@@ -11,7 +11,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { db, user } = await getDbAndUser(request);
+    const result = await getDbAndUser(request);
+    if (result instanceof NextResponse) return result;
+    const { db, user } = result;
     const err = requireSettings(user);
     if (err) return err;
 

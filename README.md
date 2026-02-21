@@ -66,6 +66,28 @@ After saving all settings, trigger a deploy (or push a commit). The build comman
 3. Enter username and password (min 8 chars), then click **Create Superadmin**.
 4. After creation, the setup UI is permanently disabled. You will be logged in and redirected to the dashboard.
 
+## Troubleshooting
+
+### API returns 500 / 503 — "เข้าสู่ระบบ" instead of "สร้าง Superadmin"
+
+If `/api/auth/needs-setup` or `/api/auth/me` returns 500/503:
+
+1. **Check D1 binding**: Cloudflare Dashboard → Pages project → **Settings** → **Functions** → **D1 database bindings**
+   - Variable name must be exactly `DB`
+   - Must be bound to your D1 database
+
+2. **Check environment variables**: **Settings** → **Environment variables**
+   - `APP_SECRET` must be set (e.g. `openssl rand -hex 32`)
+   - Apply to Production and Preview
+
+3. **Check schema**: D1 → your database → **Console** → run `db/schema.sql` if tables don't exist
+
+4. **Check Network tab**: Open DevTools (F12) → Network → reload. If `/api/auth/needs-setup` returns 503 with `DB_NOT_CONFIGURED` or `APP_SECRET_MISSING`, fix the corresponding setting and redeploy.
+
+### Node.JS Compatibility Error
+
+Add `nodejs_compat` under **Settings** → **Functions** → **Compatibility Flags** for both Production and Preview.
+
 ## Features
 
 - **Auth**: Login with username/password, HttpOnly session cookies, RBAC (SUPER_ADMIN, ADMIN, AUDIT).

@@ -1,19 +1,19 @@
 import { NextResponse } from 'next/server';
-import { getRequestContext } from '@cloudflare/next-on-pages';
 import { getDb } from '@/db';
 import { getSessionUser } from '@/lib/auth';
 import { getSessionIdFromRequest } from '@/lib/session-cookie';
+import { getEnvAndDb } from '@/lib/cf-env';
 import type { User } from '@/db/schema';
 import type { Role } from '@/lib/auth';
 import { bootstrapSettings } from '@/lib/bootstrap';
 
-export async function getDbAndUser(request: Request): Promise<{
-  db: ReturnType<typeof getDb>;
-  user: User | null;
-  env: { DB: D1Database; APP_SECRET: string; SESSION_TTL_HOURS?: string };
-}> {
-  const { env } = getRequestContext();
-  const db = getDb(env.DB);
+export async function getDbAndUser(request: Request): Promise<
+  | { db: ReturnType<typeof getDb>; user: User | null; env: { DB: D1Database; APP_SECRET: string; SESSION_TTL_HOURS?: string } }
+  | NextResponse
+> {
+  const envResult = getEnvAndDb();
+  if (envResult instanceof NextResponse) return envResult;
+  const { db, env } = envResult;
   await bootstrapSettings(db);
   const sessionId = getSessionIdFromRequest(request);
   const user = sessionId

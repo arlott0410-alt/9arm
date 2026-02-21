@@ -1,10 +1,9 @@
 export const runtime = 'edge';
 
 import { NextResponse } from 'next/server';
-import { getRequestContext } from '@cloudflare/next-on-pages';
 import { eq, and } from 'drizzle-orm';
-import { getDb } from '@/db';
 import { users, sessions } from '@/db/schema';
+import { getEnvAndDb } from '@/lib/cf-env';
 import {
   verifyPassword,
   generateSessionId,
@@ -19,8 +18,9 @@ import { bootstrapSettings } from '@/lib/bootstrap';
 
 export async function POST(request: Request) {
   try {
-    const { env } = getRequestContext();
-    const db = getDb(env.DB);
+    const result = getEnvAndDb();
+    if (result instanceof NextResponse) return result;
+    const { db, env } = result;
     await bootstrapSettings(db);
 
     const body = await request.json();

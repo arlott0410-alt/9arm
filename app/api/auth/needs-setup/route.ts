@@ -1,16 +1,16 @@
 export const runtime = 'edge';
 
 import { NextResponse } from 'next/server';
-import { getRequestContext } from '@cloudflare/next-on-pages';
 import { eq } from 'drizzle-orm';
-import { getDb } from '@/db';
 import { users } from '@/db/schema';
 import { bootstrapSettings } from '@/lib/bootstrap';
+import { getEnvAndDb } from '@/lib/cf-env';
 
 export async function GET() {
   try {
-    const { env } = getRequestContext();
-    const db = getDb(env.DB);
+    const result = getEnvAndDb({ requireAppSecret: false });
+    if (result instanceof NextResponse) return result;
+    const { db } = result;
     await bootstrapSettings(db);
 
     const existing = await db

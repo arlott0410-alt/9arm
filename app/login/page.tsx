@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 export default function LoginPage() {
   const router = useRouter();
   const [needsSetup, setNeedsSetup] = useState<boolean | null>(null);
+  const [configError, setConfigError] = useState<string | null>(null);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [setupPassword, setSetupPassword] = useState('');
@@ -18,8 +19,13 @@ export default function LoginPage() {
 
   useEffect(() => {
     fetch('/api/auth/needs-setup')
-      .then((r) => r.json() as Promise<{ needsSetup?: boolean }>)
-      .then((d) => setNeedsSetup(d.needsSetup ?? false))
+      .then(async (r) => {
+        const d = (await r.json()) as { needsSetup?: boolean; error?: string; message?: string };
+        if (!r.ok && (d.error === 'DB_NOT_CONFIGURED' || d.error === 'APP_SECRET_MISSING' || d.error === 'RUNTIME_ERROR')) {
+          setConfigError(d.message || 'Server configuration error. Check Cloudflare Pages settings.');
+        }
+        setNeedsSetup(d.needsSetup ?? false);
+      })
       .catch(() => setNeedsSetup(false));
   }, []);
 
@@ -69,10 +75,28 @@ export default function LoginPage() {
     }
   }
 
-  if (needsSetup === null) {
+  if (needsSetup === null && !configError) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#0B0F1A]">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#D4AF37] border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (configError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#0B0F1A] p-4">
+        <Card className="w-full max-w-md border-red-500/50 bg-[#0F172A]">
+          <CardHeader>
+            <CardTitle className="text-red-400">ข้อผิดพลาดการตั้งค่า</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-[#9CA3AF]">{configError}</p>
+            <p className="text-xs text-[#6B7280]">
+              ตรวจสอบ README: D1 binding (DB), APP_SECRET และ Compatibility Flags (nodejs_compat)
+            </p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
