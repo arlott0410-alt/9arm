@@ -1,0 +1,374 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { AppLayout } from '@/components/layout/AppLayout';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { formatMinorToDisplay, parseDisplayToMinor, todayStr } from '@/lib/utils';
+
+type Wallet = { id: number; name: string; currency: string };
+type Transfer = {
+  id: number;
+  txnDate: string;
+  type: string;
+  fromWalletName: string | null;
+  toWalletName: string | null;
+  inputAmountMinor: number;
+  fromWalletAmountMinor: number | null;
+  toWalletAmountMinor: number | null;
+  note: string | null;
+  createdByUsername: string;
+  displayCurrency: string;
+};
+
+export default function TransfersPage() {
+  const router = useRouter();
+  const [user, setUser] = useState<{ username: string; role: string } | null>(
+    null
+  );
+  const [transfers, setTransfers] = useState<Transfer[]>([]);
+  const [wallets, setWallets] = useState<Wallet[]>([]);
+  const [settings, setSettings] = useState<{ displayCurrency: string } | null>(
+    null
+  );
+  const [dateFrom, setDateFrom] = useState(todayStr());
+  const [dateTo, setDateTo] = useState(todayStr());
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({
+    txnDate: todayStr(),
+    type: 'INTERNAL' as 'INTERNAL' | 'EXTERNAL_OUT' | 'EXTERNAL_IN',
+    fromWalletId: 0 as number | null,
+    toWalletId: 0 as number | null,
+    inputAmountMinor: 0,
+    note: '',
+  });
+  const [loading, setLoading] = useState(false);
+  const canMutate = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d.user) router.replace('/login');
+        else setUser(d.user);
+      });
+  }, [router]);
+
+  useEffect(() => {
+    if (!user) return;
+    Promise.all([
+      fetch('/api/wallets').then((r) => r.json()),
+      fetch('/api/settings').then((r) => r.json()),
+    ]).then(([wal, set]) => {
+      setWallets(Array.isArray(wal) ? wal : []);
+      setSettings({
+        displayCurrency: set.DISPLAY_CURRENCY || 'THB',
+      });
+    });
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const params = new URLSearchParams({ dateFrom, dateTo });
+    fetch(`/api/transfers?${params}`)
+      .then((r) => r.json())
+      .then(setTransfers);
+  }, [user, dateFrom, dateTo]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!canMutate) return;
+    setLoading(true);
+    try {
+      const res = await fetch('/api/transfers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          txnDate: form.txnDate,
+          type: form.type,
+          fromWalletId: form.type === 'EXTERNAL_IN' ? null : form.fromWalletId,
+          toWalletId: form.type === 'EXTERNAL_OUT' ? null : form.toWalletId,
+          inputAmountMinor: form.inputAmountMinor,
+          note: form.note || undefined,
+        }),
+      });
+      if (res.ok) {
+        setForm({
+          txnDate: todayStr(),
+          type: 'INTERNAL',
+          fromWalletId: null,
+          toWalletId: null,
+          inputAmountMinor: 0,
+          note: '',
+        });
+        setOpen(false);
+        const params = new URLSearchParams({ dateFrom, dateTo });
+        const list = await fetch(`/api/transfers?${params}`).then((r) =>
+          r.json()
+        );
+        setTransfers(list);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function exportCsv() {
+    const params = new URLSearchParams({ dateFrom, dateTo });
+    window.open(`/api/transfers/export?${params}`, '_blank');
+  }
+
+  const dispCur = settings?.displayCurrency || 'THB';
+
+  if (!user) return null;
+
+  return (
+    <AppLayout user={user}>
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <h1 className="text-2xl font-semibold text-[#E5E7EB]">โอนเงิน</h1>
+          <div className="flex gap-2">
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="w-36"
+            />
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="w-36"
+            />
+            {canMutate && (
+              <Button onClick={() => setOpen(true)}>โอนเงินใหม่</Button>
+            )}
+            <Button variant="outline" onClick={exportCsv}>
+              ส่งออก CSV
+            </Button>
+          </div>
+        </div>
+
+        <Card className="border-[#1F2937] bg-[#0F172A]">
+          <CardContent className="pt-6">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-[#1F2937]">
+                    <th className="py-3 text-left font-medium text-[#9CA3AF]">
+                      วันที่
+                    </th>
+                    <th className="py-3 text-left font-medium text-[#9CA3AF]">
+                      ประเภท
+                    </th>
+                    <th className="py-3 text-left font-medium text-[#9CA3AF]">
+                      จาก
+                    </th>
+                    <th className="py-3 text-left font-medium text-[#9CA3AF]">
+                      ไปยัง
+                    </th>
+                    <th className="py-3 text-right font-medium text-[#9CA3AF]">
+                      จำนวน
+                    </th>
+                    <th className="py-3 text-left font-medium text-[#9CA3AF]">
+                      หมายเหตุ
+                    </th>
+                    <th className="py-3 text-left font-medium text-[#9CA3AF]">
+                      โดย
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transfers.map((t) => (
+                    <tr
+                      key={t.id}
+                      className="border-b border-[#1F2937] last:border-0"
+                    >
+                      <td className="py-3 text-[#E5E7EB]">{t.txnDate}</td>
+                      <td className="py-3 text-[#9CA3AF]">{t.type}</td>
+                      <td className="py-3 text-[#E5E7EB]">
+                        {t.fromWalletName || '-'}
+                      </td>
+                      <td className="py-3 text-[#E5E7EB]">
+                        {t.toWalletName || '-'}
+                      </td>
+                      <td className="py-3 text-right font-medium text-[#D4AF37]">
+                        {formatMinorToDisplay(t.inputAmountMinor, dispCur)}
+                      </td>
+                      <td className="py-3 text-[#9CA3AF]">
+                        {t.note || '-'}
+                      </td>
+                      <td className="py-3 text-[#9CA3AF]">
+                        {t.createdByUsername}
+                      </td>
+                    </tr>
+                  ))}
+                  {transfers.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={7}
+                        className="py-6 text-center text-[#9CA3AF]"
+                      >
+                        ไม่มีรายการโอนเงิน
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>โอนเงินใหม่</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label>วันที่</Label>
+                <Input
+                  type="date"
+                  value={form.txnDate}
+                  onChange={(e) =>
+                    setForm({ ...form, txnDate: e.target.value })
+                  }
+                  required
+                />
+              </div>
+              <div>
+                <Label>ประเภท</Label>
+                <Select
+                  value={form.type}
+                  onValueChange={(
+                    v: 'INTERNAL' | 'EXTERNAL_OUT' | 'EXTERNAL_IN'
+                  ) =>
+                    setForm({
+                      ...form,
+                      type: v,
+                      fromWalletId: v === 'EXTERNAL_IN' ? null : form.fromWalletId,
+                      toWalletId: v === 'EXTERNAL_OUT' ? null : form.toWalletId,
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="INTERNAL">ภายใน</SelectItem>
+                    <SelectItem value="EXTERNAL_OUT">โอนออกภายนอก</SelectItem>
+                    <SelectItem value="EXTERNAL_IN">โอนเข้ามาภายนอก</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {form.type !== 'EXTERNAL_IN' && (
+                <div>
+                  <Label>จากกระเป๋า</Label>
+                  <Select
+                    value={form.fromWalletId ? String(form.fromWalletId) : ''}
+                    onValueChange={(v) =>
+                      setForm({ ...form, fromWalletId: v ? parseInt(v) : null })
+                    }
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="เลือก" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {wallets.map((w) => (
+                        <SelectItem key={w.id} value={String(w.id)}>
+                          {w.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {form.type !== 'EXTERNAL_OUT' && (
+                <div>
+                  <Label>ไปยังกระเป๋า</Label>
+                  <Select
+                    value={form.toWalletId ? String(form.toWalletId) : ''}
+                    onValueChange={(v) =>
+                      setForm({ ...form, toWalletId: v ? parseInt(v) : null })
+                    }
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="เลือก" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {wallets.map((w) => (
+                        <SelectItem key={w.id} value={String(w.id)}>
+                          {w.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div>
+                <Label>จำนวน ({dispCur})</Label>
+                <Input
+                  type="text"
+                  placeholder="0"
+                  value={
+                    form.inputAmountMinor
+                      ? formatMinorToDisplay(
+                          form.inputAmountMinor,
+                          dispCur
+                        )
+                      : ''
+                  }
+                  onChange={(e) => {
+                    const v = parseDisplayToMinor(e.target.value, dispCur);
+                    setForm({ ...form, inputAmountMinor: v });
+                  }}
+                  required
+                />
+              </div>
+              <div>
+                <Label>หมายเหตุ</Label>
+                <Input
+                  value={form.note}
+                  onChange={(e) =>
+                    setForm({ ...form, note: e.target.value })
+                  }
+                  placeholder="ไม่บังคับ"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setOpen(false)}
+                >
+                  ยกเลิก
+                </Button>
+                <Button type="submit" disabled={loading}>
+                  สร้าง
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </AppLayout>
+  );
+}

@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: #0B0F1A;
+    --surface: #0F172A;
+    --surface-alt: #111827;
+    --gold: #D4AF37;
+    --gold-muted: #B8962E;
+    --foreground: #E5E7EB;
+    --muted: #9CA3AF;
+    --border: #1F2937;
+    --ring: #D4AF37;
+  }
+  body {
+    @apply bg-[#0B0F1A] text-[#E5E7EB] antialiased;
+  }
+}

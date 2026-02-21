@@ -1,0 +1,84 @@
+# 9arm Ledger
+
+Production-ready internal web app for recording deposit/withdraw + income/expense ledger for multiple gambling websites. Includes wallets, transfers, dashboards, reports, and CSV export.
+
+## Deployment (GitHub → Cloudflare Pages)
+
+The app is designed to deploy exclusively via **GitHub → Cloudflare Pages** integration. No local Node.js, Wrangler, or database setup is required on your machine.
+
+### 1. Push to GitHub
+
+Push this repository to a GitHub repository.
+
+### 2. Create Cloudflare Pages Project
+
+1. Go to [Cloudflare Dashboard](https://dash.cloudflare.com) → **Workers & Pages** → **Create application** → **Pages** → **Connect to Git**.
+2. Select your GitHub repository.
+3. Configure:
+   - **Project name**: 9arm-ledger (or your choice)
+   - **Production branch**: main (or your default branch)
+   - **Framework preset**: Next.js
+   - **Build command**: `npm run build`
+   - **Build output directory**: `.vercel/output/static`
+
+   > **Note**: `@cloudflare/next-on-pages` produces output in `.vercel/output/static`. Use this exact path as the build output directory.
+
+4. Under **Environment variables (advanced)**, add:
+   - `NODE_VERSION`: `18` (or higher)
+   - `APP_SECRET`: a long random string for signing sessions (e.g. generate with `openssl rand -hex 32`)
+   - `SESSION_TTL_HOURS`: `24` (optional; default 24)
+
+5. Go to **Settings** → **Functions** → **Compatibility Flags**:
+   - Add `nodejs_compat` for both Production and Preview
+   - Set **Compatibility date** to at least `2022-11-30`
+
+### 3. Create D1 Database
+
+1. In Cloudflare Dashboard: **Workers & Pages** → **D1** → **Create database**.
+2. Name it (e.g. `9arm-ledger-db`).
+3. Create the database and note the **Database ID**.
+
+### 4. Bind D1 to Pages Project
+
+1. Go to your Pages project → **Settings** → **Functions**.
+2. Under **D1 database bindings**, click **Add binding**.
+3. **Variable name**: `DB` (must be exactly `DB`).
+4. **D1 database**: Select the database you created.
+5. Save.
+
+### 5. Execute Schema
+
+1. Go to **Workers & Pages** → **D1** → Select your database.
+2. Open **Console** (Execute SQL).
+3. Copy the contents of `db/schema.sql` and paste into the console.
+4. Click **Execute**.
+
+### 6. Deploy
+
+After saving all settings, trigger a deploy (or push a commit). The build will run `next build` followed by `npx @cloudflare/next-on-pages`.
+
+### 7. Create Superadmin (First Time Only)
+
+1. Open your deployed site URL.
+2. You will see **Create Superadmin** (no login exists yet).
+3. Enter username and password (min 8 chars), then click **Create Superadmin**.
+4. After creation, the setup UI is permanently disabled. You will be logged in and redirected to the dashboard.
+
+## Features
+
+- **Auth**: Login with username/password, HttpOnly session cookies, RBAC (SUPER_ADMIN, ADMIN, AUDIT).
+- **Transactions**: Deposit/Withdraw forms, listing with filters, edit with reason + audit trail.
+- **Wallets**: Create wallets with opening balance; balances computed from transactions + transfers.
+- **Transfers**: Internal, External Out, External In.
+- **Dashboard**: Today/month deposits, withdraws, net; wallet balances.
+- **Reports**: Daily/Monthly/Yearly summaries for transactions and transfers.
+- **CSV Export**: Transactions and transfers with filters.
+- **Settings** (SUPER_ADMIN only): Websites, users, display currency, exchange rates.
+
+## Tech Stack
+
+- Next.js 14 App Router + TypeScript
+- Cloudflare Pages + Pages Functions (Workers runtime)
+- D1 (SQLite) + Drizzle ORM
+- Zod validation, WebCrypto PBKDF2 for passwords
+- TailwindCSS + shadcn/ui + lucide-react
