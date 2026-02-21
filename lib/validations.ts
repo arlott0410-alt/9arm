@@ -63,7 +63,7 @@ export const transferSchema = z.object({
   type: z.enum(['INTERNAL', 'EXTERNAL_OUT', 'EXTERNAL_IN']),
   fromWalletId: z.number().int().positive().nullable(),
   toWalletId: z.number().int().positive().nullable(),
-  inputAmountMinor: z.number().int().nonnegative(),
+  inputAmountMinor: z.number().int().positive(),
   fromWalletAmountMinor: z.number().int().nullable(),
   toWalletAmountMinor: z.number().int().nullable(),
   note: z.string().optional(),

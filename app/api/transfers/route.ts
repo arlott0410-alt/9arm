@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth, requireMutate } from '@/lib/api-helpers';
 import { transfers, wallets, users } from '@/db/schema';
-import { eq, gte, lte, and } from 'drizzle-orm';
+import { eq, gte, lte, and, sql } from 'drizzle-orm';
 import { transferSchema } from '@/lib/validations';
 import { settings } from '@/db/schema';
 import type { Currency } from '@/lib/rates';
@@ -10,6 +10,45 @@ import {
   convertToDisplay,
   type RateSnapshot,
 } from '@/lib/rates';
+import type { Db } from '@/db';
+
+async function getWalletBalance(db: Db, walletId: number): Promise<number> {
+  const [wallet] = await db
+    .select()
+    .from(wallets)
+    .where(eq(wallets.id, walletId))
+    .limit(1);
+  if (!wallet) return 0;
+  const [depositRow] = await db
+    .select({
+      sum: sql<number>`coalesce(sum(${transactions.amountMinor}), 0)`,
+    })
+    .from(transactions)
+    .where(and(eq(transactions.walletId, walletId), eq(transactions.type, 'DEPOSIT')));
+  const [withdrawRow] = await db
+    .select({
+      sum: sql<number>`coalesce(sum(${transactions.amountMinor}), 0)`,
+    })
+    .from(transactions)
+    .where(and(eq(transactions.walletId, walletId), eq(transactions.type, 'WITHDRAW')));
+  const [fromRow] = await db
+    .select({
+      sum: sql<number>`coalesce(sum(${transfers.fromWalletAmountMinor}), 0)`,
+    })
+    .from(transfers)
+    .where(eq(transfers.fromWalletId, walletId));
+  const [toRow] = await db
+    .select({
+      sum: sql<number>`coalesce(sum(${transfers.toWalletAmountMinor}), 0)`,
+    })
+    .from(transfers)
+    .where(eq(transfers.toWalletId, walletId));
+  const depTotal = Number((depositRow as { sum: number })?.sum ?? 0);
+  const wthTotal = Number((withdrawRow as { sum: number })?.sum ?? 0);
+  const fromTotal = Number((fromRow as { sum: number })?.sum ?? 0);
+  const toTotal = Number((toRow as { sum: number })?.sum ?? 0);
+  return wallet.openingBalanceMinor + depTotal - wthTotal - fromTotal + toTotal;
+}
 
 export async function GET(request: Request) {
   try {
@@ -145,6 +184,12 @@ export async function POST(request: Request) {
     let inputAmountMinorStored: number;
 
     if (type === 'INTERNAL' && parsed.data.fromWalletId && parsed.data.toWalletId) {
+      if (parsed.data.fromWalletId === parsed.data.toWalletId) {
+        return NextResponse.json(
+          { error: 'ไม่สามารถโอนไปยังกระเป๋าเดียวกันได้' },
+          { status: 400 }
+        );
+      }
       const [fromW] = await db
         .select()
         .from(wallets)
@@ -157,13 +202,20 @@ export async function POST(request: Request) {
         .limit(1);
       if (!fromW || !toW) {
         return NextResponse.json(
-          { error: 'Invalid wallet' },
+          { error: 'กระเป๋าเงินไม่ถูกต้อง' },
           { status: 400 }
         );
       }
       const fromCur = fromW.currency as Currency;
       const toCur = toW.currency as Currency;
       fromWalletAmountMinor = parsed.data.inputAmountMinor;
+      const balance = await getWalletBalance(db, parsed.data.fromWalletId);
+      if (balance < fromWalletAmountMinor) {
+        return NextResponse.json(
+          { error: 'ยอดเงินคงเหลือไม่เพียงพอ' },
+          { status: 400 }
+        );
+      }
       toWalletAmountMinor =
         fromCur === toCur
           ? parsed.data.inputAmountMinor
@@ -193,6 +245,13 @@ export async function POST(request: Request) {
       }
       const fromCur = fromW.currency as Currency;
       fromWalletAmountMinor = parsed.data.inputAmountMinor;
+      const balanceOut = await getWalletBalance(db, parsed.data.fromWalletId);
+      if (balanceOut < fromWalletAmountMinor) {
+        return NextResponse.json(
+          { error: 'ยอดเงินคงเหลือไม่เพียงพอ' },
+          { status: 400 }
+        );
+      }
       inputAmountMinorStored = convertToDisplay(
         parsed.data.inputAmountMinor,
         fromCur,

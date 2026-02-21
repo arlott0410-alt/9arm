@@ -4,7 +4,7 @@ import { settings } from '@/db/schema';
 const DEFAULT_DISPLAY_CURRENCY = 'THB';
 import { expandRatesFromBase } from '@/lib/rates';
 
-const DEFAULT_BASE = { THB_LAK: 400, USD_THB: 35.5, USD_LAK: 14000 };
+const DEFAULT_BASE = { THB_LAK: 700, USD_THB: 32, USD_LAK: 22000 };
 const DEFAULT_RATES = expandRatesFromBase(DEFAULT_BASE);
 
 export async function bootstrapSettings(db: Db): Promise<void> {

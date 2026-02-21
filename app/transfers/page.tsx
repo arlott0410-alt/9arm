@@ -68,6 +68,8 @@ export default function TransfersPage() {
     note: '',
   });
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [balances, setBalances] = useState<Map<number, number>>(new Map());
   const canMutate = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
 
   useEffect(() => {
@@ -90,12 +92,23 @@ export default function TransfersPage() {
             EXCHANGE_RATES?: Record<string, number>;
           }>
       ),
-    ]).then(([wal, set]) => {
+    ]).then(async ([wal, set]) => {
       setWallets(Array.isArray(wal) ? wal : []);
       setSettings({
         displayCurrency: set.DISPLAY_CURRENCY || 'THB',
         rates: set.EXCHANGE_RATES || {},
       });
+      const list = Array.isArray(wal) ? wal : [];
+      const results = await Promise.all(
+        list.map((w) =>
+          fetch(`/api/wallets/${w.id}`)
+            .then((r) => r.json() as Promise<{ balance: number }>)
+            .then((d) => ({ id: w.id, balance: d.balance }))
+        )
+      );
+      const m = new Map<number, number>();
+      results.forEach((r) => m.set(r.id, r.balance));
+      setBalances(m);
     });
   }, [user]);
 
@@ -107,9 +120,36 @@ export default function TransfersPage() {
       .then(setTransfers);
   }, [user, dateFrom, dateTo]);
 
+  const sameWallet =
+    form.type === 'INTERNAL' &&
+    form.fromWalletId &&
+    form.toWalletId &&
+    form.fromWalletId === form.toWalletId;
+  const fromBalance = form.fromWalletId
+    ? balances.get(form.fromWalletId) ?? 0
+    : 0;
+  const insufficientBalance =
+    (form.type === 'INTERNAL' || form.type === 'EXTERNAL_OUT') &&
+    form.fromWalletId &&
+    form.inputAmountMinor > 0 &&
+    fromBalance < form.inputAmountMinor;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canMutate) return;
+    if (sameWallet) {
+      setError('ไม่สามารถโอนไปยังกระเป๋าเดียวกันได้');
+      return;
+    }
+    if (insufficientBalance) {
+      setError('ยอดเงินคงเหลือไม่เพียงพอ');
+      return;
+    }
+    if (form.inputAmountMinor <= 0) {
+      setError('กรุณาระบุจำนวนที่มากกว่า 0');
+      return;
+    }
+    setError(null);
     setLoading(true);
     try {
       const res = await fetch('/api/transfers', {
@@ -124,6 +164,7 @@ export default function TransfersPage() {
           note: form.note || undefined,
         }),
       });
+      const data = (await res.json()) as { error?: string };
       if (res.ok) {
         setForm({
           txnDate: todayStr(),
@@ -137,6 +178,9 @@ export default function TransfersPage() {
         const params = new URLSearchParams({ dateFrom, dateTo });
         const list = (await fetch(`/api/transfers?${params}`).then((r) => r.json())) as Transfer[];
         setTransfers(list);
+        setError(null);
+      } else {
+        setError(typeof data.error === 'string' ? data.error : 'เกิดข้อผิดพลาด');
       }
     } finally {
       setLoading(false);
@@ -275,12 +319,17 @@ export default function TransfersPage() {
           </CardContent>
         </Card>
 
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setError(null); }}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>โอนเงินใหม่</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {error && (
+                <div className="rounded bg-red-500/20 px-4 py-2 text-sm text-red-400">
+                  {error}
+                </div>
+              )}
               <div>
                 <Label>วันที่</Label>
                 <Input
@@ -322,9 +371,15 @@ export default function TransfersPage() {
                   <Label>จากกระเป๋า</Label>
                   <Select
                     value={form.fromWalletId ? String(form.fromWalletId) : ''}
-                    onValueChange={(v) =>
-                      setForm({ ...form, fromWalletId: v ? parseInt(v) : null })
-                    }
+                    onValueChange={(v) => {
+                      const fid = v ? parseInt(v) : null;
+                      setForm({
+                        ...form,
+                        fromWalletId: fid,
+                        toWalletId:
+                          form.toWalletId === fid ? null : form.toWalletId,
+                      });
+                    }}
                     required
                   >
                     <SelectTrigger>
@@ -333,7 +388,8 @@ export default function TransfersPage() {
                     <SelectContent>
                       {wallets.map((w) => (
                         <SelectItem key={w.id} value={String(w.id)}>
-                          {w.name} ({w.currency})
+                          {w.name} ({w.currency}) — ยอดคงเหลือ:{' '}
+                          {formatMinorToDisplay(balances.get(w.id) ?? 0, w.currency)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -354,13 +410,25 @@ export default function TransfersPage() {
                       <SelectValue placeholder="เลือก" />
                     </SelectTrigger>
                     <SelectContent>
-                      {wallets.map((w) => (
-                        <SelectItem key={w.id} value={String(w.id)}>
-                          {w.name} ({w.currency})
-                        </SelectItem>
-                      ))}
+                      {wallets
+                        .filter((w) =>
+                          form.type !== 'INTERNAL' ||
+                          !form.fromWalletId ||
+                          w.id !== form.fromWalletId
+                        )
+                        .map((w) => (
+                          <SelectItem key={w.id} value={String(w.id)}>
+                            {w.name} ({w.currency}) — ยอดคงเหลือ:{' '}
+                            {formatMinorToDisplay(balances.get(w.id) ?? 0, w.currency)}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
+                  {form.type === 'INTERNAL' && sameWallet && (
+                    <p className="mt-1 text-sm text-red-400">
+                      ไม่สามารถโอนไปยังกระเป๋าเดียวกันได้
+                    </p>
+                  )}
                 </div>
               )}
               <div>
@@ -392,6 +460,13 @@ export default function TransfersPage() {
                       {toWallet.currency} (ตามอัตราแลกเปลี่ยนที่ตั้งไว้)
                     </p>
                   )}
+                {insufficientBalance && fromWallet && (
+                  <p className="mt-1 text-sm text-red-400">
+                    ยอดคงเหลือในกระเป๋า {fromWallet.name} ไม่เพียงพอ
+                    (คงเหลือ:{' '}
+                    {formatMinorToDisplay(fromBalance, fromWallet.currency)})
+                  </p>
+                )}
               </div>
               <div>
                 <Label>หมายเหตุ</Label>
@@ -411,7 +486,15 @@ export default function TransfersPage() {
                 >
                   ยกเลิก
                 </Button>
-                <Button type="submit" disabled={loading}>
+                <Button
+                  type="submit"
+                  disabled={
+                    loading ||
+                    sameWallet ||
+                    insufficientBalance ||
+                    form.inputAmountMinor <= 0
+                  }
+                >
                   สร้าง
                 </Button>
               </div>

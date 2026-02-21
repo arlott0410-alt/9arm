@@ -8,7 +8,11 @@ export function cn(...inputs: ClassValue[]) {
 export function formatMinorToDisplay(minor: number, currency: string): string {
   if (currency === 'LAK') return minor.toLocaleString();
   const major = minor / 100;
-  return major.toLocaleString(undefined, { minimumFractionDigits: 2 });
+  const frac =
+    currency === 'THB'
+      ? { minimumFractionDigits: 0, maximumFractionDigits: 0 }
+      : { minimumFractionDigits: 2 };
+  return major.toLocaleString(undefined, frac);
 }
 
 export function parseDisplayToMinor(value: string, currency: string): number {
@@ -16,6 +20,7 @@ export function parseDisplayToMinor(value: string, currency: string): number {
   const num = parseFloat(cleaned);
   if (isNaN(num)) return 0;
   if (currency === 'LAK') return Math.round(num);
+  if (currency === 'THB') return Math.round(Math.floor(num) * 100);
   return Math.round(num * 100);
 }
 

@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { formatMinorToDisplay, parseDisplayToMinor, todayStr } from '@/lib/utils';
+import { convertToDisplay, convertFromDisplay } from '@/lib/rates';
 import { Copy } from 'lucide-react';
 
 type Website = { id: number; name: string; prefix: string };
@@ -74,19 +75,23 @@ export default function TransactionsPage() {
   const canMutate = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
 
   const loadData = useCallback(async () => {
-    const [wRes, walRes, setRes] = await Promise.all([
+    const [wRes, walRes, setRes, ratesRes] = await Promise.all([
       fetch('/api/settings/websites'),
       fetch('/api/wallets'),
       fetch('/api/settings').then((r) => r.json() as Promise<{ DISPLAY_CURRENCY?: string; EXCHANGE_RATES?: Record<string, number> }>),
+      fetch('/api/settings/exchange-rates').then((r) => r.json() as Promise<{ rates?: Record<string, number> }>),
     ]);
     const wData = (await wRes.json()) as Website[];
     const walData = (await walRes.json()) as Wallet[];
     if (Array.isArray(wData)) setWebsites(wData);
     if (Array.isArray(walData)) setWallets(walData);
+    const rates = setRes.EXCHANGE_RATES && Object.keys(setRes.EXCHANGE_RATES).length > 0
+      ? setRes.EXCHANGE_RATES
+      : ratesRes.rates || {};
     if (setRes.DISPLAY_CURRENCY)
       setSettings({
         displayCurrency: setRes.DISPLAY_CURRENCY,
-        rates: setRes.EXCHANGE_RATES || {},
+        rates,
       });
   }, []);
 
@@ -139,12 +144,12 @@ export default function TransactionsPage() {
 
   function convertDepositToDisplay(amountMinor: number, walletCurrency: string): number {
     if (!settings?.rates) return amountMinor;
-    const key = `${walletCurrency}_${settings.displayCurrency}`;
-    const rate = settings.rates[key];
-    if (typeof rate !== 'number') return amountMinor;
-    const fromMajor = walletCurrency === 'LAK' ? amountMinor : amountMinor / 100;
-    const toMajor = fromMajor * rate;
-    return settings.displayCurrency === 'LAK' ? Math.round(toMajor) : Math.round(toMajor * 100);
+    return convertToDisplay(
+      amountMinor,
+      walletCurrency as 'LAK' | 'THB' | 'USD',
+      settings.displayCurrency as 'LAK' | 'THB' | 'USD',
+      settings.rates
+    );
   }
 
   function convertWithdrawFromDisplay(
@@ -152,12 +157,12 @@ export default function TransactionsPage() {
     walletCurrency: string
   ): number {
     if (!settings?.rates) return displayMinor;
-    const key = `${settings.displayCurrency}_${walletCurrency}`;
-    const rate = settings.rates[key];
-    if (typeof rate !== 'number') return displayMinor;
-    const fromMajor = settings.displayCurrency === 'LAK' ? displayMinor : displayMinor / 100;
-    const toMajor = fromMajor * rate;
-    return walletCurrency === 'LAK' ? Math.round(toMajor) : Math.round(toMajor * 100);
+    return convertFromDisplay(
+      displayMinor,
+      settings.displayCurrency as 'LAK' | 'THB' | 'USD',
+      walletCurrency as 'LAK' | 'THB' | 'USD',
+      settings.rates
+    );
   }
 
   async function submitDeposit(e: React.FormEvent) {
