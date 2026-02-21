@@ -21,7 +21,11 @@ export async function POST(request: Request) {
     const result = getEnvAndDb();
     if (result instanceof NextResponse) return result;
     const { db, env } = result;
-    await bootstrapSettings(db);
+    try {
+      await bootstrapSettings(db);
+    } catch (bootstrapErr) {
+      console.warn('bootstrapSettings failed (continuing):', bootstrapErr);
+    }
 
     let body: unknown;
     try {
@@ -125,13 +129,16 @@ export async function POST(request: Request) {
     console.error('Login error:', err);
     const msg = err instanceof Error ? err.message : String(err);
     const isSchema = /no such table|SQLITE_ERROR|syntax error/i.test(msg);
+    const isEnv = /DB_NOT_CONFIGURED|APP_SECRET|RUNTIME_ERROR|getRequestContext/i.test(msg);
     return NextResponse.json(
       {
         error: isSchema
           ? 'Database schema not initialized. Run db/schema.sql in D1 Console.'
-          : 'Internal server error',
+          : isEnv
+            ? msg
+            : 'Internal server error',
       },
-      { status: isSchema ? 503 : 500 }
+      { status: isSchema || isEnv ? 503 : 500 }
     );
   }
 }
