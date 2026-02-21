@@ -22,9 +22,11 @@ export default function ReportsPage() {
   const [user, setUser] = useState<{ username: string; role: string } | null>(
     null
   );
-  const [period, setPeriod] = useState<'daily' | 'monthly' | 'yearly'>('daily');
+  const [period, setPeriod] = useState<'daily' | 'monthly' | 'yearly' | 'custom'>('daily');
   const [year, setYear] = useState(String(currentYear));
   const [month, setMonth] = useState(currentMonth);
+  const [dateFrom, setDateFrom] = useState(now.toISOString().slice(0, 10));
+  const [dateTo, setDateTo] = useState(now.toISOString().slice(0, 10));
   const [data, setData] = useState<{
     period: string;
     dateFrom: string;
@@ -58,11 +60,13 @@ export default function ReportsPage() {
       period,
       ...(period === 'monthly' && { year, month }),
       ...(period === 'yearly' && { year }),
+      ...(period === 'daily' && { dateFrom }),
+      ...(period === 'custom' && { dateFrom, dateTo }),
     });
     fetch(`/api/reports?${params}`)
       .then((r) => r.json() as Promise<NonNullable<typeof data>>)
       .then(setData);
-  }, [user, period, year, month]);
+  }, [user, period, year, month, dateFrom, dateTo]);
 
   if (!user) return null;
 
@@ -73,12 +77,12 @@ export default function ReportsPage() {
       <div className="space-y-6">
         <h1 className="text-2xl font-semibold text-[#E5E7EB]">รายงาน</h1>
 
-        <div className="flex flex-wrap gap-4">
+        <div className="flex flex-wrap items-end gap-4">
           <div>
             <label className="mb-1 block text-sm text-[#9CA3AF]">ช่วงเวลา</label>
             <Select
               value={period}
-              onValueChange={(v: 'daily' | 'monthly' | 'yearly') =>
+              onValueChange={(v: 'daily' | 'monthly' | 'yearly' | 'custom') =>
                 setPeriod(v)
               }
             >
@@ -89,9 +93,21 @@ export default function ReportsPage() {
                 <SelectItem value="daily">รายวัน</SelectItem>
                 <SelectItem value="monthly">รายเดือน</SelectItem>
                 <SelectItem value="yearly">รายปี</SelectItem>
+                <SelectItem value="custom">กำหนดช่วงวันที่</SelectItem>
               </SelectContent>
             </Select>
           </div>
+          {period === 'daily' && (
+            <div>
+              <label className="mb-1 block text-sm text-[#9CA3AF]">วันที่</label>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="h-10 w-40 rounded-md border border-[#1F2937] bg-[#0B0F1A] px-3 text-[#E5E7EB] focus:border-[#D4AF37] focus:outline-none"
+              />
+            </div>
+          )}
           {period === 'monthly' && (
             <>
               <div>
@@ -131,9 +147,33 @@ export default function ReportsPage() {
               </div>
             </>
           )}
+          {period === 'custom' && (
+            <>
+              <div>
+                <label className="mb-1 block text-sm text-[#9CA3AF]">ตั้งแต่</label>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  max={dateTo}
+                  className="h-10 w-40 rounded-md border border-[#1F2937] bg-[#0B0F1A] px-3 text-[#E5E7EB] focus:border-[#D4AF37] focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-[#9CA3AF]">ถึง</label>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  min={dateFrom}
+                  className="h-10 w-40 rounded-md border border-[#1F2937] bg-[#0B0F1A] px-3 text-[#E5E7EB] focus:border-[#D4AF37] focus:outline-none"
+                />
+              </div>
+            </>
+          )}
           {period === 'yearly' && (
             <div>
-              <label className="mb-1 block text-sm text-[#9CA3AF]">Year</label>
+              <label className="mb-1 block text-sm text-[#9CA3AF]">ปี</label>
               <Select value={year} onValueChange={setYear}>
                 <SelectTrigger className="w-32">
                   <SelectValue />

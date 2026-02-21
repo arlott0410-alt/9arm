@@ -12,16 +12,24 @@ export async function GET(request: Request) {
     if (err) return err;
 
     const url = new URL(request.url);
-    const period = url.searchParams.get('period') || 'daily'; // daily | monthly | yearly
+    const period = url.searchParams.get('period') || 'daily'; // daily | monthly | yearly | custom
     const year = url.searchParams.get('year');
     const month = url.searchParams.get('month');
+    const dateFromParam = url.searchParams.get('dateFrom');
+    const dateToParam = url.searchParams.get('dateTo');
 
     const today = new Date().toISOString().slice(0, 10);
 
     let dateFrom = '';
     let dateTo = today;
 
-    if (period === 'daily') {
+    if (dateFromParam && dateToParam && /^\d{4}-\d{2}-\d{2}$/.test(dateFromParam) && /^\d{4}-\d{2}-\d{2}$/.test(dateToParam) && dateFromParam <= dateToParam) {
+      dateFrom = dateFromParam;
+      dateTo = dateToParam;
+    } else if (period === 'daily' && dateFromParam && /^\d{4}-\d{2}-\d{2}$/.test(dateFromParam)) {
+      dateFrom = dateFromParam;
+      dateTo = dateFromParam;
+    } else if (period === 'daily') {
       dateFrom = today;
       dateTo = today;
     } else if (period === 'monthly' && year && month) {
