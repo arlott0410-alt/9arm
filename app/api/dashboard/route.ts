@@ -2,12 +2,13 @@ export const runtime = 'edge';
 
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth } from '@/lib/api-helpers';
+import type { Db } from '@/db';
 import { transactions, wallets, transfers, settings } from '@/db/schema';
 import { eq, and, gte, lte, sql } from 'drizzle-orm';
 import { convertToDisplay, type Currency, type RateSnapshot } from '@/lib/rates';
 
 async function sumInDisplayCurrency(
-  db: Awaited<ReturnType<typeof getDbAndUser>>['db'],
+  db: Db,
   displayCurrency: Currency,
   rates: RateSnapshot,
   filters: { type: 'DEPOSIT' | 'WITHDRAW'; dateFrom: string; dateTo: string }
