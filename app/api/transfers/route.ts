@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth, requireMutate } from '@/lib/api-helpers';
-import { transfers, wallets, users } from '@/db/schema';
+import { transfers, transactions, wallets, users } from '@/db/schema';
 import { eq, gte, lte, and, sql } from 'drizzle-orm';
 import { transferSchema } from '@/lib/validations';
 import { settings } from '@/db/schema';
