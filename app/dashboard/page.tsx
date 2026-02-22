@@ -64,9 +64,12 @@ export default function DashboardPage() {
 
   const cur = data?.displayCurrency || 'THB';
 
+  const cardBase =
+    'overflow-hidden border border-[#2D3748] bg-gradient-to-br from-[#0F172A] to-[#1E293B] shadow-lg shadow-black/20 min-h-[120px] flex flex-col';
+
   return (
     <AppLayout user={user}>
-      <div className="space-y-6">
+      <div className="space-y-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <h1 className="text-2xl font-semibold text-[#E5E7EB]">แดชบอร์ด</h1>
           <div className="flex items-center gap-2">
@@ -84,152 +87,142 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ยอดฝากถอนรายวัน รายเดือน แยกกัน */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
-          <Card className="overflow-hidden border border-[#2D3748] bg-gradient-to-br from-[#0F172A] to-[#1E293B] shadow-lg shadow-black/20 ring-1 ring-[#D4AF37]/20">
-            <CardContent className="p-5">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-[#9CA3AF]">ฝากรายวัน</p>
-                  <p className="mt-2 text-xl font-bold text-[#D4AF37]">
-                    {data
-                      ? `${formatMinorToDisplay(data.today.deposits, cur)} ${cur}`
-                      : '-'}
-                  </p>
-                </div>
-                <div className="rounded-lg bg-[#D4AF37]/10 p-3">
-                  <Wallet className="h-6 w-6 text-[#D4AF37]" />
+        {/* ยอดฝากถอนรายวัน รายเดือน */}
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-6">
+          <Card className={`${cardBase} ring-1 ring-[#D4AF37]/20`}>
+            <CardContent className="flex flex-1 flex-col p-5">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-[#9CA3AF]">ฝากรายวัน</p>
+                <div className="rounded-lg bg-[#D4AF37]/10 p-2.5">
+                  <Wallet className="h-5 w-5 text-[#D4AF37]" />
                 </div>
               </div>
+              <p className="mt-4 text-right font-mono text-xl font-bold tabular-nums text-[#D4AF37]">
+                {data ? formatMinorToDisplay(data.today.deposits, cur) : '-'}
+              </p>
+              <p className="mt-0.5 text-right text-xs text-[#6B7280]">{cur}</p>
             </CardContent>
           </Card>
 
-          <Card className="overflow-hidden border border-[#2D3748] bg-gradient-to-br from-[#0F172A] to-[#1E293B] shadow-lg shadow-black/20 ring-1 ring-[#D4AF37]/20">
-            <CardContent className="p-5">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-[#9CA3AF]">ถอนรายวัน</p>
-                  <p className="mt-2 text-xl font-bold text-white">
-                    {data
-                      ? `${formatMinorToDisplay(data.today.withdraws, cur)} ${cur}`
-                      : '-'}
-                  </p>
-                </div>
-                <div className="rounded-lg bg-[#6B7280]/20 p-3">
-                  <ArrowUpCircle className="h-6 w-6 text-[#9CA3AF]" />
+          <Card className={`${cardBase} ring-1 ring-[#D4AF37]/20`}>
+            <CardContent className="flex flex-1 flex-col p-5">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-[#9CA3AF]">ถอนรายวัน</p>
+                <div className="rounded-lg bg-[#6B7280]/20 p-2.5">
+                  <ArrowUpCircle className="h-5 w-5 text-[#9CA3AF]" />
                 </div>
               </div>
+              <p className="mt-4 text-right font-mono text-xl font-bold tabular-nums text-white">
+                {data ? formatMinorToDisplay(data.today.withdraws, cur) : '-'}
+              </p>
+              <p className="mt-0.5 text-right text-xs text-[#6B7280]">{cur}</p>
             </CardContent>
           </Card>
 
-          <Card className="overflow-hidden border border-[#2D3748] bg-gradient-to-br from-[#0F172A] to-[#1E293B] shadow-lg shadow-black/20 ring-1 ring-emerald-500/20">
-            <CardContent className="p-5">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-[#9CA3AF]">สุทธิวันนี้</p>
-                  <p
-                    className={`mt-2 flex items-center gap-1 text-xl font-bold ${
-                      data && data.today.net >= 0 ? 'text-emerald-400' : 'text-red-400'
-                    }`}
-                  >
-                    {data?.today.net !== undefined && data.today.net < 0 && '-'}
-                    {data
-                      ? `${formatMinorToDisplay(Math.abs(data.today.net), cur)} ${cur}`
-                      : '-'}
-                    {data && data.today.net >= 0 && (
-                      <TrendingUp className="h-5 w-5" strokeWidth={2.5} />
-                    )}
-                  </p>
-                </div>
+          <Card className={`${cardBase} ring-1 ring-emerald-500/20`}>
+            <CardContent className="flex flex-1 flex-col p-5">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-[#9CA3AF]">สุทธิวันนี้</p>
                 <div
-                  className={`rounded-lg p-3 ${
+                  className={`rounded-lg p-2.5 ${
                     data && data.today.net >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/10'
                   }`}
                 >
                   <BarChart3
-                    className={`h-6 w-6 ${
+                    className={`h-5 w-5 ${
                       data && data.today.net >= 0 ? 'text-emerald-400' : 'text-red-400'
                     }`}
                   />
                 </div>
               </div>
+              <div className="mt-4 flex items-center justify-end gap-1.5">
+                {data?.today.net !== undefined && data.today.net < 0 && (
+                  <span className="font-mono text-xl font-bold tabular-nums text-red-400">−</span>
+                )}
+                <p
+                  className={`font-mono text-xl font-bold tabular-nums ${
+                    data && data.today.net >= 0 ? 'text-emerald-400' : 'text-red-400'
+                  }`}
+                >
+                  {data ? formatMinorToDisplay(Math.abs(data.today.net), cur) : '-'}
+                </p>
+                {data && data.today.net >= 0 && (
+                  <TrendingUp className="h-4 w-4 text-emerald-400" strokeWidth={2.5} />
+                )}
+              </div>
+              <p className="mt-0.5 text-right text-xs text-[#6B7280]">{cur}</p>
             </CardContent>
           </Card>
 
-          <Card className="overflow-hidden border border-[#2D3748] bg-gradient-to-br from-[#0F172A] to-[#1E293B] shadow-lg shadow-black/20 ring-1 ring-[#D4AF37]/20">
-            <CardContent className="p-5">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-[#9CA3AF]">ฝากรายเดือน</p>
-                  <p className="mt-2 text-xl font-bold text-[#D4AF37]">
-                    {data
-                      ? `${formatMinorToDisplay(data.month.deposits, cur)} ${cur}`
-                      : '-'}
-                  </p>
-                </div>
-                <div className="rounded-lg bg-[#D4AF37]/10 p-3">
-                  <Wallet className="h-6 w-6 text-[#D4AF37]" />
+          <Card className={`${cardBase} ring-1 ring-[#D4AF37]/20`}>
+            <CardContent className="flex flex-1 flex-col p-5">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-[#9CA3AF]">ฝากรายเดือน</p>
+                <div className="rounded-lg bg-[#D4AF37]/10 p-2.5">
+                  <Wallet className="h-5 w-5 text-[#D4AF37]" />
                 </div>
               </div>
+              <p className="mt-4 text-right font-mono text-xl font-bold tabular-nums text-[#D4AF37]">
+                {data ? formatMinorToDisplay(data.month.deposits, cur) : '-'}
+              </p>
+              <p className="mt-0.5 text-right text-xs text-[#6B7280]">{cur}</p>
             </CardContent>
           </Card>
 
-          <Card className="overflow-hidden border border-[#2D3748] bg-gradient-to-br from-[#0F172A] to-[#1E293B] shadow-lg shadow-black/20 ring-1 ring-[#D4AF37]/20">
-            <CardContent className="p-5">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-[#9CA3AF]">ถอนรายเดือน</p>
-                  <p className="mt-2 text-xl font-bold text-white">
-                    {data
-                      ? `${formatMinorToDisplay(data.month.withdraws, cur)} ${cur}`
-                      : '-'}
-                  </p>
-                </div>
-                <div className="rounded-lg bg-[#6B7280]/20 p-3">
-                  <ArrowUpCircle className="h-6 w-6 text-[#9CA3AF]" />
+          <Card className={`${cardBase} ring-1 ring-[#D4AF37]/20`}>
+            <CardContent className="flex flex-1 flex-col p-5">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-[#9CA3AF]">ถอนรายเดือน</p>
+                <div className="rounded-lg bg-[#6B7280]/20 p-2.5">
+                  <ArrowUpCircle className="h-5 w-5 text-[#9CA3AF]" />
                 </div>
               </div>
+              <p className="mt-4 text-right font-mono text-xl font-bold tabular-nums text-white">
+                {data ? formatMinorToDisplay(data.month.withdraws, cur) : '-'}
+              </p>
+              <p className="mt-0.5 text-right text-xs text-[#6B7280]">{cur}</p>
             </CardContent>
           </Card>
 
-          <Card className="overflow-hidden border border-[#2D3748] bg-gradient-to-br from-[#0F172A] to-[#1E293B] shadow-lg shadow-black/20 ring-1 ring-emerald-500/20">
-            <CardContent className="p-5">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-[#9CA3AF]">สุทธิเดือนนี้</p>
-                  <p
-                    className={`mt-2 flex items-center gap-1 text-xl font-bold ${
-                      data && data.month.net >= 0 ? 'text-emerald-400' : 'text-red-400'
-                    }`}
-                  >
-                    {data?.month.net !== undefined && data.month.net < 0 && '-'}
-                    {data
-                      ? `${formatMinorToDisplay(Math.abs(data.month.net), cur)} ${cur}`
-                      : '-'}
-                    {data && data.month.net >= 0 && (
-                      <TrendingUp className="h-5 w-5" strokeWidth={2.5} />
-                    )}
-                  </p>
-                </div>
+          <Card className={`${cardBase} ring-1 ring-emerald-500/20`}>
+            <CardContent className="flex flex-1 flex-col p-5">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-[#9CA3AF]">สุทธิเดือนนี้</p>
                 <div
-                  className={`rounded-lg p-3 ${
+                  className={`rounded-lg p-2.5 ${
                     data && data.month.net >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/10'
                   }`}
                 >
                   <PiggyBank
-                    className={`h-6 w-6 ${
+                    className={`h-5 w-5 ${
                       data && data.month.net >= 0 ? 'text-emerald-400' : 'text-red-400'
                     }`}
                   />
                 </div>
               </div>
+              <div className="mt-4 flex items-center justify-end gap-1.5">
+                {data?.month.net !== undefined && data.month.net < 0 && (
+                  <span className="font-mono text-xl font-bold tabular-nums text-red-400">−</span>
+                )}
+                <p
+                  className={`font-mono text-xl font-bold tabular-nums ${
+                    data && data.month.net >= 0 ? 'text-emerald-400' : 'text-red-400'
+                  }`}
+                >
+                  {data ? formatMinorToDisplay(Math.abs(data.month.net), cur) : '-'}
+                </p>
+                {data && data.month.net >= 0 && (
+                  <TrendingUp className="h-4 w-4 text-emerald-400" strokeWidth={2.5} />
+                )}
+              </div>
+              <p className="mt-0.5 text-right text-xs text-[#6B7280]">{cur}</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Wallets Table */}
+        {/* ยอดกระเป๋าเงิน */}
         <Card className="overflow-hidden border border-[#2D3748] bg-gradient-to-br from-[#0F172A] to-[#1E293B] shadow-lg shadow-black/20 ring-1 ring-[#D4AF37]/10">
-          <CardHeader>
+          <CardHeader className="pb-4">
             <CardTitle className="flex items-center gap-2 text-lg font-semibold text-[#E5E7EB]">
               <ArrowDownCircle className="h-5 w-5 text-[#D4AF37]" />
               ยอดกระเป๋าเงิน
@@ -240,15 +233,9 @@ export default function DashboardPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[#2D3748]">
-                    <th className="py-3 text-left font-medium text-[#9CA3AF]">
-                      กระเป๋าเงิน
-                    </th>
-                    <th className="py-3 text-left font-medium text-[#9CA3AF]">
-                      สกุลเงิน
-                    </th>
-                    <th className="py-3 text-right font-medium text-[#9CA3AF]">
-                      ยอดคงเหลือ
-                    </th>
+                    <th className="py-3.5 text-left font-medium text-[#9CA3AF]">กระเป๋าเงิน</th>
+                    <th className="py-3.5 text-left font-medium text-[#9CA3AF]">สกุลเงิน</th>
+                    <th className="py-3.5 text-right font-medium text-[#9CA3AF]">ยอดคงเหลือ</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -257,16 +244,16 @@ export default function DashboardPage() {
                       key={w.id}
                       className="border-b border-[#2D3748]/50 last:border-0 transition-colors hover:bg-[#1E293B]/50"
                     >
-                      <td className="py-3 text-[#E5E7EB]">{w.name}</td>
-                      <td className="py-3 text-[#9CA3AF]">{w.currency}</td>
-                      <td className="py-3 text-right font-semibold text-[#D4AF37]">
+                      <td className="py-3.5 text-[#E5E7EB]">{w.name}</td>
+                      <td className="py-3.5 text-[#9CA3AF]">{w.currency}</td>
+                      <td className="py-3.5 text-right font-mono font-semibold tabular-nums text-[#D4AF37]">
                         {formatMinorToDisplay(w.balance, w.currency)} {w.currency}
                       </td>
                     </tr>
                   ))}
                   {(!data?.wallets || data.wallets.length === 0) && (
                     <tr>
-                      <td colSpan={3} className="py-8 text-center text-[#9CA3AF]">
+                      <td colSpan={3} className="py-10 text-center text-[#9CA3AF]">
                         ไม่มีกระเป๋าเงิน
                       </td>
                     </tr>
