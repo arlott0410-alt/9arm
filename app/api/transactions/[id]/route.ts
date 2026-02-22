@@ -7,7 +7,7 @@ import {
   users,
   transactionEdits,
 } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and, isNull, inArray } from 'drizzle-orm';
 
 export async function GET(
   request: Request,
@@ -77,16 +77,15 @@ export async function GET(
       .where(eq(transactionEdits.transactionId, idNum))
       .orderBy(transactionEdits.editedAt);
 
-    const editWithUsers = await Promise.all(
-      edits.map(async (e) => {
-        const [u] = await db
-          .select({ username: users.username })
-          .from(users)
-          .where(eq(users.id, e.editedBy))
-          .limit(1);
-        return { ...e, editedByUsername: u?.username ?? '?' };
-      })
-    );
+    const editUserIds = [...new Set(edits.map((e) => e.editedBy))];
+    const userRows = editUserIds.length > 0
+      ? await db.select({ id: users.id, username: users.username }).from(users).where(inArray(users.id, editUserIds))
+      : [];
+    const userMap = new Map(userRows.map((u) => [u.id, u.username]));
+    const editWithUsers = edits.map((e) => ({
+      ...e,
+      editedByUsername: userMap.get(e.editedBy) ?? '?',
+    }));
 
     return NextResponse.json({
       ...txn,
@@ -130,11 +129,11 @@ export async function DELETE(
     const [txn] = await db
       .select({ id: transactions.id })
       .from(transactions)
-      .where(eq(transactions.id, idNum))
+      .where(and(eq(transactions.id, idNum), isNull(transactions.deletedAt)))
       .limit(1);
 
     if (!txn) {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Not found or already deleted' }, { status: 404 });
     }
 
     const now = new Date();

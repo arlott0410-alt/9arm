@@ -200,7 +200,14 @@ export default function TransactionsPage() {
       });
       if (res.ok) {
         setDepositForm({ ...depositForm, amountMinor: 0, userIdInput: '' });
-        const params = new URLSearchParams({ dateFrom, dateTo });
+        const params = new URLSearchParams({
+          dateFrom,
+          dateTo,
+          ...(filterWebsite && filterWebsite !== '__all__' && { websiteId: filterWebsite }),
+          ...(filterUserFull && { userFull: filterUserFull }),
+          ...(filterEdited && { editedOnly: 'true' }),
+          ...(filterDeleted && { deletedOnly: 'true' }),
+        });
         const list = (await fetch(`/api/transactions?${params}`).then((r) => r.json())) as Txn[];
         setDeposits(list.filter((t) => t.type === 'DEPOSIT'));
         setWithdraws(list.filter((t) => t.type === 'WITHDRAW'));
@@ -236,7 +243,14 @@ export default function TransactionsPage() {
       });
       if (res.ok) {
         setWithdrawForm({ ...withdrawForm, withdrawInputAmountMinor: 0, withdrawFeeMinor: 0, userIdInput: '' });
-        const params = new URLSearchParams({ dateFrom, dateTo });
+        const params = new URLSearchParams({
+          dateFrom,
+          dateTo,
+          ...(filterWebsite && filterWebsite !== '__all__' && { websiteId: filterWebsite }),
+          ...(filterUserFull && { userFull: filterUserFull }),
+          ...(filterEdited && { editedOnly: 'true' }),
+          ...(filterDeleted && { deletedOnly: 'true' }),
+        });
         const list = (await fetch(`/api/transactions?${params}`).then((r) => r.json())) as Txn[];
         setDeposits(list.filter((t) => t.type === 'DEPOSIT'));
         setWithdraws(list.filter((t) => t.type === 'WITHDRAW'));
@@ -716,8 +730,8 @@ export default function TransactionsPage() {
                         <th className="py-2 text-left text-[#9CA3AF]">ผู้ใช้</th>
                         <th className="py-2 text-left text-[#9CA3AF]">เว็บไซต์</th>
                         <th className="py-2 text-left text-[#9CA3AF]">กระเป๋า</th>
-                        <th className="py-2 text-right text-[#9CA3AF]">จำนวน</th>
-                        <th className="py-2 text-left text-[#9CA3AF]">เวลาสลิปฝาก</th>
+                        <th className="py-2 text-right text-[#9CA3AF] min-w-[100px] pr-4">จำนวน</th>
+                        <th className="py-2 text-left text-[#9CA3AF] min-w-[80px] pl-6">เวลาสลิปฝาก</th>
                         <th className="py-2 text-left text-[#9CA3AF]">เวลาระบบฝาก</th>
                         <th className="py-2 text-left text-[#9CA3AF]">ผู้ดำเนินการ</th>
                         {filterDeleted && (
@@ -736,10 +750,10 @@ export default function TransactionsPage() {
                           <td className="py-2">{t.userFull}</td>
                           <td className="py-2">{t.websiteName}</td>
                           <td className="py-2">{t.walletName}</td>
-                          <td className="py-2 text-right font-medium text-[#D4AF37] pr-4">
+                          <td className="py-2 text-right font-medium text-[#D4AF37] min-w-[100px] pr-4">
                             {formatMinorToDisplay(t.amountMinor, t.walletCurrency)} {t.walletCurrency}
                           </td>
-                          <td className="py-2 text-[#9CA3AF] pl-2">{formatSlipTimeHHMM(t.depositSlipTime)}</td>
+                          <td className="py-2 text-[#9CA3AF] min-w-[80px] pl-6">{formatSlipTimeHHMM(t.depositSlipTime)}</td>
                           <td className="py-2 text-[#9CA3AF]">{formatSlipTimeHHMM(t.depositSystemTime)}</td>
                           <td className="py-2">{t.createdByUsername}</td>
                           {filterDeleted && (
@@ -786,8 +800,8 @@ export default function TransactionsPage() {
                         <th className="py-2 text-left text-[#9CA3AF]">ผู้ใช้</th>
                         <th className="py-2 text-left text-[#9CA3AF]">เว็บไซต์</th>
                         <th className="py-2 text-left text-[#9CA3AF]">กระเป๋า</th>
-                        <th className="py-2 text-right text-[#9CA3AF]">จำนวน</th>
-                        <th className="py-2 text-left text-[#9CA3AF]">เวลาสลิปถอน</th>
+                        <th className="py-2 text-right text-[#9CA3AF] min-w-[100px] pr-4">จำนวน</th>
+                        <th className="py-2 text-left text-[#9CA3AF] min-w-[80px] pl-6">เวลาสลิปถอน</th>
                         <th className="py-2 text-left text-[#9CA3AF]">เวลาระบบถอน</th>
                         <th className="py-2 text-left text-[#9CA3AF]">ผู้ดำเนินการ</th>
                         {filterDeleted && (
@@ -806,10 +820,10 @@ export default function TransactionsPage() {
                           <td className="py-2">{t.userFull}</td>
                           <td className="py-2">{t.websiteName}</td>
                           <td className="py-2">{t.walletName}</td>
-                          <td className="py-2 text-right font-medium text-[#D4AF37] pr-4">
+                          <td className="py-2 text-right font-medium text-[#D4AF37] min-w-[100px] pr-4">
                             {formatMinorToDisplay(t.amountMinor, t.walletCurrency)} {t.walletCurrency}
                           </td>
-                          <td className="py-2 text-[#9CA3AF] pl-2">{formatSlipTimeHHMM(t.withdrawSlipTime)}</td>
+                          <td className="py-2 text-[#9CA3AF] min-w-[80px] pl-6">{formatSlipTimeHHMM(t.withdrawSlipTime)}</td>
                           <td className="py-2 text-[#9CA3AF]">{formatSlipTimeHHMM(t.withdrawSystemTime)}</td>
                           <td className="py-2">{t.createdByUsername}</td>
                           {filterDeleted && (

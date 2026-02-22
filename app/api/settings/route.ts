@@ -14,7 +14,15 @@ export async function GET(request: Request) {
     const rows = await db.select().from(settings);
     const obj: Record<string, unknown> = {};
     for (const r of rows) {
-      obj[r.key] = typeof r.value === 'string' ? JSON.parse(r.value) : r.value;
+      if (typeof r.value === 'string') {
+        try {
+          obj[r.key] = JSON.parse(r.value);
+        } catch {
+          obj[r.key] = r.value;
+        }
+      } else {
+        obj[r.key] = r.value;
+      }
     }
     return NextResponse.json(obj);
   } catch (e) {

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth, requireMutate } from '@/lib/api-helpers';
 import { transfers, transactions, wallets, users } from '@/db/schema';
-import { eq, gte, lte, and, isNull, isNotNull } from 'drizzle-orm';
+import { eq, gte, lte, and, isNull, isNotNull, inArray } from 'drizzle-orm';
 import { transferSchema } from '@/lib/validations';
 import { settings } from '@/db/schema';
 import type { Currency } from '@/lib/rates';
@@ -58,56 +58,34 @@ export async function GET(request: Request) {
 
     const list = await baseQuery;
 
-    const withNames = await Promise.all(
-      list.map(async (t) => {
-        let fromName: string | null = null;
-        let fromCurrency: string | null = null;
-        let toName: string | null = null;
-        let toCurrency: string | null = null;
-        if (t.fromWalletId) {
-          const [w] = await db
-            .select({ name: wallets.name, currency: wallets.currency })
-            .from(wallets)
-            .where(eq(wallets.id, t.fromWalletId))
-            .limit(1);
-          fromName = w?.name ?? null;
-          fromCurrency = w?.currency ?? null;
-        }
-        if (t.toWalletId) {
-          const [w] = await db
-            .select({ name: wallets.name, currency: wallets.currency })
-            .from(wallets)
-            .where(eq(wallets.id, t.toWalletId))
-            .limit(1);
-          toName = w?.name ?? null;
-          toCurrency = w?.currency ?? null;
-        }
-        const [u] = await db
-          .select({ username: users.username })
-          .from(users)
-          .where(eq(users.id, t.createdBy))
-          .limit(1);
-        const createdByUsername = u?.username ?? '?';
-        let deletedByUsername: string | null = null;
-        if (t.deletedBy) {
-          const [du] = await db
-            .select({ username: users.username })
-            .from(users)
-            .where(eq(users.id, t.deletedBy))
-            .limit(1);
-          deletedByUsername = du?.username ?? '?';
-        }
-        return {
-          ...t,
-          fromWalletName: fromName,
-          fromWalletCurrency: fromCurrency,
-          toWalletName: toName,
-          toWalletCurrency: toCurrency,
-          createdByUsername,
-          deletedByUsername,
-        };
-      })
-    );
+    const walletIds = [...new Set(
+      list.flatMap((t) => [t.fromWalletId, t.toWalletId].filter((id): id is number => id != null))
+    )];
+    const userIds = [...new Set(
+      list.flatMap((t) => [t.createdBy, t.deletedBy].filter((id): id is number => id != null))
+    )];
+
+    const [walletRows, userRows] = await Promise.all([
+      walletIds.length > 0
+        ? db.select({ id: wallets.id, name: wallets.name, currency: wallets.currency }).from(wallets).where(inArray(wallets.id, walletIds))
+        : [],
+      userIds.length > 0
+        ? db.select({ id: users.id, username: users.username }).from(users).where(inArray(users.id, userIds))
+        : [],
+    ]);
+
+    const walletMap = new Map(walletRows.map((w) => [w.id, w]));
+    const userMap = new Map(userRows.map((u) => [u.id, u.username]));
+
+    const withNames = list.map((t) => ({
+      ...t,
+      fromWalletName: t.fromWalletId ? (walletMap.get(t.fromWalletId)?.name ?? null) : null,
+      fromWalletCurrency: t.fromWalletId ? (walletMap.get(t.fromWalletId)?.currency ?? null) : null,
+      toWalletName: t.toWalletId ? (walletMap.get(t.toWalletId)?.name ?? null) : null,
+      toWalletCurrency: t.toWalletId ? (walletMap.get(t.toWalletId)?.currency ?? null) : null,
+      createdByUsername: userMap.get(t.createdBy) ?? '?',
+      deletedByUsername: t.deletedBy ? (userMap.get(t.deletedBy) ?? '?') : null,
+    }));
 
     return NextResponse.json(withNames);
   } catch (e) {

@@ -141,7 +141,13 @@ export default function BonusesPage() {
       const data = (await res.json()) as Bonus & { error?: string };
       if (res.ok) {
         setForm({ ...form, amountMinor: 0, userIdInput: '' });
-        const params = new URLSearchParams({ dateFrom, dateTo });
+        const params = new URLSearchParams({
+          dateFrom,
+          dateTo,
+          ...(filterWebsite !== '__all__' && { websiteId: filterWebsite }),
+          ...(filterCategory !== '__all__' && { categoryId: filterCategory }),
+          ...(filterDeleted && { deletedOnly: 'true' }),
+        });
         const list = (await fetch(`/api/bonuses?${params}`).then((r) => r.json())) as Bonus[];
         setBonuses(list);
       } else {
@@ -331,8 +337,8 @@ export default function BonusesPage() {
                     <th className="py-2 text-left text-[#9CA3AF]">เว็บไซต์</th>
                     <th className="py-2 text-left text-[#9CA3AF]">ผู้ใช้</th>
                     <th className="py-2 text-left text-[#9CA3AF]">หมวดหมู่</th>
-                    <th className="py-2 text-right text-[#9CA3AF]">จำนวน</th>
-                    <th className="py-2 text-left text-[#9CA3AF]">ผู้ดำเนินการ</th>
+                    <th className="py-2 text-right text-[#9CA3AF] min-w-[100px] pr-4">จำนวน</th>
+                    <th className="py-2 text-left text-[#9CA3AF] min-w-[90px] pl-6">ผู้ดำเนินการ</th>
                     {filterDeleted && (
                       <>
                         <th className="py-2 text-left text-[#9CA3AF]">ลบโดย</th>
@@ -349,10 +355,10 @@ export default function BonusesPage() {
                       <td className="py-2">{b.websiteName}</td>
                       <td className="py-2">{b.userFull}</td>
                       <td className="py-2">{b.categoryName}</td>
-                      <td className="py-2 text-right font-medium text-[#D4AF37]">
+                      <td className="py-2 text-right font-medium text-[#D4AF37] min-w-[100px] pr-4">
                         {formatMinorToDisplay(b.amountMinor, b.displayCurrency)} {b.displayCurrency}
                       </td>
-                      <td className="py-2">{b.createdByUsername}</td>
+                      <td className="py-2 min-w-[90px] pl-6">{b.createdByUsername}</td>
                       {filterDeleted && (
                         <>
                           <td className="py-2 text-red-400/90">{b.deletedByUsername ?? '-'}</td>
@@ -424,7 +430,13 @@ export default function BonusesPage() {
                     if (res.ok) {
                       setDeleteModal(null);
                       setDeleteReason('');
-                      const params = new URLSearchParams({ dateFrom, dateTo });
+                      const params = new URLSearchParams({
+                        dateFrom,
+                        dateTo,
+                        ...(filterWebsite !== '__all__' && { websiteId: filterWebsite }),
+                        ...(filterCategory !== '__all__' && { categoryId: filterCategory }),
+                        ...(filterDeleted && { deletedOnly: 'true' }),
+                      });
                       const list = (await fetch(`/api/bonuses?${params}`).then((r) => r.json())) as Bonus[];
                       setBonuses(list);
                     } else {

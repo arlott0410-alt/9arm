@@ -128,7 +128,13 @@ export async function POST(request: Request) {
     if (err) return err;
 
     const body = (await request.json()) as Record<string, unknown>;
-    const type = body.type as 'DEPOSIT' | 'WITHDRAW';
+    const type = body.type;
+    if (type !== 'DEPOSIT' && type !== 'WITHDRAW') {
+      return NextResponse.json(
+        { error: 'type ต้องเป็น DEPOSIT หรือ WITHDRAW เท่านั้น' },
+        { status: 400 }
+      );
+    }
 
     const [settingsRow] = await db
       .select()

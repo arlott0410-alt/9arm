@@ -54,6 +54,12 @@ export async function PATCH(
     if (!existing) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
+    if (existing.deletedAt) {
+      return NextResponse.json(
+        { error: 'ไม่สามารถแก้ไขรายการที่ลบแล้วได้' },
+        { status: 400 }
+      );
+    }
 
     const beforeSnapshot = {
       txnDate: existing.txnDate,
@@ -83,6 +89,9 @@ export async function PATCH(
         newWalletId = parsed.data.walletId;
       }
     } else {
+      if (parsed.data.walletId !== undefined) {
+        newWalletId = parsed.data.walletId;
+      }
       if (parsed.data.withdrawInputAmountMinor !== undefined) {
         const [wal] = await db
           .select()
@@ -96,24 +105,6 @@ export async function PATCH(
             wal.currency as Currency,
             rateSnapshot
           );
-        }
-      }
-      if (parsed.data.walletId !== undefined) {
-        newWalletId = parsed.data.walletId;
-        if (parsed.data.withdrawInputAmountMinor !== undefined) {
-          const [wal] = await db
-            .select()
-            .from(wallets)
-            .where(eq(wallets.id, newWalletId))
-            .limit(1);
-          if (wal) {
-            newAmountMinor = convertFromDisplay(
-              parsed.data.withdrawInputAmountMinor,
-              displayCurrency,
-              wal.currency as Currency,
-              rateSnapshot
-            );
-          }
         }
       }
     }

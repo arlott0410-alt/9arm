@@ -193,7 +193,7 @@ export default function TransfersPage() {
           note: '',
         });
         setOpen(false);
-        const params = new URLSearchParams({ dateFrom, dateTo });
+        const params = new URLSearchParams({ dateFrom, dateTo, ...(tab === 'deleted' && { deletedOnly: 'true' }) });
         const list = (await fetch(`/api/transfers?${params}`).then((r) => r.json())) as Transfer[];
         setTransfers(list);
         setError(null);
@@ -300,10 +300,10 @@ export default function TransfersPage() {
                     <th className="py-3 text-left font-medium text-[#9CA3AF]">
                       ไปยัง
                     </th>
-                    <th className="py-3 text-right font-medium text-[#9CA3AF]">
+                    <th className="py-3 text-right font-medium text-[#9CA3AF] min-w-[110px] pr-4">
                       จำนวน
                     </th>
-                    <th className="py-3 text-left font-medium text-[#9CA3AF]">
+                    <th className="py-3 text-left font-medium text-[#9CA3AF] min-w-[100px] pl-6">
                       หมายเหตุ
                     </th>
                     <th className="py-3 text-left font-medium text-[#9CA3AF]">
@@ -335,7 +335,7 @@ export default function TransfersPage() {
                       <td className="py-3 text-[#E5E7EB]">
                         {t.toWalletName || '-'}
                       </td>
-                      <td className="py-3 text-right min-w-[100px] pr-6">
+                      <td className="py-3 text-right min-w-[110px] pr-4">
                         {(() => {
                           const { amount, currency } = getTransferAmountAndCurrency(t);
                           return (
@@ -345,7 +345,7 @@ export default function TransfersPage() {
                           );
                         })()}
                       </td>
-                      <td className="py-3 text-[#9CA3AF] max-w-[140px] truncate pl-2" title={t.note ?? undefined}>
+                      <td className="py-3 text-[#9CA3AF] min-w-[100px] max-w-[140px] truncate pl-6" title={t.note ?? undefined}>
                         {t.note || '-'}
                       </td>
                       <td className="py-3 text-[#9CA3AF]">
@@ -386,8 +386,8 @@ export default function TransfersPage() {
                     <th className="py-3 text-left font-medium text-[#9CA3AF]">ประเภท</th>
                     <th className="py-3 text-left font-medium text-[#9CA3AF]">จาก</th>
                     <th className="py-3 text-left font-medium text-[#9CA3AF]">ไปยัง</th>
-                    <th className="py-3 text-right font-medium text-[#9CA3AF]">จำนวน</th>
-                    <th className="py-3 text-left font-medium text-[#9CA3AF]">หมายเหตุ</th>
+                    <th className="py-3 text-right font-medium text-[#9CA3AF] min-w-[110px] pr-4">จำนวน</th>
+                    <th className="py-3 text-left font-medium text-[#9CA3AF] min-w-[100px] pl-6">หมายเหตุ</th>
                     <th className="py-3 text-left font-medium text-[#9CA3AF]">โดย</th>
                     <th className="py-3 text-left font-medium text-[#9CA3AF]">ลบโดย</th>
                     <th className="py-3 text-left font-medium text-[#9CA3AF]">เหตุผล</th>
@@ -407,7 +407,7 @@ export default function TransfersPage() {
                       </td>
                       <td className="py-3 text-[#E5E7EB]">{t.fromWalletName || '-'}</td>
                       <td className="py-3 text-[#E5E7EB]">{t.toWalletName || '-'}</td>
-                      <td className="py-3 text-right min-w-[100px] pr-6">
+                      <td className="py-3 text-right min-w-[110px] pr-4">
                         {(() => {
                           const { amount, currency } = getTransferAmountAndCurrency(t);
                           return (
@@ -417,7 +417,7 @@ export default function TransfersPage() {
                           );
                         })()}
                       </td>
-                      <td className="py-3 text-[#9CA3AF] max-w-[140px] truncate pl-2" title={t.note ?? undefined}>
+                      <td className="py-3 text-[#9CA3AF] min-w-[100px] max-w-[140px] truncate pl-6" title={t.note ?? undefined}>
                         {t.note || '-'}
                       </td>
                       <td className="py-3 text-[#9CA3AF]">{t.createdByUsername}</td>
@@ -474,7 +474,7 @@ export default function TransfersPage() {
                     if (res.ok) {
                       setDeleteModal(null);
                       setDeleteReason('');
-                      const params = new URLSearchParams({ dateFrom, dateTo });
+                      const params = new URLSearchParams({ dateFrom, dateTo, ...(tab === 'deleted' && { deletedOnly: 'true' }) });
                       const list = (await fetch(`/api/transfers?${params}`).then((r) => r.json())) as Transfer[];
                       setTransfers(list);
                     } else {

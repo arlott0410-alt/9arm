@@ -7,7 +7,7 @@ import {
   users,
   bonusEdits,
 } from '@/db/schema';
-import { eq, and, isNull } from 'drizzle-orm';
+import { eq, and, isNull, inArray } from 'drizzle-orm';
 import { editBonusSchema } from '@/lib/validations';
 
 export async function GET(
@@ -71,26 +71,23 @@ export async function GET(
       .where(eq(bonusEdits.bonusId, idNum))
       .orderBy(bonusEdits.editedAt);
 
-    const editWithUsers = await Promise.all(
-      edits.map(async (e) => {
-        const [u] = await db
-          .select({ username: users.username })
-          .from(users)
-          .where(eq(users.id, e.editedBy))
-          .limit(1);
-        return { ...e, editedByUsername: u?.username ?? '?' };
-      })
-    );
+    const editUserIds = [...new Set(edits.map((e) => e.editedBy))];
+    const needDeletedBy = bonus.deletedBy != null && !editUserIds.includes(bonus.deletedBy);
+    const userIdsToFetch = needDeletedBy
+      ? [...editUserIds, bonus.deletedBy!]
+      : editUserIds;
 
-    let deletedByUsername: string | null = null;
-    if (bonus.deletedBy) {
-      const [du] = await db
-        .select({ username: users.username })
-        .from(users)
-        .where(eq(users.id, bonus.deletedBy))
-        .limit(1);
-      deletedByUsername = du?.username ?? '?';
-    }
+    const userRows = userIdsToFetch.length > 0
+      ? await db.select({ id: users.id, username: users.username }).from(users).where(inArray(users.id, userIdsToFetch))
+      : [];
+    const userMap = new Map(userRows.map((u) => [u.id, u.username]));
+
+    const editWithUsers = edits.map((e) => ({
+      ...e,
+      editedByUsername: userMap.get(e.editedBy) ?? '?',
+    }));
+
+    const deletedByUsername = bonus.deletedBy ? (userMap.get(bonus.deletedBy) ?? '?') : null;
 
     return NextResponse.json({
       ...bonus,

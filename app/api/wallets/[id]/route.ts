@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth, requireWallets } from '@/lib/api-helpers';
 import { wallets, transactions, transfers } from '@/db/schema';
-import { eq, and, or, sql } from 'drizzle-orm';
+import { eq, and, or, sql, isNull } from 'drizzle-orm';
 
 export async function GET(
   request: Request,
@@ -37,18 +37,20 @@ export async function GET(
       .where(
         and(
           eq(transactions.walletId, idNum),
-          eq(transactions.type, 'DEPOSIT')
+          eq(transactions.type, 'DEPOSIT'),
+          isNull(transactions.deletedAt)
         )
       );
     const withdrawSum = await db
       .select({
-        sum: sql<number>`coalesce(sum(${transactions.amountMinor}), 0)`,
+        sum: sql<number>`coalesce(sum(${transactions.amountMinor} + coalesce(${transactions.withdrawFeeMinor}, 0)), 0)`,
       })
       .from(transactions)
       .where(
         and(
           eq(transactions.walletId, idNum),
-          eq(transactions.type, 'WITHDRAW')
+          eq(transactions.type, 'WITHDRAW'),
+          isNull(transactions.deletedAt)
         )
       );
     const fromSum = await db
@@ -56,13 +58,13 @@ export async function GET(
         sum: sql<number>`coalesce(sum(${transfers.fromWalletAmountMinor}), 0)`,
       })
       .from(transfers)
-      .where(eq(transfers.fromWalletId, idNum));
+      .where(and(eq(transfers.fromWalletId, idNum), isNull(transfers.deletedAt)));
     const toSum = await db
       .select({
         sum: sql<number>`coalesce(sum(${transfers.toWalletAmountMinor}), 0)`,
       })
       .from(transfers)
-      .where(eq(transfers.toWalletId, idNum));
+      .where(and(eq(transfers.toWalletId, idNum), isNull(transfers.deletedAt)));
 
     const depositTotal = Number((depositSum[0] as { sum: number })?.sum ?? 0);
     const withdrawTotal = Number((withdrawSum[0] as { sum: number })?.sum ?? 0);
