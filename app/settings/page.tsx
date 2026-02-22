@@ -24,6 +24,7 @@ import { BASE_RATE_KEYS, expandRatesFromBase, getBaseRatesFromFull } from '@/lib
 import { KeyRound, Power, PowerOff } from 'lucide-react';
 
 type Website = { id: number; name: string; prefix: string };
+type BonusCategory = { id: number; name: string; sortOrder: number };
 type AppUser = {
   id: number;
   username: string;
@@ -37,6 +38,7 @@ export default function SettingsPage() {
     null
   );
   const [websites, setWebsites] = useState<Website[]>([]);
+  const [bonusCategories, setBonusCategories] = useState<BonusCategory[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [displayCurrency, setDisplayCurrency] = useState('THB');
   const [rates, setRates] = useState<Record<string, number>>({});
@@ -47,6 +49,9 @@ export default function SettingsPage() {
   const [changePwNew, setChangePwNew] = useState('');
   const [addUserError, setAddUserError] = useState('');
   const [websiteForm, setWebsiteForm] = useState({ name: '', prefix: '' });
+  const [bonusCategoryOpen, setBonusCategoryOpen] = useState(false);
+  const [bonusCategoryForm, setBonusCategoryForm] = useState({ name: '' });
+  const [editingBonusCategory, setEditingBonusCategory] = useState<BonusCategory | null>(null);
   const [userForm, setUserForm] = useState({
     username: '',
     password: '',
@@ -74,11 +79,13 @@ export default function SettingsPage() {
     if (!user) return;
     Promise.all([
       fetch('/api/settings/websites').then((r) => r.json() as Promise<Website[]>),
+      fetch('/api/settings/bonus-categories').then((r) => r.json() as Promise<BonusCategory[]>),
       fetch('/api/settings/users').then((r) => r.json() as Promise<AppUser[]>),
       fetch('/api/settings').then((r) => r.json() as Promise<{ DISPLAY_CURRENCY?: string }>),
       fetch('/api/settings/exchange-rates').then((r) => r.json() as Promise<{ rates?: Record<string, number> }>),
-    ]).then(([w, u, s, r]) => {
+    ]).then(([w, bc, u, s, r]) => {
       setWebsites(Array.isArray(w) ? w : []);
+      setBonusCategories(Array.isArray(bc) ? bc : []);
       setUsers(Array.isArray(u) ? u : []);
       setDisplayCurrency(s.DISPLAY_CURRENCY || 'THB');
       setRates(getBaseRatesFromFull(r.rates || {}));
@@ -260,6 +267,120 @@ export default function SettingsPage() {
             </div>
           </CardContent>
         </Card>
+
+        <Card className="border-[#1F2937] bg-[#0F172A]">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-[#E5E7EB]">หมวดหมู่โบนัส</CardTitle>
+              <Button size="sm" onClick={() => { setBonusCategoryForm({ name: '' }); setEditingBonusCategory(null); setBonusCategoryOpen(true); }}>
+                เพิ่มหมวดหมู่
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {bonusCategories.map((bc) => (
+                <div
+                  key={bc.id}
+                  className="flex items-center justify-between rounded border border-[#1F2937] px-4 py-2"
+                >
+                  <span className="text-[#E5E7EB]">{bc.name}</span>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => { setEditingBonusCategory(bc); setBonusCategoryForm({ name: bc.name }); setBonusCategoryOpen(true); }}
+                      disabled={loading}
+                    >
+                      แก้ไข
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-red-400"
+                      onClick={async () => {
+                        if (!confirm('ลบหมวดหมู่นี้?')) return;
+                        const res = await fetch(`/api/settings/bonus-categories/${bc.id}`, { method: 'DELETE' });
+                        if (res.ok) setBonusCategories((p) => p.filter((x) => x.id !== bc.id));
+                        else {
+                          const d = (await res.json()) as { error?: string };
+                          alert(d.error ?? 'ลบไม่ได้');
+                        }
+                      }}
+                      disabled={loading}
+                    >
+                      ลบ
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              {bonusCategories.length === 0 && (
+                <p className="py-4 text-center text-[#9CA3AF]">ไม่มีหมวดหมู่โบนัส</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Dialog open={bonusCategoryOpen} onOpenChange={setBonusCategoryOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editingBonusCategory ? 'แก้ไขหมวดหมู่โบนัส' : 'เพิ่มหมวดหมู่โบนัส'}</DialogTitle>
+            </DialogHeader>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!bonusCategoryForm.name.trim()) return;
+                setLoading(true);
+                try {
+                  if (editingBonusCategory) {
+                    const res = await fetch(`/api/settings/bonus-categories/${editingBonusCategory.id}`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ name: bonusCategoryForm.name.trim() }),
+                    });
+                    if (res.ok) {
+                      setBonusCategories((p) => p.map((x) => (x.id === editingBonusCategory.id ? { ...x, name: bonusCategoryForm.name.trim() } : x)));
+                      setBonusCategoryOpen(false);
+                    }
+                  } else {
+                    const res = await fetch('/api/settings/bonus-categories', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ name: bonusCategoryForm.name.trim() }),
+                    });
+                    const created = (await res.json()) as BonusCategory;
+                    if (res.ok) {
+                      setBonusCategories((p) => [...p, created]);
+                      setBonusCategoryForm({ name: '' });
+                      setBonusCategoryOpen(false);
+                    }
+                  }
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <Label>ชื่อหมวดหมู่</Label>
+                <Input
+                  value={bonusCategoryForm.name}
+                  onChange={(e) => setBonusCategoryForm({ name: e.target.value })}
+                  placeholder="เช่น โบนัสต้อนรับ"
+                  required
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setBonusCategoryOpen(false)}>
+                  ยกเลิก
+                </Button>
+                <Button type="submit" disabled={loading}>
+                  บันทึก
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
 
         <Card className="border-[#1F2937] bg-[#0F172A]">
           <CardHeader>

@@ -20,7 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { formatMinorToDisplay, parseDisplayToMinor, todayStr, formatSlipTimeHHMM, formatDateThailand } from '@/lib/utils';
 import { TimeInput24 } from '@/components/ui/time-input-24';
 import { convertToDisplay, convertFromDisplay } from '@/lib/rates';
-import { Copy } from 'lucide-react';
+import { Copy, Download } from 'lucide-react';
 
 type Website = { id: number; name: string; prefix: string };
 type Wallet = { id: number; name: string; currency: string };
@@ -269,7 +269,7 @@ export default function TransactionsPage() {
         <h1 className="text-2xl font-semibold text-[#E5E7EB]">ธุรกรรม</h1>
 
         {canMutate && (
-          <Card className="border-[#1F2937] bg-[#0F172A] max-w-4xl">
+          <Card className="border-[#1F2937] bg-[#0F172A]">
             <CardHeader className="py-4">
               <CardTitle className="text-[#E5E7EB] text-lg">สร้างธุรกรรม</CardTitle>
             </CardHeader>
@@ -409,31 +409,33 @@ export default function TransactionsPage() {
                           className="bg-[#111827]"
                         />
                       </div>
-                      <div>
-                        <Label>เวลาสลิปฝาก</Label>
-                        <TimeInput24
-                          value={depositForm.depositSlipTime}
-                          onChange={(v) =>
-                            setDepositForm({
-                              ...depositForm,
-                              depositSlipTime: v,
-                            })
-                          }
-                          required
-                        />
-                      </div>
-                      <div>
-                        <Label>เวลาระบบฝาก</Label>
-                        <TimeInput24
-                          value={depositForm.depositSystemTime}
-                          onChange={(v) =>
-                            setDepositForm({
-                              ...depositForm,
-                              depositSystemTime: v,
-                            })
-                          }
-                          required
-                        />
+                      <div className="flex gap-4 sm:col-span-2">
+                        <div className="flex-1 min-w-0">
+                          <Label>เวลาสลิปฝาก</Label>
+                          <TimeInput24
+                            value={depositForm.depositSlipTime}
+                            onChange={(v) =>
+                              setDepositForm({
+                                ...depositForm,
+                                depositSlipTime: v,
+                              })
+                            }
+                            required
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <Label>เวลาระบบฝาก</Label>
+                          <TimeInput24
+                            value={depositForm.depositSystemTime}
+                            onChange={(v) =>
+                              setDepositForm({
+                                ...depositForm,
+                                depositSystemTime: v,
+                              })
+                            }
+                            required
+                          />
+                        </div>
                       </div>
                     </div>
                     <Button type="submit" disabled={loading}>
@@ -596,31 +598,33 @@ export default function TransactionsPage() {
                           สกุลเงินตามกระเป๋าที่เลือก
                         </p>
                       </div>
-                      <div>
-                        <Label>เวลาระบบถอน</Label>
-                        <TimeInput24
-                          value={withdrawForm.withdrawSystemTime}
-                          onChange={(v) =>
-                            setWithdrawForm({
-                              ...withdrawForm,
-                              withdrawSystemTime: v,
-                            })
-                          }
-                          required
-                        />
-                      </div>
-                      <div>
-                        <Label>เวลาสลิปถอน</Label>
-                        <TimeInput24
-                          value={withdrawForm.withdrawSlipTime}
-                          onChange={(v) =>
-                            setWithdrawForm({
-                              ...withdrawForm,
-                              withdrawSlipTime: v,
-                            })
-                          }
-                          required
-                        />
+                      <div className="flex gap-4 sm:col-span-2">
+                        <div className="flex-1 min-w-0">
+                          <Label>เวลาสลิปถอน</Label>
+                          <TimeInput24
+                            value={withdrawForm.withdrawSlipTime}
+                            onChange={(v) =>
+                              setWithdrawForm({
+                                ...withdrawForm,
+                                withdrawSlipTime: v,
+                              })
+                            }
+                            required
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <Label>เวลาระบบถอน</Label>
+                          <TimeInput24
+                            value={withdrawForm.withdrawSystemTime}
+                            onChange={(v) =>
+                              setWithdrawForm({
+                                ...withdrawForm,
+                                withdrawSystemTime: v,
+                              })
+                            }
+                            required
+                          />
+                        </div>
                       </div>
                     </div>
                     <Button type="submit" disabled={loading}>
@@ -685,8 +689,14 @@ export default function TransactionsPage() {
                   />
                   รายการที่ลบ
                 </label>
-                <Button variant="outline" size="sm" onClick={exportCsv}>
-                  ส่งออก CSV
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={exportCsv}
+                  className="h-9 w-9 shrink-0 ml-auto"
+                  title="ส่งออก CSV"
+                >
+                  <Download className="h-4 w-4" />
                 </Button>
               </div>
             </div>
@@ -726,10 +736,10 @@ export default function TransactionsPage() {
                           <td className="py-2">{t.userFull}</td>
                           <td className="py-2">{t.websiteName}</td>
                           <td className="py-2">{t.walletName}</td>
-                          <td className="py-2 text-right font-medium text-[#D4AF37]">
+                          <td className="py-2 text-right font-medium text-[#D4AF37] pr-4">
                             {formatMinorToDisplay(t.amountMinor, t.walletCurrency)} {t.walletCurrency}
                           </td>
-                          <td className="py-2 text-[#9CA3AF]">{formatSlipTimeHHMM(t.depositSlipTime)}</td>
+                          <td className="py-2 text-[#9CA3AF] pl-2">{formatSlipTimeHHMM(t.depositSlipTime)}</td>
                           <td className="py-2 text-[#9CA3AF]">{formatSlipTimeHHMM(t.depositSystemTime)}</td>
                           <td className="py-2">{t.createdByUsername}</td>
                           {filterDeleted && (
@@ -796,10 +806,10 @@ export default function TransactionsPage() {
                           <td className="py-2">{t.userFull}</td>
                           <td className="py-2">{t.websiteName}</td>
                           <td className="py-2">{t.walletName}</td>
-                          <td className="py-2 text-right font-medium text-[#D4AF37]">
+                          <td className="py-2 text-right font-medium text-[#D4AF37] pr-4">
                             {formatMinorToDisplay(t.amountMinor, t.walletCurrency)} {t.walletCurrency}
                           </td>
-                          <td className="py-2 text-[#9CA3AF]">{formatSlipTimeHHMM(t.withdrawSlipTime)}</td>
+                          <td className="py-2 text-[#9CA3AF] pl-2">{formatSlipTimeHHMM(t.withdrawSlipTime)}</td>
                           <td className="py-2 text-[#9CA3AF]">{formatSlipTimeHHMM(t.withdrawSystemTime)}</td>
                           <td className="py-2">{t.createdByUsername}</td>
                           {filterDeleted && (

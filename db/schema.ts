@@ -115,6 +115,49 @@ export const transfers = sqliteTable('transfers', {
   deleteReason: text('delete_reason'),
 });
 
+export const bonusCategories = sqliteTable('bonus_categories', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+});
+
+export const bonuses = sqliteTable('bonuses', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  websiteId: integer('website_id')
+    .notNull()
+    .references(() => websites.id, { onDelete: 'restrict' }),
+  userIdInput: text('user_id_input').notNull(),
+  userFull: text('user_full').notNull(),
+  categoryId: integer('category_id')
+    .notNull()
+    .references(() => bonusCategories.id, { onDelete: 'restrict' }),
+  displayCurrency: text('display_currency').notNull(),
+  amountMinor: integer('amount_minor').notNull(),
+  bonusTime: text('bonus_time').notNull(),
+  createdBy: integer('created_by')
+    .notNull()
+    .references(() => users.id, { onDelete: 'restrict' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  deletedAt: integer('deleted_at', { mode: 'timestamp' }),
+  deletedBy: integer('deleted_by').references(() => users.id),
+  deleteReason: text('delete_reason'),
+});
+
+export const bonusEdits = sqliteTable('bonus_edits', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  bonusId: integer('bonus_id')
+    .notNull()
+    .references(() => bonuses.id, { onDelete: 'cascade' }),
+  editedBy: integer('edited_by')
+    .notNull()
+    .references(() => users.id, { onDelete: 'restrict' }),
+  editReason: text('edit_reason').notNull(),
+  beforeSnapshot: text('before_snapshot', { mode: 'json' }).notNull(),
+  afterSnapshot: text('after_snapshot', { mode: 'json' }).notNull(),
+  editedAt: integer('edited_at', { mode: 'timestamp' }).notNull(),
+});
+
 export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
   value: text('value', { mode: 'json' }).notNull(),
@@ -128,4 +171,7 @@ export type Wallet = typeof wallets.$inferSelect;
 export type Transaction = typeof transactions.$inferSelect;
 export type TransactionEdit = typeof transactionEdits.$inferInsert;
 export type Transfer = typeof transfers.$inferSelect;
+export type BonusCategory = typeof bonusCategories.$inferSelect;
+export type Bonus = typeof bonuses.$inferSelect;
+export type BonusEdit = typeof bonusEdits.$inferInsert;
 export type Setting = typeof settings.$inferSelect;

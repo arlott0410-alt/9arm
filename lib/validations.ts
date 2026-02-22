@@ -114,3 +114,26 @@ export const displayCurrencySchema = z.object({
 export const exchangeRatesSchema = z.object({
   rates: z.record(z.string(), z.number()),
 });
+
+export const bonusCategorySchema = z.object({
+  name: z.string().min(1, 'ต้องระบุชื่อหมวดหมู่'),
+});
+
+export const bonusSchema = z.object({
+  websiteId: z.number().int().positive(),
+  userIdInput: z.string().min(1, 'ต้องระบุรหัสผู้ใช้'),
+  userFull: z.string().min(1),
+  categoryId: z.number().int().positive(),
+  amountMinor: z.number().int().nonnegative(),
+  bonusTime: z.string().min(1, 'ต้องระบุเวลาที่ให้โบนัส'),
+});
+
+export const editBonusSchema = z.object({
+  editReason: z.string().min(1, 'ต้องระบุเหตุผลในการแก้ไข'),
+  websiteId: z.number().int().positive().optional(),
+  userIdInput: z.string().min(1).optional(),
+  userFull: z.string().min(1).optional(),
+  categoryId: z.number().int().positive().optional(),
+  amountMinor: z.number().int().nonnegative().optional(),
+  bonusTime: z.string().min(1).optional(),
+});

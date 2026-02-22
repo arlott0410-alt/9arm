@@ -50,6 +50,13 @@ export default function ReportsPage() {
     withdrawFeesByCurrency?: Record<string, number>;
     displayCurrency?: string;
   } | null>(null);
+  const [bonusData, setBonusData] = useState<{
+    displayCurrency: string;
+    dateFrom: string;
+    dateTo: string;
+    byCategory: Record<string, number>;
+    total: number;
+  } | null>(null);
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -69,9 +76,13 @@ export default function ReportsPage() {
       ...(period === 'daily' && { dateFrom }),
       ...(period === 'custom' && { dateFrom, dateTo }),
     });
-    fetch(`/api/reports?${params}`)
-      .then((r) => r.json() as Promise<NonNullable<typeof data>>)
-      .then(setData);
+    Promise.all([
+      fetch(`/api/reports?${params}`).then((r) => r.json() as Promise<NonNullable<typeof data>>),
+      fetch(`/api/reports/bonuses?${params}`).then((r) => r.json()).then((b) => (b?.displayCurrency ? b : null)) as Promise<NonNullable<typeof bonusData> | null>,
+    ]).then(([d, b]) => {
+      setData(d);
+      setBonusData(b ?? null);
+    });
   }, [user, period, year, month, dateFrom, dateTo]);
 
   if (!user) return null;
@@ -197,7 +208,7 @@ export default function ReportsPage() {
         </div>
 
         {data && (
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             <Card className="border-[#1F2937] bg-[#0F172A]">
               <CardHeader>
                 <CardTitle className="text-[#E5E7EB]">
@@ -364,6 +375,44 @@ export default function ReportsPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {bonusData && (
+              <Card className="border-[#1F2937] bg-[#0F172A]">
+                <CardHeader>
+                  <CardTitle className="text-[#E5E7EB]">
+                    รายงานโบนัส ({formatDateThailand(bonusData.dateFrom)} ถึง {formatDateThailand(bonusData.dateTo)})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <span className="text-[#9CA3AF]">แยกตามหมวดหมู่</span>
+                    <ul className="mt-1 space-y-1">
+                      {Object.entries(bonusData.byCategory ?? {})
+                        .filter(([, v]) => v > 0)
+                        .sort(([a], [b]) => a.localeCompare(b))
+                        .map(([name, amt]) => (
+                          <li key={name} className="flex justify-between text-sm">
+                            <span className="text-[#9CA3AF]">{name}</span>
+                            <span className="font-medium text-[#D4AF37]">
+                              {formatMinorToDisplay(amt, bonusData.displayCurrency)}
+                            </span>
+                          </li>
+                        ))}
+                      {(!bonusData.byCategory || Object.keys(bonusData.byCategory).length === 0 ||
+                        Object.values(bonusData.byCategory).every((v) => v === 0)) && (
+                        <li className="text-sm text-[#6B7280]">-</li>
+                      )}
+                    </ul>
+                  </div>
+                  <div className="flex justify-between border-t border-[#1F2937] pt-4">
+                    <span className="text-[#9CA3AF]">รวมโบนัส</span>
+                    <span className="font-medium text-[#D4AF37]">
+                      {formatMinorToDisplay(bonusData.total, bonusData.displayCurrency)} {bonusData.displayCurrency}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
       </div>

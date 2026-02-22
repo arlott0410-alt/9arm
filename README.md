@@ -68,6 +68,8 @@ Copy app icon ไปที่ `public/icon.png` (แนะนำ 512×512 px ห
 **สำหรับฐานข้อมูลที่มีอยู่แล้ว:** รัน migrations ตามลำดับใน D1 Console:
 - `db/migrations/0001_add_transfer_time.sql`
 - `db/migrations/0002_add_withdraw_fee.sql` (ค่าธรรมเนียมถอน)
+- `db/migrations/0003_add_soft_delete.sql` (soft delete ธุรกรรม/โอนเงิน)
+- `db/migrations/0004_add_bonuses.sql` (โบนัสและหมวดหมู่โบนัส)
 
 ### 7. Deploy
 

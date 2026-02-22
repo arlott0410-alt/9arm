@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
   CreditCard,
+  Gift,
   ArrowLeftRight,
   Wallet,
   FileText,
@@ -18,6 +19,7 @@ import { cn } from '@/lib/utils';
 const navAll = [
   { href: '/dashboard', label: 'แดชบอร์ด', icon: LayoutDashboard },
   { href: '/transactions', label: 'ธุรกรรม', icon: CreditCard },
+  { href: '/bonuses', label: 'โบนัส', icon: Gift },
   { href: '/wallets', label: 'กระเป๋าเงิน', icon: Wallet },
   { href: '/transfers', label: 'โอนเงิน', icon: ArrowLeftRight },
   { href: '/reports', label: 'รายงาน', icon: FileText },
