@@ -78,7 +78,7 @@ export default function ReportsPage() {
     });
     Promise.all([
       fetch(`/api/reports?${params}`).then((r) => r.json() as Promise<NonNullable<typeof data>>),
-      fetch(`/api/reports/bonuses?${params}`).then((r) => r.json()).then((b) => (b?.displayCurrency ? b : null)) as Promise<NonNullable<typeof bonusData> | null>,
+      fetch(`/api/reports/bonuses?${params}`).then((r) => r.json() as Promise<NonNullable<typeof bonusData> | { error?: string }>).then((b) => ('displayCurrency' in b && b.displayCurrency ? b : null)),
     ]).then(([d, b]) => {
       setData(d);
       setBonusData(b ?? null);
