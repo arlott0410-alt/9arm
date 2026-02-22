@@ -34,7 +34,9 @@ type Txn = {
   walletCurrency: string;
   amountMinor: number;
   depositSlipTime: string | null;
+  depositSystemTime: string | null;
   withdrawSlipTime: string | null;
+  withdrawSystemTime: string | null;
   createdByUsername: string;
   displayCurrency: string;
   deletedAt?: string | null;
@@ -267,19 +269,19 @@ export default function TransactionsPage() {
         <h1 className="text-2xl font-semibold text-[#E5E7EB]">ธุรกรรม</h1>
 
         {canMutate && (
-          <Card className="border-[#1F2937] bg-[#0F172A]">
-            <CardHeader>
-              <CardTitle className="text-[#E5E7EB]">สร้างธุรกรรม</CardTitle>
+          <Card className="border-[#1F2937] bg-[#0F172A] max-w-4xl">
+            <CardHeader className="py-4">
+              <CardTitle className="text-[#E5E7EB] text-lg">สร้างธุรกรรม</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0 pb-4">
               <Tabs defaultValue="deposit" className="w-full">
                 <TabsList>
                   <TabsTrigger value="deposit">ฝาก</TabsTrigger>
                   <TabsTrigger value="withdraw">ถอน</TabsTrigger>
                 </TabsList>
                 <TabsContent value="deposit">
-                  <form onSubmit={submitDeposit} className="mt-4 space-y-4">
-                    <div className="grid gap-4 sm:grid-cols-2">
+                  <form onSubmit={submitDeposit} className="mt-3 space-y-3">
+                    <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
                       <div>
                         <Label>วันที่</Label>
                         <Input
@@ -440,8 +442,8 @@ export default function TransactionsPage() {
                   </form>
                 </TabsContent>
                 <TabsContent value="withdraw">
-                  <form onSubmit={submitWithdraw} className="mt-4 space-y-4">
-                    <div className="grid gap-4 sm:grid-cols-2">
+                  <form onSubmit={submitWithdraw} className="mt-3 space-y-3">
+                    <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
                       <div>
                         <Label>วันที่</Label>
                         <Input
@@ -704,7 +706,9 @@ export default function TransactionsPage() {
                         <th className="py-2 text-left text-[#9CA3AF]">ผู้ใช้</th>
                         <th className="py-2 text-left text-[#9CA3AF]">เว็บไซต์</th>
                         <th className="py-2 text-left text-[#9CA3AF]">กระเป๋า</th>
-                        <th className="py-2 text-right text-[#9CA3AF]">จำนวน / เวลาสลิป</th>
+                        <th className="py-2 text-right text-[#9CA3AF]">จำนวน</th>
+                        <th className="py-2 text-left text-[#9CA3AF]">เวลาสลิปฝาก</th>
+                        <th className="py-2 text-left text-[#9CA3AF]">เวลาระบบฝาก</th>
                         <th className="py-2 text-left text-[#9CA3AF]">ผู้ดำเนินการ</th>
                         {filterDeleted && (
                           <>
@@ -717,22 +721,16 @@ export default function TransactionsPage() {
                     </thead>
                     <tbody>
                       {deposits.map((t) => (
-                        <tr key={t.id} className="border-b border-[#1F2937]">
+                        <tr key={t.id} className="border-b border-[#1F2937] whitespace-nowrap">
                           <td className="py-2 text-[#E5E7EB]">{formatDateThailand(t.txnDate)}</td>
                           <td className="py-2">{t.userFull}</td>
                           <td className="py-2">{t.websiteName}</td>
                           <td className="py-2">{t.walletName}</td>
-                          <td className="py-2 text-right">
-                            <div className="space-y-0.5">
-                              <div className="font-medium text-[#D4AF37]">
-                                {formatMinorToDisplay(t.amountMinor, t.walletCurrency)}{' '}
-                                {t.walletCurrency}
-                              </div>
-                              <div className="text-xs text-[#9CA3AF]">
-                                สลิป {formatSlipTimeHHMM(t.depositSlipTime)}
-                              </div>
-                            </div>
+                          <td className="py-2 text-right font-medium text-[#D4AF37]">
+                            {formatMinorToDisplay(t.amountMinor, t.walletCurrency)} {t.walletCurrency}
                           </td>
+                          <td className="py-2 text-[#9CA3AF]">{formatSlipTimeHHMM(t.depositSlipTime)}</td>
+                          <td className="py-2 text-[#9CA3AF]">{formatSlipTimeHHMM(t.depositSystemTime)}</td>
                           <td className="py-2">{t.createdByUsername}</td>
                           {filterDeleted && (
                             <>
@@ -760,7 +758,7 @@ export default function TransactionsPage() {
                       ))}
                       {deposits.length === 0 && (
                         <tr>
-                          <td colSpan={filterDeleted ? 9 : 7} className="py-6 text-center text-[#9CA3AF]">
+                          <td colSpan={filterDeleted ? 11 : 9} className="py-6 text-center text-[#9CA3AF]">
                             ไม่มีรายการฝาก
                           </td>
                         </tr>
@@ -778,7 +776,9 @@ export default function TransactionsPage() {
                         <th className="py-2 text-left text-[#9CA3AF]">ผู้ใช้</th>
                         <th className="py-2 text-left text-[#9CA3AF]">เว็บไซต์</th>
                         <th className="py-2 text-left text-[#9CA3AF]">กระเป๋า</th>
-                        <th className="py-2 text-right text-[#9CA3AF]">จำนวน / เวลาสลิป</th>
+                        <th className="py-2 text-right text-[#9CA3AF]">จำนวน</th>
+                        <th className="py-2 text-left text-[#9CA3AF]">เวลาสลิปถอน</th>
+                        <th className="py-2 text-left text-[#9CA3AF]">เวลาระบบถอน</th>
                         <th className="py-2 text-left text-[#9CA3AF]">ผู้ดำเนินการ</th>
                         {filterDeleted && (
                           <>
@@ -791,22 +791,16 @@ export default function TransactionsPage() {
                     </thead>
                     <tbody>
                       {withdraws.map((t) => (
-                        <tr key={t.id} className="border-b border-[#1F2937]">
+                        <tr key={t.id} className="border-b border-[#1F2937] whitespace-nowrap">
                           <td className="py-2 text-[#E5E7EB]">{formatDateThailand(t.txnDate)}</td>
                           <td className="py-2">{t.userFull}</td>
                           <td className="py-2">{t.websiteName}</td>
                           <td className="py-2">{t.walletName}</td>
-                          <td className="py-2 text-right">
-                            <div className="space-y-0.5">
-                              <div className="font-medium text-[#D4AF37]">
-                                {formatMinorToDisplay(t.amountMinor, t.walletCurrency)}{' '}
-                                {t.walletCurrency}
-                              </div>
-                              <div className="text-xs text-[#9CA3AF]">
-                                สลิป {formatSlipTimeHHMM(t.withdrawSlipTime)}
-                              </div>
-                            </div>
+                          <td className="py-2 text-right font-medium text-[#D4AF37]">
+                            {formatMinorToDisplay(t.amountMinor, t.walletCurrency)} {t.walletCurrency}
                           </td>
+                          <td className="py-2 text-[#9CA3AF]">{formatSlipTimeHHMM(t.withdrawSlipTime)}</td>
+                          <td className="py-2 text-[#9CA3AF]">{formatSlipTimeHHMM(t.withdrawSystemTime)}</td>
                           <td className="py-2">{t.createdByUsername}</td>
                           {filterDeleted && (
                             <>
@@ -834,7 +828,7 @@ export default function TransactionsPage() {
                       ))}
                       {withdraws.length === 0 && (
                         <tr>
-                          <td colSpan={filterDeleted ? 9 : 7} className="py-6 text-center text-[#9CA3AF]">
+                          <td colSpan={filterDeleted ? 11 : 9} className="py-6 text-center text-[#9CA3AF]">
                             ไม่มีรายการถอน
                           </td>
                         </tr>
