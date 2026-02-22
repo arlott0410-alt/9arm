@@ -15,6 +15,7 @@ export async function GET(request: Request) {
 
     const url = new URL(request.url);
     const period = url.searchParams.get('period') || 'daily'; // daily | monthly | yearly | custom
+    const websiteId = url.searchParams.get('websiteId');
     const year = url.searchParams.get('year');
     const month = url.searchParams.get('month');
     const dateFromParam = url.searchParams.get('dateFrom');
@@ -49,6 +50,23 @@ export async function GET(request: Request) {
       dateTo = today;
     }
 
+    const txnConditionsDep: Parameters<typeof and>[0][] = [
+      eq(transactions.type, 'DEPOSIT'),
+      gte(transactions.txnDate, dateFrom),
+      lte(transactions.txnDate, dateTo),
+      isNull(transactions.deletedAt),
+    ];
+    const txnConditionsWith: Parameters<typeof and>[0][] = [
+      eq(transactions.type, 'WITHDRAW'),
+      gte(transactions.txnDate, dateFrom),
+      lte(transactions.txnDate, dateTo),
+      isNull(transactions.deletedAt),
+    ];
+    if (websiteId) {
+      txnConditionsDep.push(eq(transactions.websiteId, parseInt(websiteId)));
+      txnConditionsWith.push(eq(transactions.websiteId, parseInt(websiteId)));
+    }
+
     const [dcRow, ratesRow, depRows, withRows] = await Promise.all([
       db.select().from(settings).where(eq(settings.key, 'DISPLAY_CURRENCY')).limit(1),
       db.select().from(settings).where(eq(settings.key, 'EXCHANGE_RATES')).limit(1),
@@ -58,28 +76,14 @@ export async function GET(request: Request) {
           walletId: transactions.walletId,
         })
         .from(transactions)
-        .where(
-          and(
-            eq(transactions.type, 'DEPOSIT'),
-            gte(transactions.txnDate, dateFrom),
-            lte(transactions.txnDate, dateTo),
-            isNull(transactions.deletedAt)
-          )
-        ),
+        .where(and(...txnConditionsDep)),
       db
         .select({
           amountMinor: transactions.amountMinor,
           walletId: transactions.walletId,
         })
         .from(transactions)
-        .where(
-          and(
-            eq(transactions.type, 'WITHDRAW'),
-            gte(transactions.txnDate, dateFrom),
-            lte(transactions.txnDate, dateTo),
-            isNull(transactions.deletedAt)
-          )
-        ),
+        .where(and(...txnConditionsWith)),
     ]);
 
     const displayCurrency: Currency =
@@ -123,6 +127,12 @@ export async function GET(request: Request) {
     withdrawsTotal = Math.round(withdrawsTotal);
     const netTransactions = depositsTotal - withdrawsTotal;
 
+    const transferConditions: Parameters<typeof and>[0][] = [
+      gte(transfers.txnDate, dateFrom),
+      lte(transfers.txnDate, dateTo),
+      isNull(transfers.deletedAt),
+    ];
+
     const intRows = await db
       .select({
         amount: transfers.fromWalletAmountMinor,
@@ -133,9 +143,7 @@ export async function GET(request: Request) {
       .where(
         and(
           eq(transfers.type, 'INTERNAL'),
-          gte(transfers.txnDate, dateFrom),
-          lte(transfers.txnDate, dateTo),
-          isNull(transfers.deletedAt)
+          ...transferConditions
         )
       );
     const extInRows = await db
@@ -148,9 +156,7 @@ export async function GET(request: Request) {
       .where(
         and(
           eq(transfers.type, 'EXTERNAL_IN'),
-          gte(transfers.txnDate, dateFrom),
-          lte(transfers.txnDate, dateTo),
-          isNull(transfers.deletedAt)
+          ...transferConditions
         )
       );
     const extOutRows = await db
@@ -163,9 +169,7 @@ export async function GET(request: Request) {
       .where(
         and(
           eq(transfers.type, 'EXTERNAL_OUT'),
-          gte(transfers.txnDate, dateFrom),
-          lte(transfers.txnDate, dateTo),
-          isNull(transfers.deletedAt)
+          ...transferConditions
         )
       );
 
@@ -193,14 +197,10 @@ export async function GET(request: Request) {
       })
       .from(transactions)
       .innerJoin(wallets, eq(transactions.walletId, wallets.id))
-      .where(
-        and(
-          eq(transactions.type, 'WITHDRAW'),
-          gte(transactions.txnDate, dateFrom),
-          lte(transactions.txnDate, dateTo),
-          isNull(transactions.deletedAt)
-        )
-      );
+      .where(and(
+        eq(transactions.type, 'WITHDRAW'),
+        ...txnConditionsWith
+      ));
     const withdrawFeesByCurrency: Record<string, number> = {};
     for (const r of feeRows) {
       const cur = r.currency ?? 'THB';

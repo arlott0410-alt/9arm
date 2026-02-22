@@ -50,11 +50,17 @@ export default function ReportsPage() {
     withdrawFeesByCurrency?: Record<string, number>;
     displayCurrency?: string;
   } | null>(null);
+  const [filterWebsite, setFilterWebsite] = useState('__all__');
+  const [websites, setWebsites] = useState<{ id: number; name: string; prefix: string }[]>([]);
   const [bonusData, setBonusData] = useState<{
     displayCurrency: string;
     dateFrom: string;
     dateTo: string;
     byCategory: Record<string, number>;
+    total: number;
+  } | null>(null);
+  const [creditCutData, setCreditCutData] = useState<{
+    displayCurrency: string;
     total: number;
   } | null>(null);
 
@@ -69,21 +75,29 @@ export default function ReportsPage() {
 
   useEffect(() => {
     if (!user) return;
+    fetch('/api/settings/websites').then((r) => r.json() as Promise<{ id: number; name: string; prefix: string }[]>).then((w) => setWebsites(Array.isArray(w) ? w : []));
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
     const params = new URLSearchParams({
       period,
       ...(period === 'monthly' && { year, month }),
       ...(period === 'yearly' && { year }),
       ...(period === 'daily' && { dateFrom }),
       ...(period === 'custom' && { dateFrom, dateTo }),
+      ...(filterWebsite !== '__all__' && { websiteId: filterWebsite }),
     });
     Promise.all([
       fetch(`/api/reports?${params}`).then((r) => r.json() as Promise<NonNullable<typeof data>>),
       fetch(`/api/reports/bonuses?${params}`).then((r) => r.json() as Promise<NonNullable<typeof bonusData> | { error?: string }>).then((b) => ('displayCurrency' in b && b.displayCurrency ? b : null)),
-    ]).then(([d, b]) => {
+      fetch(`/api/reports/credit-cuts?${params}`).then((r) => r.json() as Promise<NonNullable<typeof creditCutData> | { error?: string }>).then((c) => ('displayCurrency' in (c ?? {}) && c?.displayCurrency ? c : null)),
+    ]).then(([d, b, c]) => {
       setData(d);
       setBonusData(b ?? null);
+      setCreditCutData(c ?? null);
     });
-  }, [user, period, year, month, dateFrom, dateTo]);
+  }, [user, period, year, month, dateFrom, dateTo, filterWebsite]);
 
   if (!user) return null;
 
@@ -188,6 +202,22 @@ export default function ReportsPage() {
               </div>
             </>
           )}
+          <div>
+            <label className="mb-1 block text-sm text-[#9CA3AF]">เว็บ</label>
+            <Select value={filterWebsite} onValueChange={setFilterWebsite}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">ทั้งหมด</SelectItem>
+                {websites.map((w) => (
+                  <SelectItem key={w.id} value={String(w.id)}>
+                    {w.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           {period === 'yearly' && (
             <div>
               <label className="mb-1 block text-sm text-[#9CA3AF]">ปี</label>
@@ -208,7 +238,7 @@ export default function ReportsPage() {
         </div>
 
         {data && (
-          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             <Card className="border-[#1F2937] bg-[#0F172A]">
               <CardHeader className="py-4 pb-2">
                 <CardTitle className="text-base text-[#E5E7EB]">
@@ -219,13 +249,13 @@ export default function ReportsPage() {
                 <div className="flex justify-between text-sm">
                   <span className="text-[#9CA3AF]">ฝาก</span>
                   <span className="font-medium text-[#D4AF37]">
-                    {formatMinorToDisplay(data.transactions.deposits, dispCur)}
+                    {formatMinorToDisplay(data.transactions.deposits, dispCur)} {dispCur}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-[#9CA3AF]">ถอน</span>
                   <span className="font-medium text-[#D4AF37]">
-                    {formatMinorToDisplay(data.transactions.withdraws, dispCur)}
+                    {formatMinorToDisplay(data.transactions.withdraws, dispCur)} {dispCur}
                   </span>
                 </div>
                 <div className="flex justify-between border-t border-[#1F2937] pt-2 text-sm">
@@ -240,7 +270,7 @@ export default function ReportsPage() {
                     {formatMinorToDisplay(
                       Math.abs(data.transactions.net),
                       dispCur
-                    )}
+                    )} {dispCur}
                     {data.transactions.net < 0 ? ' (ถอนออก)' : ''}
                   </span>
                 </div>
@@ -265,7 +295,7 @@ export default function ReportsPage() {
                           <li key={name} className="flex justify-between text-sm">
                             <span className="text-[#9CA3AF]">{name}</span>
                             <span className="font-medium text-[#D4AF37]">
-                              {formatMinorToDisplay(amt, bonusData.displayCurrency)}
+                              {formatMinorToDisplay(amt, bonusData.displayCurrency)} {bonusData.displayCurrency}
                             </span>
                           </li>
                         ))}
@@ -279,6 +309,24 @@ export default function ReportsPage() {
                     <span className="text-[#9CA3AF]">รวมโบนัส</span>
                     <span className="font-medium text-[#D4AF37]">
                       {formatMinorToDisplay(bonusData.total, bonusData.displayCurrency)} {bonusData.displayCurrency}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {creditCutData && (
+              <Card className="border-[#1F2937] bg-[#0F172A]">
+                <CardHeader className="py-4 pb-2">
+                  <CardTitle className="text-base text-[#E5E7EB]">
+                    ตัดเครดิต
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 pt-0 pb-4">
+                  <div className="flex justify-between border-t-0 pt-0 text-sm">
+                    <span className="text-[#9CA3AF]">รวมตัดเครดิต</span>
+                    <span className="font-medium text-[#D4AF37]">
+                      {formatMinorToDisplay(creditCutData.total, creditCutData.displayCurrency)} {creditCutData.displayCurrency}
                     </span>
                   </div>
                 </CardContent>

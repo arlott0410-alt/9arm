@@ -158,6 +158,39 @@ export const bonusEdits = sqliteTable('bonus_edits', {
   editedAt: integer('edited_at', { mode: 'timestamp' }).notNull(),
 });
 
+export const creditCuts = sqliteTable('credit_cuts', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  websiteId: integer('website_id')
+    .notNull()
+    .references(() => websites.id, { onDelete: 'restrict' }),
+  userIdInput: text('user_id_input').notNull(),
+  userFull: text('user_full').notNull(),
+  displayCurrency: text('display_currency').notNull(),
+  amountMinor: integer('amount_minor').notNull(),
+  cutReason: text('cut_reason').notNull(),
+  createdBy: integer('created_by')
+    .notNull()
+    .references(() => users.id, { onDelete: 'restrict' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  deletedAt: integer('deleted_at', { mode: 'timestamp' }),
+  deletedBy: integer('deleted_by').references(() => users.id),
+  deleteReason: text('delete_reason'),
+});
+
+export const creditCutEdits = sqliteTable('credit_cuts_edits', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  creditCutId: integer('credit_cut_id')
+    .notNull()
+    .references(() => creditCuts.id, { onDelete: 'cascade' }),
+  editedBy: integer('edited_by')
+    .notNull()
+    .references(() => users.id, { onDelete: 'restrict' }),
+  editReason: text('edit_reason').notNull(),
+  beforeSnapshot: text('before_snapshot', { mode: 'json' }).notNull(),
+  afterSnapshot: text('after_snapshot', { mode: 'json' }).notNull(),
+  editedAt: integer('edited_at', { mode: 'timestamp' }).notNull(),
+});
+
 export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
   value: text('value', { mode: 'json' }).notNull(),
@@ -174,4 +207,6 @@ export type Transfer = typeof transfers.$inferSelect;
 export type BonusCategory = typeof bonusCategories.$inferSelect;
 export type Bonus = typeof bonuses.$inferSelect;
 export type BonusEdit = typeof bonusEdits.$inferInsert;
+export type CreditCut = typeof creditCuts.$inferSelect;
+export type CreditCutEdit = typeof creditCutEdits.$inferInsert;
 export type Setting = typeof settings.$inferSelect;

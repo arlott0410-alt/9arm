@@ -11,6 +11,8 @@ export default function DashboardPage() {
   const [user, setUser] = useState<{ username: string; role: string } | null>(
     null
   );
+  const [filterWebsite, setFilterWebsite] = useState('__all__');
+  const [websites, setWebsites] = useState<{ id: number; name: string; prefix: string }[]>([]);
   const [data, setData] = useState<{
     displayCurrency: string;
     today: { deposits: number; withdraws: number; net: number };
@@ -32,7 +34,14 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!user) return;
-    fetch('/api/dashboard')
+    fetch('/api/settings/websites').then((r) => r.json() as Promise<{ id: number; name: string; prefix: string }[]>).then((w) => setWebsites(Array.isArray(w) ? w : []));
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const params = new URLSearchParams();
+    if (filterWebsite !== '__all__') params.set('websiteId', filterWebsite);
+    fetch(`/api/dashboard?${params}`)
       .then((r) => r.json() as Promise<{
         displayCurrency: string;
         today: { deposits: number; withdraws: number; net: number };
@@ -41,14 +50,29 @@ export default function DashboardPage() {
       }>)
       .then(setData)
       .catch(console.error);
-  }, [user]);
+  }, [user, filterWebsite]);
 
   if (!user) return null;
 
   return (
     <AppLayout user={user}>
       <div className="space-y-6">
-        <h1 className="text-2xl font-semibold text-[#E5E7EB]">แดชบอร์ด</h1>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <h1 className="text-2xl font-semibold text-[#E5E7EB]">แดชบอร์ด</h1>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-[#9CA3AF]">เว็บ</label>
+            <select
+              value={filterWebsite}
+              onChange={(e) => setFilterWebsite(e.target.value)}
+              className="h-10 rounded-md border border-[#1F2937] bg-[#0B0F1A] px-3 text-sm text-[#E5E7EB] focus:border-[#D4AF37] focus:outline-none"
+            >
+              <option value="__all__">ทั้งหมด</option>
+              {websites.map((w) => (
+                <option key={w.id} value={String(w.id)}>{w.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
           <Card className="border-[#1F2937] bg-[#0F172A]">
@@ -60,7 +84,7 @@ export default function DashboardPage() {
             <CardContent>
               <span className="text-2xl font-bold text-[#D4AF37]">
                 {data
-                  ? formatMinorToDisplay(data.today.deposits, data.displayCurrency || 'THB')
+                  ? `${formatMinorToDisplay(data.today.deposits, data.displayCurrency || 'THB')} ${data.displayCurrency || 'THB'}`
                   : '-'}
               </span>
             </CardContent>
@@ -74,7 +98,7 @@ export default function DashboardPage() {
             <CardContent>
               <span className="text-2xl font-bold text-[#D4AF37]">
                 {data
-                  ? formatMinorToDisplay(data.today.withdraws, data.displayCurrency || 'THB')
+                  ? `${formatMinorToDisplay(data.today.withdraws, data.displayCurrency || 'THB')} ${data.displayCurrency || 'THB'}`
                   : '-'}
               </span>
             </CardContent>
@@ -92,7 +116,7 @@ export default function DashboardPage() {
                 }`}
               >
                 {data
-                  ? formatMinorToDisplay(Math.abs(data.today.net), data.displayCurrency || 'THB') +
+                  ? `${formatMinorToDisplay(Math.abs(data.today.net), data.displayCurrency || 'THB')} ${data.displayCurrency || 'THB'}` +
                     (data.today.net < 0 ? ' (ถอนออก)' : '')
                   : '-'}
               </span>
@@ -107,7 +131,7 @@ export default function DashboardPage() {
             <CardContent>
               <span className="text-2xl font-bold text-[#D4AF37]">
                 {data
-                  ? formatMinorToDisplay(data.month.deposits, data.displayCurrency || 'THB')
+                  ? `${formatMinorToDisplay(data.month.deposits, data.displayCurrency || 'THB')} ${data.displayCurrency || 'THB'}`
                   : '-'}
               </span>
             </CardContent>
@@ -121,7 +145,7 @@ export default function DashboardPage() {
             <CardContent>
               <span className="text-2xl font-bold text-[#D4AF37]">
                 {data
-                  ? formatMinorToDisplay(data.month.withdraws, data.displayCurrency || 'THB')
+                  ? `${formatMinorToDisplay(data.month.withdraws, data.displayCurrency || 'THB')} ${data.displayCurrency || 'THB'}`
                   : '-'}
               </span>
             </CardContent>
@@ -139,7 +163,7 @@ export default function DashboardPage() {
                 }`}
               >
                 {data
-                  ? formatMinorToDisplay(Math.abs(data.month.net), data.displayCurrency || 'THB') +
+                  ? `${formatMinorToDisplay(Math.abs(data.month.net), data.displayCurrency || 'THB')} ${data.displayCurrency || 'THB'}` +
                     (data.month.net < 0 ? ' (ถอนออก)' : '')
                   : '-'}
               </span>
@@ -176,7 +200,7 @@ export default function DashboardPage() {
                       <td className="py-3 text-[#E5E7EB]">{w.name}</td>
                       <td className="py-3 text-[#9CA3AF]">{w.currency}</td>
                       <td className="py-3 text-right font-medium text-[#D4AF37]">
-                        {formatMinorToDisplay(w.balance, w.currency)}
+                        {formatMinorToDisplay(w.balance, w.currency)} {w.currency}
                       </td>
                     </tr>
                   ))}

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth } from '@/lib/api-helpers';
-import { bonuses, bonusCategories, settings } from '@/db/schema';
+import { creditCuts, settings } from '@/db/schema';
 import { eq, gte, lte, and, isNull } from 'drizzle-orm';
 import { todayStrThailand } from '@/lib/utils';
 
@@ -14,11 +14,11 @@ export async function GET(request: Request) {
 
     const url = new URL(request.url);
     const period = url.searchParams.get('period') || 'daily';
-    const websiteId = url.searchParams.get('websiteId');
     const year = url.searchParams.get('year');
     const month = url.searchParams.get('month');
     const dateFromParam = url.searchParams.get('dateFrom');
     const dateToParam = url.searchParams.get('dateTo');
+    const websiteId = url.searchParams.get('websiteId');
 
     const today = todayStrThailand();
     let dateFrom = '';
@@ -45,6 +45,13 @@ export async function GET(request: Request) {
       dateTo = today;
     }
 
+    const conditions: Parameters<typeof and>[0][] = [
+      gte(creditCuts.createdAt, new Date(dateFrom + 'T00:00:00')),
+      lte(creditCuts.createdAt, new Date(dateTo + 'T23:59:59')),
+      isNull(creditCuts.deletedAt),
+    ];
+    if (websiteId) conditions.push(eq(creditCuts.websiteId, parseInt(websiteId)));
+
     const [dcRow] = await db
       .select()
       .from(settings)
@@ -53,28 +60,13 @@ export async function GET(request: Request) {
     const displayCurrency: string =
       (dcRow?.value && typeof dcRow.value === 'string' && JSON.parse(dcRow.value)) || 'THB';
 
-    const bonusConditions: Parameters<typeof and>[0][] = [
-      gte(bonuses.bonusTime, dateFrom + 'T00:00'),
-      lte(bonuses.bonusTime, dateTo + 'T23:59:59'),
-      isNull(bonuses.deletedAt),
-    ];
-    if (websiteId) bonusConditions.push(eq(bonuses.websiteId, parseInt(websiteId)));
-
     const rows = await db
-      .select({
-        categoryId: bonuses.categoryId,
-        categoryName: bonusCategories.name,
-        amountMinor: bonuses.amountMinor,
-        displayCurrency: bonuses.displayCurrency,
-      })
-      .from(bonuses)
-      .innerJoin(bonusCategories, eq(bonuses.categoryId, bonusCategories.id))
-      .where(and(...bonusConditions));
+      .select({ amountMinor: creditCuts.amountMinor })
+      .from(creditCuts)
+      .where(and(...conditions));
 
-    const byCategory: Record<string, number> = {};
     let total = 0;
     for (const r of rows) {
-      byCategory[r.categoryName ?? 'อื่นๆ'] = (byCategory[r.categoryName ?? 'อื่นๆ'] ?? 0) + r.amountMinor;
       total += r.amountMinor;
     }
 
@@ -83,7 +75,6 @@ export async function GET(request: Request) {
       period,
       dateFrom,
       dateTo,
-      byCategory,
       total: Math.round(total),
     });
   } catch (e) {

@@ -137,3 +137,20 @@ export const editBonusSchema = z.object({
   amountMinor: z.number().int().nonnegative().optional(),
   bonusTime: z.string().min(1).optional(),
 });
+
+export const creditCutSchema = z.object({
+  websiteId: z.number().int().positive(),
+  userIdInput: z.string().min(1, 'ต้องระบุรหัสผู้ใช้'),
+  userFull: z.string().min(1),
+  amountMinor: z.number().int().nonnegative(),
+  cutReason: z.string().min(1, 'ต้องระบุเหตุผลที่ตัดเครดิต'),
+});
+
+export const editCreditCutSchema = z.object({
+  editReason: z.string().min(1, 'ต้องระบุเหตุผลในการแก้ไข'),
+  websiteId: z.number().int().positive().optional(),
+  userIdInput: z.string().min(1).optional(),
+  userFull: z.string().min(1).optional(),
+  amountMinor: z.number().int().nonnegative().optional(),
+  cutReason: z.string().min(1).optional(),
+});

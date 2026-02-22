@@ -10,8 +10,16 @@ async function sumInDisplayCurrency(
   db: Db,
   displayCurrency: Currency,
   rates: RateSnapshot,
-  filters: { type: 'DEPOSIT' | 'WITHDRAW'; dateFrom: string; dateTo: string }
+  filters: { type: 'DEPOSIT' | 'WITHDRAW'; dateFrom: string; dateTo: string; websiteId?: number }
 ) {
+  const conditions: Parameters<typeof and>[0][] = [
+    eq(transactions.type, filters.type),
+    gte(transactions.txnDate, filters.dateFrom),
+    lte(transactions.txnDate, filters.dateTo),
+    isNull(transactions.deletedAt),
+  ];
+  if (filters.websiteId) conditions.push(eq(transactions.websiteId, filters.websiteId));
+
   const rows = await db
     .select({
       amountMinor: transactions.amountMinor,
@@ -19,14 +27,7 @@ async function sumInDisplayCurrency(
     })
     .from(transactions)
     .leftJoin(wallets, eq(transactions.walletId, wallets.id))
-    .where(
-      and(
-        eq(transactions.type, filters.type),
-        gte(transactions.txnDate, filters.dateFrom),
-        lte(transactions.txnDate, filters.dateTo),
-        isNull(transactions.deletedAt)
-      )
-    );
+    .where(and(...conditions));
   let total = 0;
   for (const r of rows) {
     const [w] = await db
@@ -73,6 +74,10 @@ export async function GET(request: Request) {
         ? JSON.parse(ratesRow.value)
         : {};
 
+    const url = new URL(request.url);
+    const websiteIdParam = url.searchParams.get('websiteId');
+    const websiteId = websiteIdParam ? parseInt(websiteIdParam) : undefined;
+
     const today = todayStrThailand();
     const startOfMonth = today.slice(0, 7) + '-01';
     const endOfMonth = today.slice(0, 7) + '-31';
@@ -83,21 +88,25 @@ export async function GET(request: Request) {
           type: 'DEPOSIT',
           dateFrom: today,
           dateTo: today,
+          websiteId,
         }),
         sumInDisplayCurrency(db, displayCurrency, rates, {
           type: 'WITHDRAW',
           dateFrom: today,
           dateTo: today,
+          websiteId,
         }),
         sumInDisplayCurrency(db, displayCurrency, rates, {
           type: 'DEPOSIT',
           dateFrom: startOfMonth,
           dateTo: endOfMonth,
+          websiteId,
         }),
         sumInDisplayCurrency(db, displayCurrency, rates, {
           type: 'WITHDRAW',
           dateFrom: startOfMonth,
           dateTo: endOfMonth,
+          websiteId,
         }),
       ]);
 
