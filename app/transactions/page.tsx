@@ -61,8 +61,6 @@ export default function TransactionsPage() {
   const [filterUserFull, setFilterUserFull] = useState('');
   const [filterEdited, setFilterEdited] = useState(false);
   const [filterDeleted, setFilterDeleted] = useState(false);
-  const [filterTimeFrom, setFilterTimeFrom] = useState('00:00');
-  const [filterTimeTo, setFilterTimeTo] = useState('23:59');
   const [deleteModal, setDeleteModal] = useState<Txn | null>(null);
   const [deleteReason, setDeleteReason] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -120,17 +118,6 @@ export default function TransactionsPage() {
     loadData();
   }, [user, loadData]);
 
-  function extractSlipTimeHM(s: string | null | undefined): string {
-    if (!s || typeof s !== 'string') return '00:00';
-    const t = s.includes('T') ? s.split('T')[1] : s;
-    const parts = t?.split(':') ?? [];
-    if (parts.length >= 2) return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
-    return '00:00';
-  }
-  function inTimeRange(slipTime: string | null | undefined): boolean {
-    const hm = extractSlipTimeHM(slipTime);
-    return hm >= filterTimeFrom && hm <= filterTimeTo;
-  }
   const sortDeposits = (arr: Txn[]) =>
     [...arr].sort((a, b) => (a.depositSlipTime || '').localeCompare(b.depositSlipTime || ''));
   const sortWithdraws = (arr: Txn[]) =>
@@ -149,12 +136,12 @@ export default function TransactionsPage() {
     fetch(`/api/transactions?${params}`)
       .then((r) => r.json() as Promise<Txn[]>)
       .then((list) => {
-        const deps = list.filter((t) => t.type === 'DEPOSIT' && inTimeRange(t.depositSlipTime));
-        const withs = list.filter((t) => t.type === 'WITHDRAW' && inTimeRange(t.withdrawSlipTime));
+        const deps = list.filter((t) => t.type === 'DEPOSIT');
+        const withs = list.filter((t) => t.type === 'WITHDRAW');
         setDeposits(sortDeposits(deps));
         setWithdraws(sortWithdraws(withs));
       });
-  }, [user, dateFrom, dateTo, filterWebsite, filterUserFull, filterEdited, filterDeleted, filterTimeFrom, filterTimeTo]);
+  }, [user, dateFrom, dateTo, filterWebsite, filterUserFull, filterEdited, filterDeleted]);
 
   function getSelectedWebsite() {
     const id = depositForm.websiteId || withdrawForm.websiteId;
@@ -229,8 +216,8 @@ export default function TransactionsPage() {
           ...(filterDeleted && { deletedOnly: 'true' }),
         });
         const list = (await fetch(`/api/transactions?${params}`).then((r) => r.json())) as Txn[];
-        const deps = list.filter((t) => t.type === 'DEPOSIT' && inTimeRange(t.depositSlipTime));
-        const withs = list.filter((t) => t.type === 'WITHDRAW' && inTimeRange(t.withdrawSlipTime));
+        const deps = list.filter((t) => t.type === 'DEPOSIT');
+        const withs = list.filter((t) => t.type === 'WITHDRAW');
         setDeposits(sortDeposits(deps));
         setWithdraws(sortWithdraws(withs));
       }
@@ -274,8 +261,8 @@ export default function TransactionsPage() {
           ...(filterDeleted && { deletedOnly: 'true' }),
         });
         const list = (await fetch(`/api/transactions?${params}`).then((r) => r.json())) as Txn[];
-        const deps = list.filter((t) => t.type === 'DEPOSIT' && inTimeRange(t.depositSlipTime));
-        const withs = list.filter((t) => t.type === 'WITHDRAW' && inTimeRange(t.withdrawSlipTime));
+        const deps = list.filter((t) => t.type === 'DEPOSIT');
+        const withs = list.filter((t) => t.type === 'WITHDRAW');
         setDeposits(sortDeposits(deps));
         setWithdraws(sortWithdraws(withs));
       }
@@ -692,14 +679,6 @@ export default function TransactionsPage() {
                   onChange={(e) => setDateTo(e.target.value)}
                   className="w-36"
                 />
-                <div>
-                  <Label className="text-xs text-[#9CA3AF]">ช่วงเวลาสลิป</Label>
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <TimeInput24 value={filterTimeFrom} onChange={setFilterTimeFrom} />
-                    <span className="text-[#9CA3AF]">-</span>
-                    <TimeInput24 value={filterTimeTo} onChange={setFilterTimeTo} />
-                  </div>
-                </div>
                 <Select value={filterWebsite} onValueChange={setFilterWebsite}>
                   <SelectTrigger className="w-40">
                     <SelectValue placeholder="เว็บไซต์" />
@@ -938,8 +917,8 @@ export default function TransactionsPage() {
                         ...(filterDeleted && { deletedOnly: 'true' }),
                       });
                       const list = (await fetch(`/api/transactions?${params}`).then((r) => r.json())) as Txn[];
-                      const deps = list.filter((t) => t.type === 'DEPOSIT' && inTimeRange(t.depositSlipTime));
-                      const withs = list.filter((t) => t.type === 'WITHDRAW' && inTimeRange(t.withdrawSlipTime));
+                      const deps = list.filter((t) => t.type === 'DEPOSIT');
+                      const withs = list.filter((t) => t.type === 'WITHDRAW');
                       setDeposits(sortDeposits(deps));
                       setWithdraws(sortWithdraws(withs));
                     } else {
