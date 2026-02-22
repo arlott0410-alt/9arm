@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { formatMinorToDisplay, parseDisplayToMinor, formatDateTimeThailand } from '@/lib/utils';
+import { TimeInput24 } from '@/components/ui/time-input-24';
 import { ArrowLeft } from 'lucide-react';
 
 type CreditCutDetail = {
@@ -34,6 +35,7 @@ type CreditCutDetail = {
   displayCurrency: string;
   amountMinor: number;
   cutReason: string;
+  cutTime: string;
   createdByUsername: string;
   createdAt: string;
   deletedAt?: string | null;
@@ -64,6 +66,8 @@ export default function CreditCutDetailPage() {
     userFull: string;
     amountMinor: number;
     cutReason: string;
+    cutDate: string;
+    cutTime: string;
   }>>({});
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteReason, setDeleteReason] = useState('');
@@ -86,12 +90,17 @@ export default function CreditCutDetailPage() {
       .then((d) => {
         if (d.error) return;
         setCut(d);
+        const [cutDate, cutTime] = (d.cutTime || '').includes('T')
+          ? (d.cutTime || '').split('T')
+          : ['', '00:00'];
         setEditForm({
           websiteId: d.websiteId,
           userIdInput: d.userIdInput,
           userFull: d.userFull,
           amountMinor: d.amountMinor,
           cutReason: d.cutReason,
+          cutDate: cutDate || '',
+          cutTime: cutTime?.slice(0, 5) || '00:00',
         });
       });
     fetch('/api/settings/websites').then((r) => r.json() as Promise<{ id: number; name: string; prefix: string }[]>).then((w) => setWebsites(Array.isArray(w) ? w : []));
@@ -99,12 +108,17 @@ export default function CreditCutDetailPage() {
 
   function openEdit() {
     if (!cut) return;
+    const [cutDate, cutTime] = (cut.cutTime || '').includes('T')
+      ? (cut.cutTime || '').split('T')
+      : ['', '00:00'];
     setEditForm({
       websiteId: cut.websiteId,
       userIdInput: cut.userIdInput,
       userFull: cut.userFull,
       amountMinor: cut.amountMinor,
       cutReason: cut.cutReason,
+      cutDate: cutDate || '',
+      cutTime: cutTime?.slice(0, 5) || '00:00',
     });
     setEditReason('');
     setEditOpen(true);
@@ -123,6 +137,9 @@ export default function CreditCutDetailPage() {
     try {
       const userFull = getEditUserFull();
 
+      const cutTime = editForm.cutDate && editForm.cutTime
+        ? `${editForm.cutDate}T${editForm.cutTime}`
+        : undefined;
       const payload: Record<string, unknown> = {
         editReason: editReason.trim(),
         websiteId: editForm.websiteId,
@@ -130,6 +147,7 @@ export default function CreditCutDetailPage() {
         userFull,
         amountMinor: editForm.amountMinor,
         cutReason: editForm.cutReason,
+        ...(cutTime && { cutTime }),
       };
 
       const res = await fetch(`/api/credit-cuts/${id}/edit`, {
@@ -210,6 +228,10 @@ export default function CreditCutDetailPage() {
               <div className="sm:col-span-2">
                 <span className="text-sm text-[#9CA3AF]">หมายเหตุ (เหตุผลที่ตัด)</span>
                 <p className="text-[#E5E7EB]">{cut.cutReason}</p>
+              </div>
+              <div>
+                <span className="text-sm text-[#9CA3AF]">วันเวลาที่ตัดเครดิต</span>
+                <p className="text-[#E5E7EB]">{formatDateTimeThailand(cut.cutTime)}</p>
               </div>
               <div>
                 <span className="text-sm text-[#9CA3AF]">ผู้ดำเนินการ</span>
@@ -373,6 +395,23 @@ export default function CreditCutDetailPage() {
                       );
                       setEditForm({ ...editForm, amountMinor: v });
                     }}
+                  />
+                </div>
+                <div>
+                  <Label>วันที่ตัดเครดิต</Label>
+                  <Input
+                    type="date"
+                    value={editForm.cutDate || ''}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, cutDate: e.target.value })
+                    }
+                  />
+                </div>
+                <div>
+                  <Label>เวลาที่ตัดเครดิต</Label>
+                  <TimeInput24
+                    value={editForm.cutTime || '00:00'}
+                    onChange={(v) => setEditForm({ ...editForm, cutTime: v })}
                   />
                 </div>
                 <div className="sm:col-span-2">

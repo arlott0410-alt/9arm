@@ -29,6 +29,7 @@ export async function GET(
         displayCurrency: creditCuts.displayCurrency,
         amountMinor: creditCuts.amountMinor,
         cutReason: creditCuts.cutReason,
+        cutTime: creditCuts.cutTime,
         createdBy: creditCuts.createdBy,
         createdAt: creditCuts.createdAt,
         deletedAt: creditCuts.deletedAt,

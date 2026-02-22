@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { formatMinorToDisplay, parseDisplayToMinor, todayStr, formatDateTimeThailand } from '@/lib/utils';
+import { TimeInput24 } from '@/components/ui/time-input-24';
 import { Copy } from 'lucide-react';
 
 type Website = { id: number; name: string; prefix: string };
@@ -28,6 +29,7 @@ type CreditCut = {
   displayCurrency: string;
   amountMinor: number;
   cutReason: string;
+  cutTime: string;
   createdBy: number;
   createdAt: string;
   websiteName: string;
@@ -45,6 +47,8 @@ export default function CreditCutsPage() {
   const [settings, setSettings] = useState<{ displayCurrency: string } | null>(null);
   const [dateFrom, setDateFrom] = useState(todayStr());
   const [dateTo, setDateTo] = useState(todayStr());
+  const [filterTimeFrom, setFilterTimeFrom] = useState('00:00');
+  const [filterTimeTo, setFilterTimeTo] = useState('23:59');
   const [filterWebsite, setFilterWebsite] = useState('__all__');
   const [filterDeleted, setFilterDeleted] = useState(false);
   const [form, setForm] = useState({
@@ -52,6 +56,8 @@ export default function CreditCutsPage() {
     userIdInput: '',
     amountMinor: 0,
     cutReason: '',
+    cutDate: todayStr(),
+    cutTime: '00:00',
   });
   const [loading, setLoading] = useState(false);
   const [deleteModal, setDeleteModal] = useState<CreditCut | null>(null);
@@ -92,6 +98,22 @@ export default function CreditCutsPage() {
       .then(setCreditCuts);
   }, [user, dateFrom, dateTo, filterWebsite, filterDeleted]);
 
+  function extractSlipTimeHM(s: string | null | undefined): string {
+    if (!s || typeof s !== 'string') return '00:00';
+    const t = s.includes('T') ? s.split('T')[1] : s;
+    const parts = t?.split(':') ?? [];
+    if (parts.length >= 2) return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+    return '00:00';
+  }
+  function inTimeRange(cutTime: string | null | undefined): boolean {
+    const hm = extractSlipTimeHM(cutTime);
+    return hm >= filterTimeFrom && hm <= filterTimeTo;
+  }
+  const filteredCreditCuts = creditCuts.filter((c) => inTimeRange(c.cutTime));
+  const sortedCreditCuts = [...filteredCreditCuts].sort((a, b) =>
+    (a.cutTime || '').localeCompare(b.cutTime || '')
+  );
+
   function getSelectedWebsite() {
     return websites.find((w) => w.id === form.websiteId);
   }
@@ -115,6 +137,7 @@ export default function CreditCutsPage() {
 
     setLoading(true);
     try {
+      const cutTime = `${form.cutDate}T${form.cutTime}`;
       const res = await fetch('/api/credit-cuts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -124,6 +147,7 @@ export default function CreditCutsPage() {
           userFull,
           amountMinor: form.amountMinor,
           cutReason: form.cutReason.trim(),
+          cutTime,
         }),
       });
       const data = (await res.json()) as CreditCut & { error?: string };
@@ -162,6 +186,22 @@ export default function CreditCutsPage() {
             <CardContent className="pt-0 pb-4">
               <form onSubmit={handleSubmit} className="space-y-3">
                 <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                  <div>
+                    <Label>วันที่ตัดเครดิต</Label>
+                    <Input
+                      type="date"
+                      value={form.cutDate}
+                      onChange={(e) => setForm({ ...form, cutDate: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label>เวลาที่ตัดเครดิต</Label>
+                    <TimeInput24
+                      value={form.cutTime}
+                      onChange={(v) => setForm({ ...form, cutTime: v })}
+                    />
+                  </div>
                   <div>
                     <Label>เว็บไซต์</Label>
                     <Select
@@ -247,6 +287,8 @@ export default function CreditCutsPage() {
                   onChange={(e) => setDateTo(e.target.value)}
                   className="w-36"
                 />
+                <TimeInput24 value={filterTimeFrom} onChange={setFilterTimeFrom} />
+                <TimeInput24 value={filterTimeTo} onChange={setFilterTimeTo} />
                 <Select value={filterWebsite} onValueChange={setFilterWebsite}>
                   <SelectTrigger className="w-40">
                     <SelectValue placeholder="เว็บไซต์" />
@@ -292,9 +334,9 @@ export default function CreditCutsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {creditCuts.map((c) => (
+                  {sortedCreditCuts.map((c) => (
                     <tr key={c.id} className="border-b border-[#1F2937] whitespace-nowrap">
-                      <td className="py-2 text-[#E5E7EB]">{formatDateTimeThailand(c.createdAt)}</td>
+                      <td className="py-2 text-[#E5E7EB]">{formatDateTimeThailand(c.cutTime)}</td>
                       <td className="py-2">{c.websiteName}</td>
                       <td className="py-2">{c.userFull}</td>
                       <td className="py-2 text-right font-medium text-[#D4AF37] min-w-[100px] pr-4">
@@ -330,7 +372,7 @@ export default function CreditCutsPage() {
                       </td>
                     </tr>
                   ))}
-                  {creditCuts.length === 0 && (
+                  {sortedCreditCuts.length === 0 && (
                     <tr>
                       <td colSpan={filterDeleted ? 9 : 7} className="py-6 text-center text-[#9CA3AF]">
                         ไม่มีรายการตัดเครดิต

@@ -168,6 +168,7 @@ export const creditCuts = sqliteTable('credit_cuts', {
   displayCurrency: text('display_currency').notNull(),
   amountMinor: integer('amount_minor').notNull(),
   cutReason: text('cut_reason').notNull(),
+  cutTime: text('cut_time').notNull(),
   createdBy: integer('created_by')
     .notNull()
     .references(() => users.id, { onDelete: 'restrict' }),

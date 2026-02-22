@@ -20,8 +20,8 @@ export async function GET(request: Request) {
     const deletedOnly = url.searchParams.get('deletedOnly') === 'true';
 
     const conditions: Parameters<typeof and>[0][] = [];
-    if (dateFrom) conditions.push(gte(creditCuts.createdAt, new Date(dateFrom + 'T00:00:00')));
-    if (dateTo) conditions.push(lte(creditCuts.createdAt, new Date(dateTo + 'T23:59:59')));
+    if (dateFrom) conditions.push(gte(creditCuts.cutTime, dateFrom + 'T00:00'));
+    if (dateTo) conditions.push(lte(creditCuts.cutTime, dateTo + 'T23:59'));
     if (websiteId) conditions.push(eq(creditCuts.websiteId, parseInt(websiteId)));
     conditions.push(deletedOnly ? isNotNull(creditCuts.deletedAt) : isNull(creditCuts.deletedAt));
 
@@ -34,6 +34,7 @@ export async function GET(request: Request) {
         displayCurrency: creditCuts.displayCurrency,
         amountMinor: creditCuts.amountMinor,
         cutReason: creditCuts.cutReason,
+        cutTime: creditCuts.cutTime,
         createdBy: creditCuts.createdBy,
         createdAt: creditCuts.createdAt,
         deletedAt: creditCuts.deletedAt,
@@ -47,7 +48,7 @@ export async function GET(request: Request) {
       .leftJoin(websites, eq(creditCuts.websiteId, websites.id))
       .leftJoin(users, eq(creditCuts.createdBy, users.id))
       .where(and(...conditions))
-      .orderBy(creditCuts.createdAt, creditCuts.id);
+      .orderBy(creditCuts.cutTime, creditCuts.id);
 
     const deletedByIds = [...new Set(list.filter((r) => r.deletedBy != null).map((r) => r.deletedBy!))];
     const deletedByUsers =
@@ -113,6 +114,7 @@ export async function POST(request: Request) {
         displayCurrency,
         amountMinor: parsed.data.amountMinor,
         cutReason: parsed.data.cutReason,
+        cutTime: parsed.data.cutTime,
         createdBy: user!.id,
         createdAt: now,
       })

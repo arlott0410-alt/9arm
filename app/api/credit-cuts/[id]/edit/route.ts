@@ -62,6 +62,7 @@ export async function PATCH(
       userFull: existing.userFull,
       amountMinor: existing.amountMinor,
       cutReason: existing.cutReason,
+      cutTime: existing.cutTime,
     };
 
     const afterSnapshot = {
@@ -70,6 +71,7 @@ export async function PATCH(
       userFull: parsed.data.userFull ?? existing.userFull,
       amountMinor: parsed.data.amountMinor ?? existing.amountMinor,
       cutReason: parsed.data.cutReason ?? existing.cutReason,
+      cutTime: parsed.data.cutTime ?? existing.cutTime,
     };
 
     const now = new Date();
@@ -81,6 +83,7 @@ export async function PATCH(
         userFull: afterSnapshot.userFull,
         amountMinor: afterSnapshot.amountMinor,
         cutReason: afterSnapshot.cutReason,
+        cutTime: afterSnapshot.cutTime,
       })
       .where(eq(creditCuts.id, idNum));
 

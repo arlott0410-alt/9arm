@@ -144,6 +144,7 @@ export const creditCutSchema = z.object({
   userFull: z.string().min(1),
   amountMinor: z.number().int().nonnegative(),
   cutReason: z.string().min(1, 'ต้องระบุเหตุผลที่ตัดเครดิต'),
+  cutTime: z.string().min(1, 'ต้องระบุวันเวลาที่ตัดเครดิต'),
 });
 
 export const editCreditCutSchema = z.object({
@@ -153,4 +154,5 @@ export const editCreditCutSchema = z.object({
   userFull: z.string().min(1).optional(),
   amountMinor: z.number().int().nonnegative().optional(),
   cutReason: z.string().min(1).optional(),
+  cutTime: z.string().min(1).optional(),
 });

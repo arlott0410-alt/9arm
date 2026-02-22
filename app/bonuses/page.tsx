@@ -50,6 +50,8 @@ export default function BonusesPage() {
   const [settings, setSettings] = useState<{ displayCurrency: string } | null>(null);
   const [dateFrom, setDateFrom] = useState(todayStr());
   const [dateTo, setDateTo] = useState(todayStr());
+  const [filterTimeFrom, setFilterTimeFrom] = useState('00:00');
+  const [filterTimeTo, setFilterTimeTo] = useState('23:59');
   const [filterWebsite, setFilterWebsite] = useState('__all__');
   const [filterCategory, setFilterCategory] = useState('__all__');
   const [filterDeleted, setFilterDeleted] = useState(false);
@@ -102,6 +104,22 @@ export default function BonusesPage() {
       .then((r) => r.json() as Promise<Bonus[]>)
       .then(setBonuses);
   }, [user, dateFrom, dateTo, filterWebsite, filterCategory, filterDeleted]);
+
+  function extractSlipTimeHM(s: string | null | undefined): string {
+    if (!s || typeof s !== 'string') return '00:00';
+    const t = s.includes('T') ? s.split('T')[1] : s;
+    const parts = t?.split(':') ?? [];
+    if (parts.length >= 2) return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+    return '00:00';
+  }
+  function inTimeRange(bonusTime: string | null | undefined): boolean {
+    const hm = extractSlipTimeHM(bonusTime);
+    return hm >= filterTimeFrom && hm <= filterTimeTo;
+  }
+  const filteredBonuses = bonuses.filter((b) => inTimeRange(b.bonusTime));
+  const sortedBonuses = [...filteredBonuses].sort((a, b) =>
+    (a.bonusTime || '').localeCompare(b.bonusTime || '')
+  );
 
   function getSelectedWebsite() {
     return websites.find((w) => w.id === form.websiteId);
@@ -291,6 +309,8 @@ export default function BonusesPage() {
                   onChange={(e) => setDateTo(e.target.value)}
                   className="w-36"
                 />
+                <TimeInput24 value={filterTimeFrom} onChange={setFilterTimeFrom} />
+                <TimeInput24 value={filterTimeTo} onChange={setFilterTimeTo} />
                 <Select value={filterWebsite} onValueChange={setFilterWebsite}>
                   <SelectTrigger className="w-40">
                     <SelectValue placeholder="เว็บไซต์" />
@@ -349,7 +369,7 @@ export default function BonusesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {bonuses.map((b) => (
+                  {sortedBonuses.map((b) => (
                     <tr key={b.id} className="border-b border-[#1F2937] whitespace-nowrap">
                       <td className="py-2 text-[#E5E7EB]">{formatDateTimeThailand(b.bonusTime)}</td>
                       <td className="py-2">{b.websiteName}</td>
@@ -385,7 +405,7 @@ export default function BonusesPage() {
                       </td>
                     </tr>
                   ))}
-                  {bonuses.length === 0 && (
+                  {sortedBonuses.length === 0 && (
                     <tr>
                       <td colSpan={filterDeleted ? 9 : 7} className="py-6 text-center text-[#9CA3AF]">
                         ไม่มีรายการโบนัส
