@@ -47,8 +47,6 @@ export default function CreditCutsPage() {
   const [settings, setSettings] = useState<{ displayCurrency: string } | null>(null);
   const [dateFrom, setDateFrom] = useState(todayStr());
   const [dateTo, setDateTo] = useState(todayStr());
-  const [filterTimeFrom, setFilterTimeFrom] = useState('00:00');
-  const [filterTimeTo, setFilterTimeTo] = useState('23:59');
   const [filterWebsite, setFilterWebsite] = useState('__all__');
   const [filterDeleted, setFilterDeleted] = useState(false);
   const [form, setForm] = useState({
@@ -98,19 +96,7 @@ export default function CreditCutsPage() {
       .then(setCreditCuts);
   }, [user, dateFrom, dateTo, filterWebsite, filterDeleted]);
 
-  function extractSlipTimeHM(s: string | null | undefined): string {
-    if (!s || typeof s !== 'string') return '00:00';
-    const t = s.includes('T') ? s.split('T')[1] : s;
-    const parts = t?.split(':') ?? [];
-    if (parts.length >= 2) return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
-    return '00:00';
-  }
-  function inTimeRange(cutTime: string | null | undefined): boolean {
-    const hm = extractSlipTimeHM(cutTime);
-    return hm >= filterTimeFrom && hm <= filterTimeTo;
-  }
-  const filteredCreditCuts = creditCuts.filter((c) => inTimeRange(c.cutTime));
-  const sortedCreditCuts = [...filteredCreditCuts].sort((a, b) =>
+  const sortedCreditCuts = [...creditCuts].sort((a, b) =>
     (a.cutTime || '').localeCompare(b.cutTime || '')
   );
 
@@ -287,8 +273,6 @@ export default function CreditCutsPage() {
                   onChange={(e) => setDateTo(e.target.value)}
                   className="w-36"
                 />
-                <TimeInput24 value={filterTimeFrom} onChange={setFilterTimeFrom} />
-                <TimeInput24 value={filterTimeTo} onChange={setFilterTimeTo} />
                 <Select value={filterWebsite} onValueChange={setFilterWebsite}>
                   <SelectTrigger className="w-40">
                     <SelectValue placeholder="เว็บไซต์" />

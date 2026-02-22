@@ -46,8 +46,8 @@ export async function GET(request: Request) {
     }
 
     const conditions: Parameters<typeof and>[0][] = [
-      gte(creditCuts.createdAt, new Date(dateFrom + 'T00:00:00')),
-      lte(creditCuts.createdAt, new Date(dateTo + 'T23:59:59')),
+      gte(creditCuts.cutTime, dateFrom + 'T00:00'),
+      lte(creditCuts.cutTime, dateTo + 'T23:59'),
       isNull(creditCuts.deletedAt),
     ];
     if (websiteId) conditions.push(eq(creditCuts.websiteId, parseInt(websiteId)));
