@@ -33,6 +33,7 @@ type Txn = {
   walletName: string;
   walletCurrency: string;
   amountMinor: number;
+  withdrawFeeMinor?: number | null;
   depositSlipTime: string | null;
   depositSystemTime: string | null;
   withdrawSlipTime: string | null;
@@ -63,6 +64,10 @@ export default function TransactionsPage() {
   const [filterDeleted, setFilterDeleted] = useState(false);
   const [deleteModal, setDeleteModal] = useState<Txn | null>(null);
   const [deleteReason, setDeleteReason] = useState('');
+  const [feeEditModal, setFeeEditModal] = useState<Txn | null>(null);
+  const [feeEditValue, setFeeEditValue] = useState('');
+  const [feeEditReason, setFeeEditReason] = useState('');
+  const [feeEditLoading, setFeeEditLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [depositForm, setDepositForm] = useState({
@@ -741,7 +746,7 @@ export default function TransactionsPage() {
                         <th className="py-2 text-left text-[#9CA3AF]">ผู้ใช้</th>
                         <th className="py-2 text-left text-[#9CA3AF]">เว็บไซต์</th>
                         <th className="py-2 text-left text-[#9CA3AF]">กระเป๋า</th>
-                        <th className="py-2 text-right text-[#9CA3AF] min-w-[100px] pr-4">จำนวน</th>
+                        <th className="py-2 text-right text-[#9CA3AF] min-w-[100px] pr-4">จำนวนเงิน</th>
                         <th className="py-2 text-left text-[#9CA3AF] min-w-[80px] pl-6">เวลาสลิปฝาก</th>
                         <th className="py-2 text-left text-[#9CA3AF]">เวลาระบบฝาก</th>
                         <th className="py-2 text-left text-[#9CA3AF]">ผู้ดำเนินการ</th>
@@ -811,7 +816,8 @@ export default function TransactionsPage() {
                         <th className="py-2 text-left text-[#9CA3AF]">ผู้ใช้</th>
                         <th className="py-2 text-left text-[#9CA3AF]">เว็บไซต์</th>
                         <th className="py-2 text-left text-[#9CA3AF]">กระเป๋า</th>
-                        <th className="py-2 text-right text-[#9CA3AF] min-w-[100px] pr-4">จำนวน</th>
+                        <th className="py-2 text-right text-[#9CA3AF] min-w-[100px] pr-4">จำนวนเงิน</th>
+                        <th className="py-2 text-right text-[#9CA3AF] min-w-[90px] pr-4">ค่าธรรมเนียมถอน</th>
                         <th className="py-2 text-left text-[#9CA3AF] min-w-[80px] pl-6">เวลาสลิปถอน</th>
                         <th className="py-2 text-left text-[#9CA3AF]">เวลาระบบถอน</th>
                         <th className="py-2 text-left text-[#9CA3AF]">ผู้ดำเนินการ</th>
@@ -833,6 +839,28 @@ export default function TransactionsPage() {
                           <td className="py-2">{t.walletName}</td>
                           <td className="py-2 text-right font-medium text-[#D4AF37] min-w-[100px] pr-4">
                             {formatMinorToDisplay(t.amountMinor, t.walletCurrency)} {t.walletCurrency}
+                          </td>
+                          <td className="py-2 text-right min-w-[90px] pr-4">
+                            <span className="text-[#E5E7EB]">
+                              {formatMinorToDisplay(t.withdrawFeeMinor ?? 0, t.walletCurrency)} {t.walletCurrency}
+                            </span>
+                            {canMutate && !filterDeleted && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFeeEditModal(t);
+                                  setFeeEditValue(
+                                    t.withdrawFeeMinor
+                                      ? formatMinorToDisplay(t.withdrawFeeMinor, t.walletCurrency)
+                                      : ''
+                                  );
+                                  setFeeEditReason('');
+                                }}
+                                className="ml-2 text-xs text-[#D4AF37] hover:underline"
+                              >
+                                แก้ไข
+                              </button>
+                            )}
                           </td>
                           <td className="py-2 text-[#9CA3AF] min-w-[80px] pl-6">{formatSlipTimeHHMM(t.withdrawSlipTime)}</td>
                           <td className="py-2 text-[#9CA3AF]">{formatSlipTimeHHMM(t.withdrawSystemTime)}</td>
@@ -863,7 +891,7 @@ export default function TransactionsPage() {
                       ))}
                       {withdraws.length === 0 && (
                         <tr>
-                          <td colSpan={filterDeleted ? 11 : 9} className="py-6 text-center text-[#9CA3AF]">
+                          <td colSpan={filterDeleted ? 12 : 10} className="py-6 text-center text-[#9CA3AF]">
                             ไม่มีรายการถอน
                           </td>
                         </tr>
@@ -875,6 +903,104 @@ export default function TransactionsPage() {
             </Tabs>
           </CardContent>
         </Card>
+
+        <Dialog
+          open={!!feeEditModal}
+          onOpenChange={(o) => {
+            if (!o) {
+              setFeeEditModal(null);
+              setFeeEditValue('');
+              setFeeEditReason('');
+            }
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>แก้ไขค่าธรรมเนียมถอน</DialogTitle>
+            </DialogHeader>
+            {feeEditModal && (
+              <>
+                <div>
+                  <Label>ค่าธรรมเนียมถอน ({feeEditModal.walletCurrency})</Label>
+                  <Input
+                    type="text"
+                    placeholder="0"
+                    value={feeEditValue}
+                    onChange={(e) => setFeeEditValue(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label>เหตุผลการแก้ไข (จำเป็น)</Label>
+                  <Input
+                    value={feeEditReason}
+                    onChange={(e) => setFeeEditReason(e.target.value)}
+                    placeholder="ระบุเหตุผล"
+                    className="mt-1"
+                  />
+                </div>
+                <div className="flex justify-end gap-2 mt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setFeeEditModal(null);
+                      setFeeEditValue('');
+                      setFeeEditReason('');
+                    }}
+                  >
+                    ยกเลิก
+                  </Button>
+                  <Button
+                    disabled={!feeEditReason.trim() || feeEditLoading}
+                    onClick={async () => {
+                      if (!feeEditModal || !feeEditReason.trim()) return;
+                      setFeeEditLoading(true);
+                      try {
+                        const feeMinor = parseDisplayToMinor(
+                          feeEditValue,
+                          feeEditModal.walletCurrency || 'THB'
+                        );
+                        const res = await fetch(`/api/transactions/${feeEditModal.id}/edit`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            editReason: feeEditReason.trim(),
+                            withdrawFeeMinor: feeMinor,
+                          }),
+                        });
+                        const data = (await res.json()) as { error?: string };
+                        if (res.ok) {
+                          setFeeEditModal(null);
+                          setFeeEditValue('');
+                          setFeeEditReason('');
+                          const params = new URLSearchParams({
+                            dateFrom,
+                            dateTo,
+                            ...(filterWebsite && filterWebsite !== '__all__' && { websiteId: filterWebsite }),
+                            ...(filterUserFull && { userFull: filterUserFull }),
+                            ...(filterEdited && { editedOnly: 'true' }),
+                            ...(filterDeleted && { deletedOnly: 'true' }),
+                          });
+                          const list = (await fetch(`/api/transactions?${params}`).then((r) => r.json())) as Txn[];
+                          const deps = list.filter((t) => t.type === 'DEPOSIT');
+                          const withs = list.filter((t) => t.type === 'WITHDRAW');
+                          setDeposits(sortDeposits(deps));
+                          setWithdraws(sortWithdraws(withs));
+                        } else {
+                          alert(typeof data.error === 'string' ? data.error : 'แก้ไขไม่ได้');
+                        }
+                      } finally {
+                        setFeeEditLoading(false);
+                      }
+                    }}
+                  >
+                    บันทึก
+                  </Button>
+                </div>
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={!!deleteModal} onOpenChange={(o) => { if (!o) { setDeleteModal(null); setDeleteReason(''); } }}>
           <DialogContent>

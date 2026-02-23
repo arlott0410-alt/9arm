@@ -55,6 +55,7 @@ export const editTransactionSchema = z.object({
   depositSlipTime: z.string().optional(),
   depositSystemTime: z.string().optional(),
   withdrawInputAmountMinor: z.number().int().nonnegative().optional(),
+  withdrawFeeMinor: z.number().int().nonnegative().optional(),
   withdrawSystemTime: z.string().optional(),
   withdrawSlipTime: z.string().optional(),
 });

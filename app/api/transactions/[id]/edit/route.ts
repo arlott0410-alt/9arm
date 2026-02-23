@@ -71,6 +71,7 @@ export async function PATCH(
       depositSlipTime: existing.depositSlipTime,
       depositSystemTime: existing.depositSystemTime,
       withdrawInputAmountMinor: existing.withdrawInputAmountMinor,
+      withdrawFeeMinor: existing.withdrawFeeMinor,
       withdrawSystemTime: existing.withdrawSystemTime,
       withdrawSlipTime: existing.withdrawSlipTime,
     };
@@ -128,6 +129,10 @@ export async function PATCH(
         parsed.data.withdrawInputAmountMinor !== undefined
           ? parsed.data.withdrawInputAmountMinor
           : existing.withdrawInputAmountMinor,
+      withdrawFeeMinor:
+        parsed.data.withdrawFeeMinor !== undefined
+          ? parsed.data.withdrawFeeMinor
+          : existing.withdrawFeeMinor,
       withdrawSystemTime:
         parsed.data.withdrawSystemTime !== undefined
           ? parsed.data.withdrawSystemTime
@@ -176,6 +181,7 @@ export async function PATCH(
         depositSlipTime: afterSnapshot.depositSlipTime,
         depositSystemTime: afterSnapshot.depositSystemTime,
         withdrawInputAmountMinor: afterSnapshot.withdrawInputAmountMinor,
+        withdrawFeeMinor: afterSnapshot.withdrawFeeMinor,
         withdrawSystemTime: afterSnapshot.withdrawSystemTime,
         withdrawSlipTime: afterSnapshot.withdrawSlipTime,
         updatedAt: now,
