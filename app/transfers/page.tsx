@@ -205,11 +205,6 @@ export default function TransfersPage() {
     }
   }
 
-  function exportCsv() {
-    const params = new URLSearchParams({ dateFrom, dateTo });
-    window.open(`/api/transfers/export?${params}`, '_blank');
-  }
-
   function getTransferAmountAndCurrency(t: Transfer): { amount: number; currency: string } {
     if (t.type === 'EXTERNAL_OUT') {
       const amt = t.fromWalletAmountMinor ?? t.inputAmountMinor;
@@ -270,9 +265,6 @@ export default function TransfersPage() {
             {canMutate && (
               <Button onClick={() => setOpen(true)}>โอนเงินใหม่</Button>
             )}
-            <Button variant="outline" onClick={exportCsv}>
-              ส่งออก CSV
-            </Button>
           </div>
         </div>
 

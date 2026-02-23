@@ -1,6 +1,6 @@
 # 9arm Ledger
 
-Production-ready internal web app for recording deposit/withdraw + income/expense ledger for multiple gambling websites. Includes wallets, transfers, dashboards, reports, and CSV export.
+Production-ready internal web app for recording deposit/withdraw + income/expense ledger for multiple gambling websites. Includes wallets, transfers, dashboards, and reports.
 
 ---
 
@@ -107,7 +107,6 @@ Workers → **Settings** → **Domains & Routes** → Add custom domain
 - **Transfers**: Internal, External Out, External In
 - **Dashboard**: Today/month summary
 - **Reports**: Daily/Monthly/Yearly
-- **CSV Export**: Transactions and transfers
 - **Settings** (SUPER_ADMIN): Websites, users, currency, exchange rates
 
 ## Tech Stack

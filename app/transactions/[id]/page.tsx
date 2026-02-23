@@ -80,6 +80,7 @@ export default function TransactionDetailPage() {
     depositSlipTime: string;
     depositSystemTime: string;
     withdrawInputAmountMinor: number;
+    withdrawFeeMinor: number;
     withdrawSystemTime: string;
     withdrawSlipTime: string;
   }>>({});
@@ -114,6 +115,7 @@ export default function TransactionDetailPage() {
           depositSlipTime: d.depositSlipTime?.slice(-5) || '',
           depositSystemTime: d.depositSystemTime?.slice(-5) || '',
           withdrawInputAmountMinor: d.withdrawInputAmountMinor ?? d.amountMinor,
+          withdrawFeeMinor: d.withdrawFeeMinor ?? 0,
           withdrawSystemTime: d.withdrawSystemTime?.slice(-5) || '',
           withdrawSlipTime: d.withdrawSlipTime?.slice(-5) || '',
         });
@@ -139,6 +141,7 @@ export default function TransactionDetailPage() {
       depositSlipTime: txn.depositSlipTime?.slice(-5) || '',
       depositSystemTime: txn.depositSystemTime?.slice(-5) || '',
       withdrawInputAmountMinor: txn.withdrawInputAmountMinor ?? txn.amountMinor,
+      withdrawFeeMinor: txn.withdrawFeeMinor ?? 0,
       withdrawSystemTime: txn.withdrawSystemTime?.slice(-5) || '',
       withdrawSlipTime: txn.withdrawSlipTime?.slice(-5) || '',
     });
@@ -164,6 +167,8 @@ export default function TransactionDetailPage() {
         payload.depositSystemTime = `${editForm.txnDate}T${editForm.depositSystemTime}`;
       if (editForm.withdrawInputAmountMinor !== undefined)
         payload.withdrawInputAmountMinor = editForm.withdrawInputAmountMinor;
+      if (editForm.withdrawFeeMinor !== undefined)
+        payload.withdrawFeeMinor = editForm.withdrawFeeMinor;
       if (editForm.withdrawSystemTime)
         payload.withdrawSystemTime = `${editForm.txnDate}T${editForm.withdrawSystemTime}`;
       if (editForm.withdrawSlipTime)
@@ -519,6 +524,28 @@ export default function TransactionDetailPage() {
                             ...editForm,
                             withdrawInputAmountMinor: v,
                           });
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <Label>ค่าธรรมเนียมถอน ({txn.walletCurrency})</Label>
+                      <Input
+                        type="text"
+                        placeholder="0"
+                        value={
+                          editForm.withdrawFeeMinor !== undefined
+                            ? formatMinorToDisplay(
+                                editForm.withdrawFeeMinor,
+                                txn.walletCurrency
+                              )
+                            : ''
+                        }
+                        onChange={(e) => {
+                          const v = parseDisplayToMinor(
+                            e.target.value,
+                            txn.walletCurrency
+                          );
+                          setEditForm({ ...editForm, withdrawFeeMinor: v });
                         }}
                       />
                     </div>
