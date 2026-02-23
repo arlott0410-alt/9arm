@@ -7,7 +7,7 @@ import {
   users,
   transactionEdits,
 } from '@/db/schema';
-import { eq, and, gte, lte, desc, isNull } from 'drizzle-orm';
+import { eq, and, gte, lte, isNull, inArray, sql } from 'drizzle-orm';
 import { formatMinorToDisplay } from '@/lib/utils';
 
 export async function GET(request: Request) {
@@ -79,43 +79,68 @@ export async function GET(request: Request) {
       list = list.filter((r) => idSet.has(r.id));
     }
 
+    // Bulk queries for edits: counts, last edit per transaction, and editedBy usernames
     const editMap = new Map<number, { lastEditedAt: Date; lastEditedBy: string; lastEditReason: string }>();
-    for (const t of list) {
-      const [lastEdit] = await db
-        .select({
-          editedAt: transactionEdits.editedAt,
-          editedBy: transactionEdits.editedBy,
-          editReason: transactionEdits.editReason,
-        })
-        .from(transactionEdits)
-        .where(eq(transactionEdits.transactionId, t.id))
-        .orderBy(desc(transactionEdits.editedAt))
-        .limit(1);
-      if (lastEdit) {
-        const [u] = await db
-          .select({ username: users.username })
-          .from(users)
-          .where(eq(users.id, lastEdit.editedBy))
-          .limit(1);
-        editMap.set(t.id, {
-          lastEditedAt: lastEdit.editedAt as Date,
-          lastEditedBy: u?.username ?? '?',
-          lastEditReason: lastEdit.editReason,
+    const countMap = new Map<number, number>();
+
+    if (list.length > 0) {
+      const txnIds = list.map((t) => t.id);
+
+      const [editCountRows, allEdits] = await Promise.all([
+        db
+          .select({
+            transactionId: transactionEdits.transactionId,
+            count: sql<number>`count(*)`.as('count'),
+          })
+          .from(transactionEdits)
+          .where(inArray(transactionEdits.transactionId, txnIds))
+          .groupBy(transactionEdits.transactionId),
+        db
+          .select({
+            transactionId: transactionEdits.transactionId,
+            editedAt: transactionEdits.editedAt,
+            editedBy: transactionEdits.editedBy,
+            editReason: transactionEdits.editReason,
+          })
+          .from(transactionEdits)
+          .where(inArray(transactionEdits.transactionId, txnIds)),
+      ]);
+
+      for (const r of editCountRows) {
+        countMap.set(r.transactionId, Number(r.count ?? 0));
+      }
+
+      const editedByIds = [...new Set(allEdits.map((e) => e.editedBy).filter((id): id is number => id != null))];
+      const userRows =
+        editedByIds.length > 0
+          ? await db.select({ id: users.id, username: users.username }).from(users).where(inArray(users.id, editedByIds))
+          : [];
+
+      const userMap = new Map<number, string>();
+      for (const u of userRows) {
+        userMap.set(u.id, u.username ?? '?');
+      }
+
+      const lastByTxn = new Map<number, { editedAt: Date; editedBy: number; editReason: string }>();
+      for (const e of allEdits) {
+        const existing = lastByTxn.get(e.transactionId);
+        const editedAt = e.editedAt as Date;
+        if (!existing || (editedAt && existing.editedAt && editedAt > existing.editedAt)) {
+          lastByTxn.set(e.transactionId, {
+            editedAt,
+            editedBy: e.editedBy,
+            editReason: e.editReason,
+          });
+        }
+      }
+
+      for (const [txnId, last] of lastByTxn) {
+        editMap.set(txnId, {
+          lastEditedAt: last.editedAt,
+          lastEditedBy: userMap.get(last.editedBy) ?? '?',
+          lastEditReason: last.editReason,
         });
       }
-    }
-
-    const countMap = new Map<number, number>();
-    for (const t of list) {
-      const [c] = await db
-        .select({ count: transactionEdits.id })
-        .from(transactionEdits)
-        .where(eq(transactionEdits.transactionId, t.id));
-      const fullCount = await db
-        .select()
-        .from(transactionEdits)
-        .where(eq(transactionEdits.transactionId, t.id));
-      countMap.set(t.id, fullCount.length);
     }
 
     const rows = list.map((r) => {

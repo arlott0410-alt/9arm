@@ -73,16 +73,18 @@ export async function GET(request: Request) {
       db
         .select({
           amountMinor: transactions.amountMinor,
-          walletId: transactions.walletId,
+          walletCurrency: wallets.currency,
         })
         .from(transactions)
+        .leftJoin(wallets, eq(transactions.walletId, wallets.id))
         .where(and(...txnConditionsDep)),
       db
         .select({
           amountMinor: transactions.amountMinor,
-          walletId: transactions.walletId,
+          walletCurrency: wallets.currency,
         })
         .from(transactions)
+        .leftJoin(wallets, eq(transactions.walletId, wallets.id))
         .where(and(...txnConditionsWith)),
     ]);
 
@@ -95,12 +97,7 @@ export async function GET(request: Request) {
 
     let depositsTotal = 0;
     for (const r of depRows) {
-      const [w] = await db
-        .select({ currency: wallets.currency })
-        .from(wallets)
-        .where(eq(wallets.id, r.walletId))
-        .limit(1);
-      const walletCurrency = (w?.currency ?? 'THB') as Currency;
+      const walletCurrency = (r.walletCurrency ?? 'THB') as Currency;
       depositsTotal += convertToDisplay(
         r.amountMinor,
         walletCurrency,
@@ -110,12 +107,7 @@ export async function GET(request: Request) {
     }
     let withdrawsTotal = 0;
     for (const r of withRows) {
-      const [w] = await db
-        .select({ currency: wallets.currency })
-        .from(wallets)
-        .where(eq(wallets.id, r.walletId))
-        .limit(1);
-      const walletCurrency = (w?.currency ?? 'THB') as Currency;
+      const walletCurrency = (r.walletCurrency ?? 'THB') as Currency;
       withdrawsTotal += convertToDisplay(
         r.amountMinor,
         walletCurrency,

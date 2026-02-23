@@ -21,53 +21,67 @@ export async function GET(request: Request) {
       return NextResponse.json(list);
     }
 
-    const withBalances = await Promise.all(
-      list.map(async (w) => {
-        const [depRow] = await db
-          .select({
-            sum: sql<number>`coalesce(sum(${transactions.amountMinor}), 0)`,
-          })
-          .from(transactions)
-          .where(
-            and(
-              eq(transactions.walletId, w.id),
-              eq(transactions.type, 'DEPOSIT'),
-              isNull(transactions.deletedAt)
-            )
-          );
-        const [withRow] = await db
-          .select({
-            sum: sql<number>`coalesce(sum(${transactions.amountMinor} + coalesce(${transactions.withdrawFeeMinor}, 0)), 0)`,
-          })
-          .from(transactions)
-          .where(
-            and(
-              eq(transactions.walletId, w.id),
-              eq(transactions.type, 'WITHDRAW'),
-              isNull(transactions.deletedAt)
-            )
-          );
-        const [fromRow] = await db
-          .select({
-            sum: sql<number>`coalesce(sum(${transfers.fromWalletAmountMinor}), 0)`,
-          })
-          .from(transfers)
-          .where(and(eq(transfers.fromWalletId, w.id), isNull(transfers.deletedAt)));
-        const [toRow] = await db
-          .select({
-            sum: sql<number>`coalesce(sum(${transfers.toWalletAmountMinor}), 0)`,
-          })
-          .from(transfers)
-          .where(and(eq(transfers.toWalletId, w.id), isNull(transfers.deletedAt)));
-        const dep = Number((depRow as { sum: number })?.sum ?? 0);
-        const wth = Number((withRow as { sum: number })?.sum ?? 0);
-        const from = Number((fromRow as { sum: number })?.sum ?? 0);
-        const to = Number((toRow as { sum: number })?.sum ?? 0);
-        const balance =
-          w.openingBalanceMinor + dep - wth - from + to;
-        return { ...w, balance };
-      })
-    );
+    // Grouped aggregations: 4 queries total instead of 4 per wallet
+    const [depRows, withRows, fromRows, toRows] = await Promise.all([
+      db
+        .select({
+          walletId: transactions.walletId,
+          sum: sql<number>`coalesce(sum(${transactions.amountMinor}), 0)`,
+        })
+        .from(transactions)
+        .where(and(eq(transactions.type, 'DEPOSIT'), isNull(transactions.deletedAt)))
+        .groupBy(transactions.walletId),
+      db
+        .select({
+          walletId: transactions.walletId,
+          sum: sql<number>`coalesce(sum(${transactions.amountMinor} + coalesce(${transactions.withdrawFeeMinor}, 0)), 0)`,
+        })
+        .from(transactions)
+        .where(and(eq(transactions.type, 'WITHDRAW'), isNull(transactions.deletedAt)))
+        .groupBy(transactions.walletId),
+      db
+        .select({
+          walletId: transfers.fromWalletId,
+          sum: sql<number>`coalesce(sum(${transfers.fromWalletAmountMinor}), 0)`,
+        })
+        .from(transfers)
+        .where(isNull(transfers.deletedAt))
+        .groupBy(transfers.fromWalletId),
+      db
+        .select({
+          walletId: transfers.toWalletId,
+          sum: sql<number>`coalesce(sum(${transfers.toWalletAmountMinor}), 0)`,
+        })
+        .from(transfers)
+        .where(isNull(transfers.deletedAt))
+        .groupBy(transfers.toWalletId),
+    ]);
+
+    const depByWallet = new Map<number, number>();
+    for (const r of depRows) {
+      if (r.walletId != null) depByWallet.set(r.walletId, Number(r.sum ?? 0));
+    }
+    const withByWallet = new Map<number, number>();
+    for (const r of withRows) {
+      if (r.walletId != null) withByWallet.set(r.walletId, Number(r.sum ?? 0));
+    }
+    const fromByWallet = new Map<number, number>();
+    for (const r of fromRows) {
+      if (r.walletId != null) fromByWallet.set(r.walletId, Number(r.sum ?? 0));
+    }
+    const toByWallet = new Map<number, number>();
+    for (const r of toRows) {
+      if (r.walletId != null) toByWallet.set(r.walletId, Number(r.sum ?? 0));
+    }
+
+    const withBalances = list.map((w) => {
+      const dep = depByWallet.get(w.id) ?? 0;
+      const wth = withByWallet.get(w.id) ?? 0;
+      const from = fromByWallet.get(w.id) ?? 0;
+      const to = toByWallet.get(w.id) ?? 0;
+      const balance = w.openingBalanceMinor + dep - wth - from + to;
+      return { ...w, balance };
+    });
     return NextResponse.json(withBalances);
   } catch (e) {
     console.error(e);

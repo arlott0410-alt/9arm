@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth } from '@/lib/api-helpers';
 import { transfers, wallets, users } from '@/db/schema';
-import { eq, gte, lte, and, isNull } from 'drizzle-orm';
-import { formatMinorToDisplay } from '@/lib/utils';
+import { eq, gte, lte, and, isNull, alias } from 'drizzle-orm';
+
+const fromWallet = alias(wallets, 'from_wallet');
+const toWallet = alias(wallets, 'to_wallet');
 
 export async function GET(request: Request) {
   try {
@@ -21,44 +23,31 @@ export async function GET(request: Request) {
     if (dateTo) conditions.push(lte(transfers.txnDate, dateTo));
     conditions.push(isNull(transfers.deletedAt));
 
-    const baseQuery = db
-      .select()
+    // Single query with joins instead of N+1 per-row lookups
+    const withNames = await db
+      .select({
+        id: transfers.id,
+        txnDate: transfers.txnDate,
+        txnTime: transfers.txnTime,
+        type: transfers.type,
+        fromWalletId: transfers.fromWalletId,
+        fromWalletName: fromWallet.name,
+        toWalletId: transfers.toWalletId,
+        toWalletName: toWallet.name,
+        displayCurrency: transfers.displayCurrency,
+        inputAmountMinor: transfers.inputAmountMinor,
+        fromWalletAmountMinor: transfers.fromWalletAmountMinor,
+        toWalletAmountMinor: transfers.toWalletAmountMinor,
+        note: transfers.note,
+        createdByUsername: users.username,
+        createdAt: transfers.createdAt,
+      })
       .from(transfers)
+      .leftJoin(fromWallet, eq(transfers.fromWalletId, fromWallet.id))
+      .leftJoin(toWallet, eq(transfers.toWalletId, toWallet.id))
+      .leftJoin(users, eq(transfers.createdBy, users.id))
       .where(and(...conditions))
       .orderBy(transfers.txnDate, transfers.id);
-
-    const list = await baseQuery;
-
-    const withNames = await Promise.all(
-      list.map(async (t) => {
-        let fromName = '';
-        let toName = '';
-        let createdByUsername = '';
-        if (t.fromWalletId) {
-          const [w] = await db
-            .select({ name: wallets.name })
-            .from(wallets)
-            .where(eq(wallets.id, t.fromWalletId))
-            .limit(1);
-          fromName = w?.name ?? '';
-        }
-        if (t.toWalletId) {
-          const [w] = await db
-            .select({ name: wallets.name })
-            .from(wallets)
-            .where(eq(wallets.id, t.toWalletId))
-            .limit(1);
-          toName = w?.name ?? '';
-        }
-        const [u] = await db
-          .select({ username: users.username })
-          .from(users)
-          .where(eq(users.id, t.createdBy))
-          .limit(1);
-        createdByUsername = u?.username ?? '';
-        return { ...t, fromWalletName: fromName, toWalletName: toName, createdByUsername };
-      })
-    );
 
     const header = [
       'id',
@@ -92,7 +81,7 @@ export async function GET(request: Request) {
       r.fromWalletAmountMinor ?? '',
       r.toWalletAmountMinor ?? '',
       r.note ?? '',
-      r.createdByUsername,
+      r.createdByUsername ?? '',
       r.createdAt,
     ]);
 
