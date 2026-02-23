@@ -1,10 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth } from '@/lib/api-helpers';
 import { transfers, wallets, users } from '@/db/schema';
-import { eq, gte, lte, and, isNull, alias } from 'drizzle-orm';
-
-const fromWallet = alias(wallets, 'from_wallet');
-const toWallet = alias(wallets, 'to_wallet');
+import { eq, gte, lte, and, isNull, inArray } from 'drizzle-orm';
 
 export async function GET(request: Request) {
   try {
@@ -23,31 +20,35 @@ export async function GET(request: Request) {
     if (dateTo) conditions.push(lte(transfers.txnDate, dateTo));
     conditions.push(isNull(transfers.deletedAt));
 
-    // Single query with joins instead of N+1 per-row lookups
-    const withNames = await db
-      .select({
-        id: transfers.id,
-        txnDate: transfers.txnDate,
-        txnTime: transfers.txnTime,
-        type: transfers.type,
-        fromWalletId: transfers.fromWalletId,
-        fromWalletName: fromWallet.name,
-        toWalletId: transfers.toWalletId,
-        toWalletName: toWallet.name,
-        displayCurrency: transfers.displayCurrency,
-        inputAmountMinor: transfers.inputAmountMinor,
-        fromWalletAmountMinor: transfers.fromWalletAmountMinor,
-        toWalletAmountMinor: transfers.toWalletAmountMinor,
-        note: transfers.note,
-        createdByUsername: users.username,
-        createdAt: transfers.createdAt,
-      })
+    const list = await db
+      .select()
       .from(transfers)
-      .leftJoin(fromWallet, eq(transfers.fromWalletId, fromWallet.id))
-      .leftJoin(toWallet, eq(transfers.toWalletId, toWallet.id))
-      .leftJoin(users, eq(transfers.createdBy, users.id))
       .where(and(...conditions))
       .orderBy(transfers.txnDate, transfers.id);
+
+    // Batch fetch wallet names and usernames instead of N+1
+    const walletIds = [...new Set([
+      ...list.map((t) => t.fromWalletId).filter((id): id is number => id != null),
+      ...list.map((t) => t.toWalletId).filter((id): id is number => id != null),
+    ])];
+    const userIds = [...new Set(list.map((t) => t.createdBy).filter((id): id is number => id != null))];
+
+    const [walletRows, userRows] = await Promise.all([
+      walletIds.length > 0 ? db.select({ id: wallets.id, name: wallets.name }).from(wallets).where(inArray(wallets.id, walletIds)) : [],
+      userIds.length > 0 ? db.select({ id: users.id, username: users.username }).from(users).where(inArray(users.id, userIds)) : [],
+    ]);
+
+    const walletNameMap = new Map<number, string>();
+    for (const w of walletRows) walletNameMap.set(w.id, w.name ?? '');
+    const usernameMap = new Map<number, string>();
+    for (const u of userRows) usernameMap.set(u.id, u.username ?? '');
+
+    const withNames = list.map((t) => ({
+      ...t,
+      fromWalletName: t.fromWalletId ? walletNameMap.get(t.fromWalletId) ?? '' : '',
+      toWalletName: t.toWalletId ? walletNameMap.get(t.toWalletId) ?? '' : '',
+      createdByUsername: usernameMap.get(t.createdBy) ?? '',
+    }));
 
     const header = [
       'id',
