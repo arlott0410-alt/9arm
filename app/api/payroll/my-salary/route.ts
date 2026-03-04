@@ -44,6 +44,8 @@ export async function GET(request: Request) {
         totalAllowancesMinor: number;
         deductions: PayrollDeduction[];
         totalDeductionsMinor: number;
+        lateSeconds: number;
+        lateDeductionMinor: number;
         netAmountMinor: number;
         note: string | null;
       };
@@ -79,6 +81,8 @@ export async function GET(request: Request) {
           totalAllowancesMinor: r.totalAllowancesMinor ?? 0,
           deductions: (Array.isArray(r.deductions) ? r.deductions : []) as PayrollDeduction[],
           totalDeductionsMinor: r.totalDeductionsMinor,
+          lateSeconds: r.lateSeconds ?? 0,
+          lateDeductionMinor: r.lateDeductionMinor ?? 0,
           netAmountMinor: r.netAmountMinor,
           note: r.note,
         },

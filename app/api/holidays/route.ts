@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth } from '@/lib/api-helpers';
 import type { Db } from '@/db';
-import { users, holidayEntries, settings } from '@/db/schema';
+import { users, holidayEntries, lateArrivals, settings } from '@/db/schema';
 import { eq, and, like } from 'drizzle-orm';
 import { holidayEntrySchema } from '@/lib/validations';
 
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
     }
     const prefix = `${y}-${String(m).padStart(2, '0')}-`;
 
-    const [employeeList, entriesRows, headUserId] = await Promise.all([
+    const [employeeList, entriesRows, lateRows, headUserId] = await Promise.all([
       db
         .select({ id: users.id, username: users.username, role: users.role })
         .from(users)
@@ -56,14 +56,20 @@ export async function GET(request: Request) {
         .select({ userId: holidayEntries.userId, holidayDate: holidayEntries.holidayDate })
         .from(holidayEntries)
         .where(like(holidayEntries.holidayDate, `${prefix}%`)),
+      db
+        .select({ userId: lateArrivals.userId, lateDate: lateArrivals.lateDate, secondsLate: lateArrivals.secondsLate })
+        .from(lateArrivals)
+        .where(like(lateArrivals.lateDate, `${prefix}%`)),
       getHolidayHeadUserId(db),
     ]);
 
     const entries = entriesRows.map((r) => ({ userId: r.userId, date: r.holidayDate }));
+    const lateArrivalsList = lateRows.map((r) => ({ userId: r.userId, date: r.lateDate, seconds: r.secondsLate }));
 
     return NextResponse.json({
       employees: employeeList,
       entries,
+      lateArrivals: lateArrivalsList,
       holidayHeadUserId: headUserId,
     });
   } catch (e) {

@@ -1,5 +1,5 @@
 import type { Db } from '@/db';
-import { settings, employeeSalaries, users, holidayEntries } from '@/db/schema';
+import { settings, employeeSalaries, users, holidayEntries, lateArrivals } from '@/db/schema';
 import { eq, and, lte, sql, like, inArray } from 'drizzle-orm';
 
 export type PayrollDeduction = { label: string; amountMinor: number };
@@ -132,4 +132,36 @@ export function computeNetAmount(
     salaryAfterHolidayMinor + bonusPortionMinor + totalAllowancesMinor - totalDeductionsMinor
   );
   return { totalAllowancesMinor, totalDeductionsMinor, netAmountMinor };
+}
+
+/** ผลรวมวินาทีที่มาสายต่อ user ในเดือนที่กำหนด */
+export async function getLateSecondsByUser(
+  db: Db,
+  yearMonth: string
+): Promise<Map<number, number>> {
+  const prefix = `${yearMonth}-`;
+  const rows = await db
+    .select({
+      userId: lateArrivals.userId,
+      total: sql<number>`sum(${lateArrivals.secondsLate})`.mapWith(Number),
+    })
+    .from(lateArrivals)
+    .where(like(lateArrivals.lateDate, `${prefix}%`))
+    .groupBy(lateArrivals.userId);
+  const map = new Map<number, number>();
+  for (const r of rows) map.set(r.userId, r.total);
+  return map;
+}
+
+/** ค่าหักมาสาย (วิละ 1000 กีบ จาก settings) */
+export async function getLatePenaltyPerSecond(db: Db): Promise<number> {
+  const rows = await db.select().from(settings).where(eq(settings.key, 'SALARY_LATE_PENALTY_PER_SECOND')).limit(1);
+  if (rows.length === 0) return 1000;
+  const v = rows[0].value;
+  if (typeof v === 'number' && v >= 0) return v;
+  if (typeof v === 'string') {
+    const n = parseInt(v, 10);
+    if (!isNaN(n) && n >= 0) return n;
+  }
+  return 1000;
 }

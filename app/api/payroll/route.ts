@@ -7,6 +7,8 @@ import {
   getHolidayCountByUser,
   getBaseSalaryForUser,
   getSalaryPolicySettings,
+  getLateSecondsByUser,
+  getLatePenaltyPerSecond,
   computeSalaryAfterHoliday,
   computeBonusPortion,
   computeNetAmount,
@@ -104,6 +106,11 @@ export async function POST(request: Request) {
         .where(eq(users.role, 'ADMIN')),
     ]);
 
+    const [lateByUser, latePenalty] = await Promise.all([
+      getLateSecondsByUser(db, yearMonth),
+      getLatePenaltyPerSecond(db),
+    ]);
+
     const itemsData: {
       userId: number;
       baseSalaryMinor: number;
@@ -116,6 +123,8 @@ export async function POST(request: Request) {
       totalAllowancesMinor: number;
       deductions: PayrollDeduction[];
       totalDeductionsMinor: number;
+      lateSeconds: number;
+      lateDeductionMinor: number;
       netAmountMinor: number;
     }[] = [];
     let totalWorkingDaysAll = 0;
@@ -132,6 +141,8 @@ export async function POST(request: Request) {
         policy.freeHolidayDays,
         policy.deductMultiplierPerDay
       );
+      const lateSec = lateByUser.get(u.id) ?? 0;
+      const lateDeductionMinor = lateSec * latePenalty;
       itemsData.push({
         userId: u.id,
         baseSalaryMinor: sal.baseSalaryMinor,
@@ -144,7 +155,9 @@ export async function POST(request: Request) {
         totalAllowancesMinor: 0,
         deductions: [],
         totalDeductionsMinor: 0,
-        netAmountMinor: salaryAfterHolidayMinor,
+        lateSeconds: lateSec,
+        lateDeductionMinor,
+        netAmountMinor: Math.max(0, salaryAfterHolidayMinor - lateDeductionMinor),
       });
       totalWorkingDaysAll += workingDays;
     }
@@ -165,7 +178,7 @@ export async function POST(request: Request) {
       );
       d.totalAllowancesMinor = totalAllowancesMinor;
       d.totalDeductionsMinor = totalDeductionsMinor;
-      d.netAmountMinor = netAmountMinor;
+      d.netAmountMinor = Math.max(0, netAmountMinor - d.lateDeductionMinor);
     }
 
     const now = new Date();
@@ -201,6 +214,8 @@ export async function POST(request: Request) {
         totalAllowancesMinor: d.totalAllowancesMinor,
         deductions: d.deductions,
         totalDeductionsMinor: d.totalDeductionsMinor,
+        lateSeconds: d.lateSeconds,
+        lateDeductionMinor: d.lateDeductionMinor,
         netAmountMinor: d.netAmountMinor,
         createdAt: now,
       });

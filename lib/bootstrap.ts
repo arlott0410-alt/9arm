@@ -45,4 +45,11 @@ export async function bootstrapSettings(db: Db): Promise<void> {
       value: JSON.stringify(2),
     });
   }
+
+  if (!keys.has('SALARY_LATE_PENALTY_PER_SECOND')) {
+    await db.insert(settings).values({
+      key: 'SALARY_LATE_PENALTY_PER_SECOND',
+      value: JSON.stringify(1000),
+    });
+  }
 }

@@ -51,6 +51,8 @@ export async function GET(
         totalAllowancesMinor: payrollItems.totalAllowancesMinor,
         deductions: payrollItems.deductions,
         totalDeductionsMinor: payrollItems.totalDeductionsMinor,
+        lateSeconds: payrollItems.lateSeconds,
+        lateDeductionMinor: payrollItems.lateDeductionMinor,
         netAmountMinor: payrollItems.netAmountMinor,
         note: payrollItems.note,
       })
@@ -72,6 +74,8 @@ export async function GET(
       totalAllowancesMinor: r.totalAllowancesMinor ?? 0,
       deductions: (Array.isArray(r.deductions) ? r.deductions : []) as PayrollDeduction[],
       totalDeductionsMinor: r.totalDeductionsMinor,
+      lateSeconds: r.lateSeconds ?? 0,
+      lateDeductionMinor: r.lateDeductionMinor ?? 0,
       netAmountMinor: r.netAmountMinor,
       note: r.note,
     }));

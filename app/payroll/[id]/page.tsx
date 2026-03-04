@@ -33,6 +33,8 @@ type PayrollItem = {
   totalAllowancesMinor: number;
   deductions: PayrollDeduction[];
   totalDeductionsMinor: number;
+  lateSeconds: number;
+  lateDeductionMinor: number;
   netAmountMinor: number;
   note: string | null;
 };
@@ -287,6 +289,7 @@ export default function PayrollDetailPage() {
                         <th className="px-4 py-3 text-right font-medium text-[#9CA3AF]">เงินหลังหักวันหยุด</th>
                         <th className="px-4 py-3 text-right font-medium text-[#9CA3AF]">โบนัส</th>
                         <th className="px-4 py-3 text-right font-medium text-[#9CA3AF]">รายการเพิ่ม</th>
+                        <th className="px-4 py-3 text-right font-medium text-[#9CA3AF]">มาสาย</th>
                         <th className="px-4 py-3 text-right font-medium text-[#9CA3AF]">รายการหัก</th>
                         <th className="px-4 py-3 text-right font-medium text-[#D4AF37]">ยอดสุทธิ</th>
                         {run.status === 'DRAFT' && (
@@ -304,6 +307,15 @@ export default function PayrollDetailPage() {
                           <td className="px-4 py-3 text-right">
                             {(item.totalAllowancesMinor ?? 0) > 0 ? (
                               <span className="text-green-400">+{formatMinor(item.totalAllowancesMinor ?? 0)}</span>
+                            ) : (
+                              <span className="text-[#6B7280]">-</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {(item.lateDeductionMinor ?? 0) > 0 ? (
+                              <span className="text-orange-400" title={`${item.lateSeconds ?? 0} วินาที`}>
+                                −{formatMinor(item.lateDeductionMinor ?? 0)}
+                              </span>
                             ) : (
                               <span className="text-[#6B7280]">-</span>
                             )}

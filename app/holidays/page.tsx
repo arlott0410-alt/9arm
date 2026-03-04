@@ -1,28 +1,48 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calendar, Plus, User } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Calendar, Plus, User, Clock } from 'lucide-react';
 
 type Employee = { id: number; username: string; role: string };
 type HolidayEntry = { userId: number; date: string };
+type LateEntry = { userId: number; date: string; seconds: number };
 
 function getDaysInMonth(year: number, month: number): number {
   return new Date(year, month, 0).getDate();
 }
+
+const LONG_PRESS_MS = 1000;
 
 export default function HolidaysPage() {
   const router = useRouter();
   const [user, setUser] = useState<{ id: number; username: string; role: string } | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [entries, setEntries] = useState<HolidayEntry[]>([]);
+  const [lateArrivals, setLateArrivals] = useState<LateEntry[]>([]);
   const [holidayHeadUserId, setHolidayHeadUserId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
+
+  const [lateDialog, setLateDialog] = useState<{ empId: number; empName: string; date: string; day: number; seconds: number } | null>(null);
+  const [lateInputSeconds, setLateInputSeconds] = useState('');
+  const [savingLate, setSavingLate] = useState(false);
+
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressHandledRef = useRef(false);
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -40,10 +60,16 @@ export default function HolidaysPage() {
     if (!user) return;
     setLoading(true);
     fetch(`/api/holidays?year=${year}&month=${month}`)
-      .then((r) => r.json() as Promise<{ employees: Employee[]; entries: HolidayEntry[]; holidayHeadUserId: number | null }>)
+      .then((r) => r.json() as Promise<{
+        employees: Employee[];
+        entries: HolidayEntry[];
+        lateArrivals: LateEntry[];
+        holidayHeadUserId: number | null;
+      }>)
       .then((data) => {
         setEmployees(data.employees ?? []);
         setEntries(data.entries ?? []);
+        setLateArrivals(data.lateArrivals ?? []);
         setHolidayHeadUserId(data.holidayHeadUserId ?? null);
       })
       .catch(console.error)
@@ -57,6 +83,14 @@ export default function HolidaysPage() {
     }
     return set;
   }, [entries]);
+
+  const lateMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const e of lateArrivals) {
+      map.set(`${e.userId}:${e.date}`, e.seconds);
+    }
+    return map;
+  }, [lateArrivals]);
 
   const isHead = user !== null && holidayHeadUserId !== null && user.id === holidayHeadUserId;
   const daysCount = getDaysInMonth(year, month);
@@ -89,6 +123,63 @@ export default function HolidaysPage() {
     }
   }
 
+  function handleCellPointerDown(empId: number, day: number, empName: string) {
+    if (!isHead) return;
+    longPressHandledRef.current = false;
+    const date = `${prefix}${String(day).padStart(2, '0')}`;
+    longPressTimerRef.current = setTimeout(() => {
+      longPressTimerRef.current = null;
+      longPressHandledRef.current = true;
+      const seconds = lateMap.get(`${empId}:${date}`) ?? 0;
+      setLateDialog({ empId, empName, date, day, seconds });
+      setLateInputSeconds(seconds > 0 ? String(seconds) : '');
+    }, LONG_PRESS_MS);
+  }
+
+  function handleCellPointerUp() {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }
+
+  function handleCellClick(empId: number, day: number) {
+    if (longPressHandledRef.current) {
+      longPressHandledRef.current = false;
+      return;
+    }
+    toggleDay(empId, day);
+  }
+
+  async function saveLateArrival() {
+    if (!lateDialog) return;
+    const seconds = Math.max(0, Math.round(parseInt(lateInputSeconds, 10) || 0));
+    setSavingLate(true);
+    try {
+      const res = await fetch('/api/late-arrivals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: lateDialog.empId, date: lateDialog.date, seconds }),
+      });
+      if (res.ok) {
+        if (seconds === 0) {
+          setLateArrivals((prev) => prev.filter((e) => e.userId !== lateDialog.empId || e.date !== lateDialog.date));
+        } else {
+          setLateArrivals((prev) => {
+            const rest = prev.filter((e) => e.userId !== lateDialog.empId || e.date !== lateDialog.date);
+            return [...rest, { userId: lateDialog.empId, date: lateDialog.date, seconds }];
+          });
+        }
+        setLateDialog(null);
+      } else {
+        const d = (await res.json()) as { error?: string };
+        alert(d.error ?? 'บันทึกไม่ได้');
+      }
+    } finally {
+      setSavingLate(false);
+    }
+  }
+
   if (!user) return null;
 
   return (
@@ -98,7 +189,7 @@ export default function HolidaysPage() {
         <p className="text-sm text-[#9CA3AF]">
           ตารางนี้แสดงเฉพาะผู้ใช้ role ADMIN (เงินเดือนและวันหยุดนับเฉพาะ ADMIN).
           {isHead
-            ? ' คุณเป็นหัวหน้าวันหยุด — คลิกเซลล์เพื่อเพิ่ม/ลบวันหยุดได้'
+            ? ' คุณเป็นหัวหน้าวันหยุด — คลิกเซลล์เพิ่ม/ลบวันหยุด · กดค้าง 1 วินาทีที่ปุ่ม + เพื่อลงมาสาย (วิละ 1000 กีบตอนคำนวณเงินเดือน)'
             : ' เฉพาะหัวหน้าวันหยุดสามารถลงวันหยุดได้'}
         </p>
 
@@ -129,6 +220,11 @@ export default function HolidaysPage() {
                 />
               </div>
             </div>
+            {isHead && (
+              <p className="text-xs text-[#6B7280]">
+                สีส้ม = มาสาย · กดค้าง 1 วินาทีที่ปุ่ม + เพื่อกรอก/แก้ไข/ลบ (วินาที)
+              </p>
+            )}
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -165,25 +261,40 @@ export default function HolidaysPage() {
                           const date = `${prefix}${String(day).padStart(2, '0')}`;
                           const key = `${emp.id}:${date}`;
                           const isHoliday = entrySet.has(key);
+                          const lateSeconds = lateMap.get(key) ?? 0;
+                          const isLate = lateSeconds > 0;
 
                           return (
                             <td
                               key={day}
-                              className="min-w-[36px] border-[#1F2937] p-0.5 text-center align-middle"
+                              className={`min-w-[36px] border-[#1F2937] p-0.5 text-center align-middle ${isLate ? 'bg-orange-500/20' : ''}`}
                             >
                               {isHead ? (
                                 <button
                                   type="button"
-                                  onClick={() => toggleDay(emp.id, day)}
+                                  onClick={() => handleCellClick(emp.id, day)}
+                                  onPointerDown={() => handleCellPointerDown(emp.id, day, emp.username)}
+                                  onPointerUp={handleCellPointerUp}
+                                  onPointerLeave={handleCellPointerUp}
                                   className={`inline-flex h-8 w-8 items-center justify-center rounded border transition-colors ${
                                     isHoliday
                                       ? 'border-[#D4AF37] bg-[#D4AF37]/20 text-[#D4AF37]'
-                                      : 'border-dashed border-[#374151] text-[#6B7280] hover:border-[#D4AF37]/60 hover:text-[#D4AF37]'
+                                      : isLate
+                                        ? 'border-orange-400/60 bg-orange-500/30 text-orange-200'
+                                        : 'border-dashed border-[#374151] text-[#6B7280] hover:border-[#D4AF37]/60 hover:text-[#D4AF37]'
                                   }`}
-                                  title={isHoliday ? `ลบวันหยุด ${date}` : `เพิ่มวันหยุด ${date}`}
+                                  title={
+                                    isLate
+                                      ? `มาสาย ${lateSeconds} วิ — กดค้างเพื่อแก้ไข/ลบ`
+                                      : isHoliday
+                                        ? `ลบวันหยุด ${date}`
+                                        : `เพิ่มวันหยุด ${date} · กดค้าง 1 วิ สำหรับมาสาย`
+                                  }
                                 >
                                   {isHoliday ? (
                                     <span className="text-xs font-medium">หยุด</span>
+                                  ) : isLate ? (
+                                    <span className="text-xs font-medium">{lateSeconds}วิ</span>
                                   ) : (
                                     <Plus className="h-4 w-4" />
                                   )}
@@ -191,10 +302,14 @@ export default function HolidaysPage() {
                               ) : (
                                 <span
                                   className={`inline-flex h-8 w-8 items-center justify-center rounded ${
-                                    isHoliday ? 'bg-[#D4AF37]/20 text-[#D4AF37] text-xs' : 'text-[#374151]'
+                                    isHoliday
+                                      ? 'bg-[#D4AF37]/20 text-[#D4AF37] text-xs'
+                                      : isLate
+                                        ? 'bg-orange-500/20 text-orange-300 text-xs'
+                                        : 'text-[#374151]'
                                   }`}
                                 >
-                                  {isHoliday ? 'หยุด' : '—'}
+                                  {isHoliday ? 'หยุด' : isLate ? `${lateSeconds}วิ` : '—'}
                                 </span>
                               )}
                             </td>
@@ -212,6 +327,39 @@ export default function HolidaysPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={!!lateDialog} onOpenChange={(o) => !o && setLateDialog(null)}>
+        <DialogContent className="border-[#1F2937] bg-[#0F172A] text-[#E5E7EB] max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-orange-400" />
+              มาสาย — {lateDialog?.empName} วันที่ {lateDialog?.day}
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-[#9CA3AF]">
+            จำนวนวินาทีที่มาสาย (หักวิละ 1000 กีบตอนคำนวณเงินเดือน). ใส่ 0 เพื่อลบรายการ
+          </p>
+          <div className="flex items-center gap-2 pt-2">
+            <Label className="min-w-[80px]">วินาที</Label>
+            <Input
+              type="number"
+              min={0}
+              value={lateInputSeconds}
+              onChange={(e) => setLateInputSeconds(e.target.value)}
+              className="flex-1 bg-[#1F2937] border-[#374151]"
+              placeholder="0"
+            />
+          </div>
+          <div className="flex gap-2 justify-end pt-4">
+            <Button variant="outline" onClick={() => setLateDialog(null)} className="border-[#374151]">
+              ยกเลิก
+            </Button>
+            <Button onClick={saveLateArrival} disabled={savingLate} className="bg-[#D4AF37] text-[#0F172A] hover:bg-[#D4AF37]/90">
+              {savingLate ? 'กำลังบันทึก...' : 'บันทึก'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }

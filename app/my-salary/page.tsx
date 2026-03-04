@@ -23,6 +23,8 @@ type SalaryItem = {
     totalAllowancesMinor: number;
     deductions: { label: string; amountMinor: number }[];
     totalDeductionsMinor: number;
+    lateSeconds: number;
+    lateDeductionMinor: number;
     netAmountMinor: number;
     note: string | null;
   };
@@ -115,6 +117,12 @@ export default function MySalaryPage() {
                         <div className="flex justify-between text-[#9CA3AF]">
                           <span>รายการเพิ่ม (ค่าไฟ, ค่าข้าว ฯลฯ)</span>
                           <span className="text-green-400">+{formatMinor(s.item.totalAllowancesMinor ?? 0)} ฿</span>
+                        </div>
+                      )}
+                      {(s.item.lateDeductionMinor ?? 0) > 0 && (
+                        <div className="flex justify-between text-[#9CA3AF]">
+                          <span>หักมาสาย ({(s.item.lateSeconds ?? 0)} วินาที)</span>
+                          <span className="text-orange-400">−{formatMinor(s.item.lateDeductionMinor ?? 0)} ฿</span>
                         </div>
                       )}
                       {s.item.deductions.length > 0 && (
