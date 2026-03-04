@@ -53,7 +53,7 @@ export async function PUT(request: Request) {
     const err = requireSettings(user);
     if (err) return err;
 
-    const body = await request.json();
+    const body = (await request.json()) as { items?: unknown };
     const raw = body?.items;
     if (!Array.isArray(raw)) {
       return NextResponse.json(
