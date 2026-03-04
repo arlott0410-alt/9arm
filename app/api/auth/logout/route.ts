@@ -4,7 +4,7 @@ import { sessions } from '@/db/schema';
 import { getSessionIdFromRequest } from '@/lib/session-cookie';
 import { buildClearCookieHeader } from '@/lib/session-cookie';
 import { getEnvAndDb } from '@/lib/cf-env';
-import { invalidateSessionCache } from '@/lib/auth';
+import { invalidateSessionCache, deleteSessionFromKV } from '@/lib/auth';
 
 export async function POST(request: Request) {
   try {
@@ -13,7 +13,8 @@ export async function POST(request: Request) {
       invalidateSessionCache(sessionId);
       const result = getEnvAndDb({ requireAppSecret: false });
       if (result instanceof NextResponse) return result;
-      const { db } = result;
+      const { db, env } = result;
+      await deleteSessionFromKV(sessionId, env);
       await db.delete(sessions).where(eq(sessions.id, sessionId));
     }
     const res = NextResponse.json({ ok: true });

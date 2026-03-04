@@ -28,15 +28,18 @@ export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
   const [filterWebsite, setFilterWebsite] = useState('__all__');
   const [data, setData] = useState<DashboardData | null>(null);
+  const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
     if (authLoading || !user) return;
+    setDataLoading(true);
     const params = new URLSearchParams();
     if (filterWebsite !== '__all__') params.set('websiteId', filterWebsite);
     fetch(`/api/dashboard?${params}`)
       .then((r) => r.json() as Promise<DashboardData>)
       .then(setData)
-      .catch(console.error);
+      .catch(console.error)
+      .finally(() => setDataLoading(false));
   }, [user, authLoading, filterWebsite]);
 
   useEffect(() => {
@@ -53,6 +56,16 @@ export default function DashboardPage() {
 
   const cardBase =
     'overflow-hidden border border-[#2D3748] bg-gradient-to-br from-[#0F172A] to-[#1E293B] shadow-lg shadow-black/20 min-h-[120px] flex flex-col';
+
+  const skeletonCard = (
+    <div className={`${cardBase} animate-pulse ring-1 ring-[#2D3748]`}>
+      <div className="flex flex-1 flex-col p-5">
+        <div className="h-4 w-24 rounded bg-[#2D3748]" />
+        <div className="mt-4 h-7 w-28 rounded bg-[#2D3748] ml-auto" />
+        <div className="mt-1 h-3 w-10 rounded bg-[#2D3748] ml-auto" />
+      </div>
+    </div>
+  );
 
   return (
     <AppLayout user={user}>
@@ -76,6 +89,14 @@ export default function DashboardPage() {
 
         {/* ยอดฝากถอนรายวัน รายเดือน */}
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-6">
+          {dataLoading ? (
+            <>
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i}>{skeletonCard}</div>
+              ))}
+            </>
+          ) : (
+          <>
           <Card className={`${cardBase} ring-1 ring-[#D4AF37]/20`}>
             <CardContent className="flex flex-1 flex-col p-5">
               <div className="flex items-center justify-between">
@@ -205,6 +226,8 @@ export default function DashboardPage() {
               <p className="mt-0.5 text-right text-xs text-[#6B7280]">{cur}</p>
             </CardContent>
           </Card>
+          </>
+          )}
         </div>
 
         {/* ยอดกระเป๋าเงิน */}
@@ -217,6 +240,17 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
+              {dataLoading ? (
+                <div className="space-y-3 py-4">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex gap-4 animate-pulse">
+                      <div className="h-5 w-32 rounded bg-[#2D3748]" />
+                      <div className="h-5 w-12 rounded bg-[#2D3748]" />
+                      <div className="h-5 w-24 rounded bg-[#2D3748] ml-auto" />
+                    </div>
+                  ))}
+                </div>
+              ) : (
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[#2D3748]">
@@ -240,13 +274,17 @@ export default function DashboardPage() {
                   ))}
                   {(!data?.wallets || data.wallets.length === 0) && (
                     <tr>
-                      <td colSpan={3} className="py-12 text-center text-[#9CA3AF]">
-                        ไม่มีกระเป๋าเงิน
+                      <td colSpan={3} className="py-14 text-center">
+                        <div className="flex flex-col items-center gap-2 text-[#9CA3AF]">
+                          <Wallet className="h-10 w-10 opacity-50" />
+                          <span>ไม่มีกระเป๋าเงิน</span>
+                        </div>
                       </td>
                     </tr>
                   )}
                 </tbody>
               </table>
+              )}
             </div>
           </CardContent>
         </Card>

@@ -12,4 +12,6 @@ interface CloudflareEnv {
   SESSION_TTL_HOURS?: string;
   SUPERADMIN_USERNAME?: string;
   SUPERADMIN_PASSWORD?: string;
+  KV?: KVNamespace;
+  AE?: AnalyticsEngineDataset;
 }

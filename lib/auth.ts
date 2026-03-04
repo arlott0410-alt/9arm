@@ -3,8 +3,17 @@ import type { Db } from '@/db';
 import { users, sessions } from '@/db/schema';
 import type { User } from '@/db/schema';
 import { authCache } from '@/lib/d1-cache';
+import type { Env } from '@/lib/cf-env';
 
 export type Role = 'SUPER_ADMIN' | 'ADMIN' | 'AUDIT';
+
+const KV_SESSION_PREFIX = 'sess:';
+/** KV cache TTL: from SESSION_TTL_HOURS (capped at 1h) or 30 min default. */
+function getSessionCacheTtlSeconds(env: Env): number {
+  const hours = getSessionTtlHours(env);
+  if (hours > 0) return Math.min(hours * 3600, 3600);
+  return 1800; // 30 min
+}
 
 export function canMutate(role: Role): boolean {
   return role === 'SUPER_ADMIN' || role === 'ADMIN';
@@ -93,6 +102,40 @@ export function getSessionTtlHours(env: { SESSION_TTL_HOURS?: string }): number 
 /** Minimal user shape for auth checks (avoids reading password/salt). */
 export type SessionUser = Pick<User, 'id' | 'username' | 'role' | 'isActive'>;
 
+/** Session → user with KV cache to avoid D1 on every request. Falls back to getSessionUser on miss. */
+export async function getCachedSessionUser(
+  db: Db,
+  sessionId: string,
+  env: Env
+): Promise<User | null> {
+  if (!sessionId || sessionId.length < 32) return null;
+  if (env.KV) {
+    const raw = await env.KV.get(KV_SESSION_PREFIX + sessionId);
+    if (raw != null && raw !== '') {
+      try {
+        const u = JSON.parse(raw) as SessionUser & { isActive: boolean };
+        if (!u.isActive) return null;
+        return u as User;
+      } catch {
+        // invalid payload, fall through to D1
+      }
+    }
+  }
+  const user = await getSessionUser(db, sessionId, env.APP_SECRET);
+  if (user && env.KV) {
+    const payload = JSON.stringify({
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      isActive: user.isActive,
+    });
+    await env.KV.put(KV_SESSION_PREFIX + sessionId, payload, {
+      expirationTtl: getSessionCacheTtlSeconds(env),
+    });
+  }
+  return user;
+}
+
 export async function getSessionUser(
   db: Db,
   sessionId: string,
@@ -131,4 +174,9 @@ export async function getSessionUser(
 /** Call after logout so next request doesn't use stale cache. */
 export function invalidateSessionCache(sessionId: string): void {
   authCache.invalidate(sessionId);
+}
+
+/** Remove session from KV cache on logout so stale user is not served. */
+export async function deleteSessionFromKV(sessionId: string, env: Env): Promise<void> {
+  if (env.KV) await env.KV.delete(KV_SESSION_PREFIX + sessionId);
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSessionUser } from '@/lib/auth';
+import { getCachedSessionUser } from '@/lib/auth';
 import { getSessionIdFromRequest } from '@/lib/session-cookie';
 import { getEnvAndDb } from '@/lib/cf-env';
 
@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     const result = getEnvAndDb();
     if (result instanceof NextResponse) return result;
     const { db, env } = result;
-    const user = await getSessionUser(db, sessionId, env.APP_SECRET);
+    const user = await getCachedSessionUser(db, sessionId, env);
     if (!user) {
       return NextResponse.json({ user: null }, { status: 200 });
     }

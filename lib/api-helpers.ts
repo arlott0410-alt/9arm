@@ -1,23 +1,23 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
-import { getSessionUser } from '@/lib/auth';
+import { getCachedSessionUser } from '@/lib/auth';
 import { getSessionIdFromRequest } from '@/lib/session-cookie';
 import { getEnvAndDb } from '@/lib/cf-env';
 import type { User } from '@/db/schema';
 import type { Role } from '@/lib/auth';
-import { bootstrapSettings } from '@/lib/bootstrap';
+import { ensureBootstrapped } from '@/lib/bootstrap';
 
 export async function getDbAndUser(request: Request): Promise<
-  | { db: ReturnType<typeof getDb>; user: User | null; env: { DB: D1Database; APP_SECRET: string; SESSION_TTL_HOURS?: string } }
+  | { db: ReturnType<typeof getDb>; user: User | null; env: import('@/lib/cf-env').Env }
   | NextResponse
 > {
   const envResult = getEnvAndDb();
   if (envResult instanceof NextResponse) return envResult;
   const { db, env } = envResult;
-  await bootstrapSettings(db);
+  await ensureBootstrapped(db, env);
   const sessionId = getSessionIdFromRequest(request);
   const user = sessionId
-    ? await getSessionUser(db, sessionId, env.APP_SECRET)
+    ? await getCachedSessionUser(db, sessionId, env)
     : null;
   return { db, user, env };
 }

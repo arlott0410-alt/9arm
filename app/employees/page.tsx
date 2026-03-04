@@ -104,23 +104,44 @@ export default function EmployeesPage() {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <p className="py-6 text-center text-[#9CA3AF]">กำลังโหลด...</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-[#1F2937]">
+                      <th className="py-3 text-left text-[#9CA3AF]">ชื่อผู้ใช้</th>
+                      <th className="py-3 text-left text-[#9CA3AF]">สถานะ</th>
+                      <th className="py-3 text-left text-[#9CA3AF]">หมายเหตุ</th>
+                      <th className="py-3 text-left text-[#9CA3AF]">ล็อกอินล่าสุด</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[1, 2, 3, 4].map((i) => (
+                      <tr key={i} className="border-b border-[#1F2937]/50 animate-pulse">
+                        <td className="py-3"><div className="h-4 w-24 rounded bg-[#2D3748]" /></td>
+                        <td className="py-3"><div className="h-4 w-16 rounded bg-[#2D3748]" /></td>
+                        <td className="py-3"><div className="h-4 w-20 rounded bg-[#2D3748]" /></td>
+                        <td className="py-3"><div className="h-4 w-28 rounded bg-[#2D3748]" /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-[#1F2937]">
-                      <th className="py-2 text-left text-[#9CA3AF]">ชื่อผู้ใช้</th>
-                      <th className="py-2 text-left text-[#9CA3AF]">สถานะ</th>
-                      <th className="py-2 text-left text-[#9CA3AF]">หมายเหตุ</th>
-                      <th className="py-2 text-left text-[#9CA3AF]">ล็อกอินล่าสุด</th>
+                      <th className="py-3 text-left text-[#9CA3AF]">ชื่อผู้ใช้</th>
+                      <th className="py-3 text-left text-[#9CA3AF]">สถานะ</th>
+                      <th className="py-3 text-left text-[#9CA3AF]">หมายเหตุ</th>
+                      <th className="py-3 text-left text-[#9CA3AF]">ล็อกอินล่าสุด</th>
                     </tr>
                   </thead>
                   <tbody>
                     {employees.map((emp) => (
-                      <tr key={emp.id} className="border-b border-[#1F2937]">
-                        <td className="py-2 text-[#E5E7EB] font-medium">{emp.username}</td>
-                        <td className="py-2">
+                      <tr key={emp.id} className="border-b border-[#1F2937]/50 transition-colors hover:bg-[#1E293B]/50">
+                        <td className="py-3 text-[#E5E7EB] font-medium">{emp.username}</td>
+                        <td className="py-3">
                           <span
                             className={
                               emp.isActive
@@ -131,7 +152,7 @@ export default function EmployeesPage() {
                             {emp.isActive ? 'ใช้งาน' : 'ปิดใช้งาน'}
                           </span>
                         </td>
-                        <td className="py-2 text-[#9CA3AF]">
+                        <td className="py-3 text-[#9CA3AF]">
                           {holidayHeadUserId === emp.id && (
                             <span className="inline-flex items-center gap-1 rounded bg-[#D4AF37]/20 px-2 py-0.5 text-xs text-[#D4AF37]">
                               <Calendar className="h-3 w-3" />
@@ -139,18 +160,25 @@ export default function EmployeesPage() {
                             </span>
                           )}
                         </td>
-                        <td className="py-2 text-[#9CA3AF]">
+                        <td className="py-3 text-[#9CA3AF]">
                           {emp.lastLoginAt
                             ? new Date(emp.lastLoginAt).toLocaleString('th-TH')
                             : '-'}
                         </td>
                       </tr>
                     ))}
+                    {employees.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="py-14 text-center">
+                          <div className="flex flex-col items-center gap-2 text-[#9CA3AF]">
+                            <Users className="h-10 w-10 opacity-50" />
+                            <span>ไม่มีพนักงาน (ADMIN) ในระบบ</span>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
-                {employees.length === 0 && (
-                  <p className="py-6 text-center text-[#9CA3AF]">ไม่มีพนักงาน (ADMIN) ในระบบ</p>
-                )}
               </div>
             )}
           </CardContent>

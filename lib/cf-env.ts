@@ -8,6 +8,10 @@ export type Env = {
   SESSION_TTL_HOURS?: string;
   SUPERADMIN_USERNAME?: string;
   SUPERADMIN_PASSWORD?: string;
+  /** Workers KV namespace for bootstrap/session cache. Create in Dashboard and set id in wrangler.jsonc. */
+  KV?: KVNamespace;
+  /** Analytics Engine dataset for route metrics (pathname, status, duration_ms). */
+  AE?: AnalyticsEngineDataset;
 };
 
 /** Validates Cloudflare env and returns db + env, or an error response. */

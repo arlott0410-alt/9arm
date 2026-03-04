@@ -1,6 +1,7 @@
 import type { Db } from '@/db';
 import { settings } from '@/db/schema';
 import { getCachedBootstrapKeys, setCachedBootstrapKeys } from '@/lib/d1-cache';
+import type { Env } from '@/lib/cf-env';
 
 const DEFAULT_DISPLAY_CURRENCY = 'THB';
 import { expandRatesFromBase } from '@/lib/rates';
@@ -16,6 +17,21 @@ const REQUIRED_KEYS = [
   'SALARY_DEDUCT_MULTIPLIER_PER_DAY',
   'SALARY_LATE_PENALTY_PER_MINUTE',
 ] as const;
+
+const KV_BOOTSTRAPPED_KEY = 'bootstrapped:v1';
+const KV_BOOTSTRAPPED_TTL = 86400; // 24h
+
+/** If KV is bound, avoid D1 when already bootstrapped. Idempotent; safe under concurrent calls. */
+export async function ensureBootstrapped(db: Db, env: Env): Promise<void> {
+  if (env.KV) {
+    const flag = await env.KV.get(KV_BOOTSTRAPPED_KEY);
+    if (flag != null && flag !== '') return;
+  }
+  await bootstrapSettings(db);
+  if (env.KV) {
+    await env.KV.put(KV_BOOTSTRAPPED_KEY, '1', { expirationTtl: KV_BOOTSTRAPPED_TTL });
+  }
+}
 
 export async function bootstrapSettings(db: Db): Promise<void> {
   const cached = getCachedBootstrapKeys();

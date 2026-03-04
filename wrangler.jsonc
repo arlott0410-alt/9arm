@@ -20,5 +20,18 @@
       "database_name": "9arm-ledger-db",
       "database_id": "ce557ff7-c814-4c6e-9a86-8240dcb34989"
     }
+  ],
+  // Create KV namespace in Dashboard → Workers & Pages → KV → Create, then set id below.
+  "kv_namespaces": [
+    {
+      "binding": "KV",
+      "id": "3d0fccee8b7f4c9797e12b7a0d493391"
+    }
+  ],
+  "analytics_engine_datasets": [
+    {
+      "binding": "AE",
+      "dataset": "9arm_ae"
+    }
   ]
 }
