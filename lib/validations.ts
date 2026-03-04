@@ -112,6 +112,10 @@ export const displayCurrencySchema = z.object({
   displayCurrency: z.enum(['LAK', 'THB', 'USD']),
 });
 
+export const salaryCurrencySchema = z.object({
+  salaryCurrency: z.enum(['LAK', 'THB', 'USD']),
+});
+
 export const exchangeRatesSchema = z.object({
   rates: z.record(z.string(), z.number()),
 });
@@ -156,4 +160,13 @@ export const editCreditCutSchema = z.object({
   amountMinor: z.number().int().nonnegative().optional(),
   cutReason: z.string().min(1).optional(),
   cutTime: z.string().min(1).optional(),
+});
+
+export const holidayEntrySchema = z.object({
+  userId: z.number().int().positive(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'รูปแบบวันที่ YYYY-MM-DD'),
+});
+
+export const holidayHeadSchema = z.object({
+  userId: z.number().int().positive().nullable(),
 });

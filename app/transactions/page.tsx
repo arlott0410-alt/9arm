@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -20,7 +20,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { formatMinorToDisplay, parseDisplayToMinor, todayStr, formatSlipTimeHHMM, formatDateThailand } from '@/lib/utils';
 import { TimeInput24 } from '@/components/ui/time-input-24';
 import { convertToDisplay, convertFromDisplay } from '@/lib/rates';
-import { Copy } from 'lucide-react';
+import { Copy, ChevronUp, ChevronDown } from 'lucide-react';
+import { PaginationBar } from '@/components/PaginationBar';
+import { getDefaultPageSize } from '@/lib/pagination';
 
 type Website = { id: number; name: string; prefix: string };
 type Wallet = { id: number; name: string; currency: string };
@@ -56,12 +58,22 @@ export default function TransactionsPage() {
   } | null>(null);
   const [deposits, setDeposits] = useState<Txn[]>([]);
   const [withdraws, setWithdraws] = useState<Txn[]>([]);
+  const [txnListTab, setTxnListTab] = useState<'deposits' | 'withdraws'>('deposits');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(getDefaultPageSize('transactions'));
+  const [totalCount, setTotalCount] = useState(0);
+  const [listLoading, setListLoading] = useState(false);
+  const fetchAbortRef = useRef<AbortController | null>(null);
   const [dateFrom, setDateFrom] = useState(todayStr());
   const [dateTo, setDateTo] = useState(todayStr());
   const [filterWebsite, setFilterWebsite] = useState('__all__');
   const [filterUserFull, setFilterUserFull] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [filterEdited, setFilterEdited] = useState(false);
   const [filterDeleted, setFilterDeleted] = useState(false);
+  const [depositSlipSortOrder, setDepositSlipSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [withdrawSlipSortOrder, setWithdrawSlipSortOrder] = useState<'asc' | 'desc'>('asc');
   const [deleteModal, setDeleteModal] = useState<Txn | null>(null);
   const [deleteReason, setDeleteReason] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -119,30 +131,74 @@ export default function TransactionsPage() {
     loadData();
   }, [user, loadData]);
 
-  const sortDeposits = (arr: Txn[]) =>
-    [...arr].sort((a, b) => (a.depositSlipTime || '').localeCompare(b.depositSlipTime || ''));
-  const sortWithdraws = (arr: Txn[]) =>
-    [...arr].sort((a, b) => (a.withdrawSlipTime || '').localeCompare(b.withdrawSlipTime || ''));
-
-  useEffect(() => {
-    if (!user) return;
+  function buildTxnListParams(opts: {
+    type: 'DEPOSIT' | 'WITHDRAW';
+    page: number;
+    pageSize: number;
+    orderBy: 'depositSlipTime' | 'withdrawSlipTime';
+    order: 'asc' | 'desc';
+  }) {
     const params = new URLSearchParams({
       dateFrom,
       dateTo,
+      type: opts.type,
+      page: String(opts.page),
+      pageSize: String(opts.pageSize),
+      orderBy: opts.orderBy,
+      order: opts.order,
       ...(filterWebsite && filterWebsite !== '__all__' && { websiteId: filterWebsite }),
       ...(filterUserFull && { userFull: filterUserFull }),
       ...(filterEdited && { editedOnly: 'true' }),
       ...(filterDeleted && { deletedOnly: 'true' }),
     });
-    fetch(`/api/transactions?${params}`)
-      .then((r) => r.json() as Promise<Txn[]>)
-      .then((list) => {
-        const deps = list.filter((t) => t.type === 'DEPOSIT');
-        const withs = list.filter((t) => t.type === 'WITHDRAW');
-        setDeposits(sortDeposits(deps));
-        setWithdraws(sortWithdraws(withs));
-      });
-  }, [user, dateFrom, dateTo, filterWebsite, filterUserFull, filterEdited, filterDeleted]);
+    return params;
+  }
+
+  const fetchTxnList = useCallback(
+    (tab: 'deposits' | 'withdraws', pageNum: number, size: number) => {
+      if (!user) return;
+      if (fetchAbortRef.current) fetchAbortRef.current.abort();
+      fetchAbortRef.current = new AbortController();
+      setListLoading(true);
+      const type = tab === 'deposits' ? 'DEPOSIT' : 'WITHDRAW';
+      const orderBy = tab === 'deposits' ? 'depositSlipTime' : 'withdrawSlipTime';
+      const order = tab === 'deposits' ? depositSlipSortOrder : withdrawSlipSortOrder;
+      const params = buildTxnListParams({ type, page: pageNum, pageSize: size, orderBy, order });
+      fetch(`/api/transactions?${params}`, { signal: fetchAbortRef.current.signal })
+        .then((r) => r.json() as Promise<{ items: Txn[]; page: number; pageSize: number; totalCount: number }>)
+        .then((data) => {
+          if (tab === 'deposits') {
+            setDeposits(data.items);
+          } else {
+            setWithdraws(data.items);
+          }
+          setTotalCount(data.totalCount);
+        })
+        .catch((err) => {
+          if (err.name !== 'AbortError') console.error(err);
+        })
+        .finally(() => {
+          setListLoading(false);
+          fetchAbortRef.current = null;
+        });
+    },
+    [
+      user,
+      dateFrom,
+      dateTo,
+      filterWebsite,
+      filterUserFull,
+      filterEdited,
+      filterDeleted,
+      depositSlipSortOrder,
+      withdrawSlipSortOrder,
+    ]
+  );
+
+  useEffect(() => {
+    if (!user) return;
+    fetchTxnList(txnListTab, page, pageSize);
+  }, [user, txnListTab, page, pageSize, fetchTxnList]);
 
   function getSelectedWebsite() {
     const id = depositForm.websiteId || withdrawForm.websiteId;
@@ -208,19 +264,14 @@ export default function TransactionsPage() {
       });
       if (res.ok) {
         setDepositForm({ ...depositForm, amountMinor: 0, userIdInput: '' });
-        const params = new URLSearchParams({
-          dateFrom,
-          dateTo,
-          ...(filterWebsite && filterWebsite !== '__all__' && { websiteId: filterWebsite }),
-          ...(filterUserFull && { userFull: filterUserFull }),
-          ...(filterEdited && { editedOnly: 'true' }),
-          ...(filterDeleted && { deletedOnly: 'true' }),
-        });
-        const list = (await fetch(`/api/transactions?${params}`).then((r) => r.json())) as Txn[];
-        const deps = list.filter((t) => t.type === 'DEPOSIT');
-        const withs = list.filter((t) => t.type === 'WITHDRAW');
-        setDeposits(sortDeposits(deps));
-        setWithdraws(sortWithdraws(withs));
+        setPage(1);
+        const type = 'DEPOSIT';
+        const orderBy = 'depositSlipTime';
+        const order = depositSlipSortOrder;
+        const params = buildTxnListParams({ type, page: 1, pageSize, orderBy, order });
+        const data = (await fetch(`/api/transactions?${params}`).then((r) => r.json())) as { items: Txn[]; totalCount: number };
+        setDeposits(data.items);
+        setTotalCount(data.totalCount);
       }
     } finally {
       setLoading(false);
@@ -253,19 +304,14 @@ export default function TransactionsPage() {
       });
       if (res.ok) {
         setWithdrawForm({ ...withdrawForm, withdrawInputAmountMinor: 0, withdrawFeeMinor: 0, userIdInput: '' });
-        const params = new URLSearchParams({
-          dateFrom,
-          dateTo,
-          ...(filterWebsite && filterWebsite !== '__all__' && { websiteId: filterWebsite }),
-          ...(filterUserFull && { userFull: filterUserFull }),
-          ...(filterEdited && { editedOnly: 'true' }),
-          ...(filterDeleted && { deletedOnly: 'true' }),
-        });
-        const list = (await fetch(`/api/transactions?${params}`).then((r) => r.json())) as Txn[];
-        const deps = list.filter((t) => t.type === 'DEPOSIT');
-        const withs = list.filter((t) => t.type === 'WITHDRAW');
-        setDeposits(sortDeposits(deps));
-        setWithdraws(sortWithdraws(withs));
+        setPage(1);
+        const type = 'WITHDRAW';
+        const orderBy = 'withdrawSlipTime';
+        const order = withdrawSlipSortOrder;
+        const params = buildTxnListParams({ type, page: 1, pageSize, orderBy, order });
+        const data = (await fetch(`/api/transactions?${params}`).then((r) => r.json())) as { items: Txn[]; totalCount: number };
+        setWithdraws(data.items);
+        setTotalCount(data.totalCount);
       }
     } finally {
       setLoading(false);
@@ -660,16 +706,16 @@ export default function TransactionsPage() {
                 <Input
                   type="date"
                   value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
+                  onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
                   className="w-36"
                 />
                 <Input
                   type="date"
                   value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
+                  onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
                   className="w-36"
                 />
-                <Select value={filterWebsite} onValueChange={setFilterWebsite}>
+                <Select value={filterWebsite} onValueChange={(v) => { setFilterWebsite(v); setPage(1); }}>
                   <SelectTrigger className="w-40">
                     <SelectValue placeholder="เว็บไซต์" />
                   </SelectTrigger>
@@ -684,15 +730,24 @@ export default function TransactionsPage() {
                 </Select>
                 <Input
                   placeholder="ชื่อผู้ใช้เต็ม"
-                  value={filterUserFull}
-                  onChange={(e) => setFilterUserFull(e.target.value)}
+                  value={searchInput}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setSearchInput(v);
+                    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+                    searchTimeoutRef.current = setTimeout(() => {
+                      setFilterUserFull(v);
+                      setPage(1);
+                      searchTimeoutRef.current = null;
+                    }, 300);
+                  }}
                   className="w-40"
                 />
                 <label className="flex items-center gap-2 text-sm text-[#9CA3AF]">
                   <input
                     type="checkbox"
                     checked={filterEdited}
-                    onChange={(e) => setFilterEdited(e.target.checked)}
+                    onChange={(e) => { setFilterEdited(e.target.checked); setPage(1); }}
                   />
                   แก้ไขแล้วเท่านั้น
                 </label>
@@ -700,7 +755,7 @@ export default function TransactionsPage() {
                   <input
                     type="checkbox"
                     checked={filterDeleted}
-                    onChange={(e) => setFilterDeleted(e.target.checked)}
+                    onChange={(e) => { setFilterDeleted(e.target.checked); setPage(1); }}
                   />
                   รายการที่ลบ
                 </label>
@@ -708,12 +763,15 @@ export default function TransactionsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="deposits">
+            <Tabs value={txnListTab} onValueChange={(v) => { setTxnListTab(v as 'deposits' | 'withdraws'); setPage(1); }}>
               <TabsList>
                 <TabsTrigger value="deposits">ฝาก</TabsTrigger>
                 <TabsTrigger value="withdraws">ถอน</TabsTrigger>
               </TabsList>
               <TabsContent value="deposits">
+                {listLoading && (
+                  <p className="mt-4 text-center text-sm text-[#9CA3AF]">กำลังโหลด...</p>
+                )}
                 <div className="mt-4 overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
@@ -723,7 +781,21 @@ export default function TransactionsPage() {
                         <th className="py-2 text-left text-[#9CA3AF]">เว็บไซต์</th>
                         <th className="py-2 text-left text-[#9CA3AF]">กระเป๋า</th>
                         <th className="py-2 text-right text-[#9CA3AF] min-w-[100px] pr-4">จำนวนเงิน</th>
-                        <th className="py-2 text-left text-[#9CA3AF] min-w-[80px] pl-6">เวลาสลิปฝาก</th>
+                        <th className="py-2 text-left text-[#9CA3AF] min-w-[80px] pl-6">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = depositSlipSortOrder === 'asc' ? 'desc' : 'asc';
+                              setDepositSlipSortOrder(next);
+                              setPage(1);
+                            }}
+                            className="inline-flex items-center gap-1 hover:text-[#E5E7EB] focus:outline-none focus:ring-1 focus:ring-[#D4AF37] rounded"
+                            title={depositSlipSortOrder === 'asc' ? 'เรียงน้อยไปมาก (คลิกเพื่อมากไปน้อย)' : 'เรียงมากไปน้อย (คลิกเพื่อน้อยไปมาก)'}
+                          >
+                            เวลาสลิปฝาก
+                            {depositSlipSortOrder === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                          </button>
+                        </th>
                         <th className="py-2 text-left text-[#9CA3AF]">เวลาระบบฝาก</th>
                         <th className="py-2 text-left text-[#9CA3AF]">ผู้ดำเนินการ</th>
                         {filterDeleted && (
@@ -772,7 +844,7 @@ export default function TransactionsPage() {
                           </td>
                         </tr>
                       ))}
-                      {deposits.length === 0 && (
+                      {deposits.length === 0 && !listLoading && (
                         <tr>
                           <td colSpan={filterDeleted ? 11 : 9} className="py-6 text-center text-[#9CA3AF]">
                             ไม่มีรายการฝาก
@@ -782,8 +854,20 @@ export default function TransactionsPage() {
                     </tbody>
                   </table>
                 </div>
+                <div className="mt-4">
+                  <PaginationBar
+                    page={page}
+                    pageSize={pageSize}
+                    totalCount={totalCount}
+                    onPageChange={setPage}
+                    onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+                  />
+                </div>
               </TabsContent>
               <TabsContent value="withdraws">
+                {listLoading && (
+                  <p className="mt-4 text-center text-sm text-[#9CA3AF]">กำลังโหลด...</p>
+                )}
                 <div className="mt-4 overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
@@ -794,7 +878,21 @@ export default function TransactionsPage() {
                         <th className="py-2 text-left text-[#9CA3AF]">กระเป๋า</th>
                         <th className="py-2 text-right text-[#9CA3AF] min-w-[100px] pr-4">จำนวนเงิน</th>
                         <th className="py-2 text-right text-[#9CA3AF] min-w-[90px] pr-4">ค่าธรรมเนียมถอน</th>
-                        <th className="py-2 text-left text-[#9CA3AF] min-w-[80px] pl-6">เวลาสลิปถอน</th>
+                        <th className="py-2 text-left text-[#9CA3AF] min-w-[80px] pl-6">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = withdrawSlipSortOrder === 'asc' ? 'desc' : 'asc';
+                              setWithdrawSlipSortOrder(next);
+                              setPage(1);
+                            }}
+                            className="inline-flex items-center gap-1 hover:text-[#E5E7EB] focus:outline-none focus:ring-1 focus:ring-[#D4AF37] rounded"
+                            title={withdrawSlipSortOrder === 'asc' ? 'เรียงน้อยไปมาก (คลิกเพื่อมากไปน้อย)' : 'เรียงมากไปน้อย (คลิกเพื่อน้อยไปมาก)'}
+                          >
+                            เวลาสลิปถอน
+                            {withdrawSlipSortOrder === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                          </button>
+                        </th>
                         <th className="py-2 text-left text-[#9CA3AF]">เวลาระบบถอน</th>
                         <th className="py-2 text-left text-[#9CA3AF]">ผู้ดำเนินการ</th>
                         {filterDeleted && (
@@ -846,7 +944,7 @@ export default function TransactionsPage() {
                           </td>
                         </tr>
                       ))}
-                      {withdraws.length === 0 && (
+                      {withdraws.length === 0 && !listLoading && (
                         <tr>
                           <td colSpan={filterDeleted ? 12 : 10} className="py-6 text-center text-[#9CA3AF]">
                             ไม่มีรายการถอน
@@ -855,6 +953,15 @@ export default function TransactionsPage() {
                       )}
                     </tbody>
                   </table>
+                </div>
+                <div className="mt-4">
+                  <PaginationBar
+                    page={page}
+                    pageSize={pageSize}
+                    totalCount={totalCount}
+                    onPageChange={setPage}
+                    onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+                  />
                 </div>
               </TabsContent>
             </Tabs>
@@ -893,19 +1000,15 @@ export default function TransactionsPage() {
                     if (res.ok) {
                       setDeleteModal(null);
                       setDeleteReason('');
-                      const params = new URLSearchParams({
-                        dateFrom,
-                        dateTo,
-                        ...(filterWebsite && filterWebsite !== '__all__' && { websiteId: filterWebsite }),
-                        ...(filterUserFull && { userFull: filterUserFull }),
-                        ...(filterEdited && { editedOnly: 'true' }),
-                        ...(filterDeleted && { deletedOnly: 'true' }),
-                      });
-                      const list = (await fetch(`/api/transactions?${params}`).then((r) => r.json())) as Txn[];
-                      const deps = list.filter((t) => t.type === 'DEPOSIT');
-                      const withs = list.filter((t) => t.type === 'WITHDRAW');
-                      setDeposits(sortDeposits(deps));
-                      setWithdraws(sortWithdraws(withs));
+                      const tab = txnListTab;
+                      const type = tab === 'deposits' ? 'DEPOSIT' : 'WITHDRAW';
+                      const orderBy = tab === 'deposits' ? 'depositSlipTime' : 'withdrawSlipTime';
+                      const order = tab === 'deposits' ? depositSlipSortOrder : withdrawSlipSortOrder;
+                      const params = buildTxnListParams({ type, page, pageSize, orderBy, order });
+                      const data = (await fetch(`/api/transactions?${params}`).then((r) => r.json())) as { items: Txn[]; totalCount: number };
+                      if (tab === 'deposits') setDeposits(data.items);
+                      else setWithdraws(data.items);
+                      setTotalCount(data.totalCount);
                     } else {
                       alert(typeof data.error === 'string' ? data.error : 'ลบไม่ได้');
                     }

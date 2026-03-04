@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth, requireMutate } from '@/lib/api-helpers';
 import { creditCuts, websites, users } from '@/db/schema';
-import { eq, and, gte, lte, isNull, isNotNull, inArray } from 'drizzle-orm';
+import { eq, and, gte, lte, isNull, isNotNull, inArray, sql } from 'drizzle-orm';
 import { creditCutSchema } from '@/lib/validations';
 import { settings } from '@/db/schema';
+import { parsePageParams, buildPaginatedResponse, getDefaultPageSize } from '@/lib/pagination';
 
 export async function GET(request: Request) {
   try {
@@ -19,11 +20,24 @@ export async function GET(request: Request) {
     const websiteId = url.searchParams.get('websiteId');
     const deletedOnly = url.searchParams.get('deletedOnly') === 'true';
 
+    const { page, pageSize, offset } = parsePageParams(
+      url.searchParams,
+      getDefaultPageSize('credit-cuts')
+    );
+
     const conditions: Parameters<typeof and>[0][] = [];
     if (dateFrom) conditions.push(gte(creditCuts.cutTime, dateFrom + 'T00:00'));
     if (dateTo) conditions.push(lte(creditCuts.cutTime, dateTo + 'T23:59'));
     if (websiteId) conditions.push(eq(creditCuts.websiteId, parseInt(websiteId)));
     conditions.push(deletedOnly ? isNotNull(creditCuts.deletedAt) : isNull(creditCuts.deletedAt));
+
+    const whereClause = and(...conditions);
+
+    const [countRow] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(creditCuts)
+      .where(whereClause);
+    const totalCount = Number(countRow?.count ?? 0);
 
     const list = await db
       .select({
@@ -47,8 +61,10 @@ export async function GET(request: Request) {
       .from(creditCuts)
       .leftJoin(websites, eq(creditCuts.websiteId, websites.id))
       .leftJoin(users, eq(creditCuts.createdBy, users.id))
-      .where(and(...conditions))
-      .orderBy(creditCuts.cutTime, creditCuts.id);
+      .where(whereClause)
+      .orderBy(creditCuts.cutTime, creditCuts.id)
+      .limit(pageSize)
+      .offset(offset);
 
     const deletedByIds = [...new Set(list.filter((r) => r.deletedBy != null).map((r) => r.deletedBy!))];
     const deletedByUsers =
@@ -62,7 +78,9 @@ export async function GET(request: Request) {
       deletedByUsername: r.deletedBy ? (deletedByMap.get(r.deletedBy) ?? '?') : null,
     }));
 
-    return NextResponse.json(listWithDeletedBy);
+    return NextResponse.json(
+      buildPaginatedResponse(listWithDeletedBy, totalCount, page, pageSize)
+    );
   } catch (e) {
     console.error(e);
     return NextResponse.json(

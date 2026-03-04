@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,6 +34,8 @@ import {
   convertBetween,
   type Currency,
 } from '@/lib/rates';
+import { PaginationBar } from '@/components/PaginationBar';
+import { getDefaultPageSize } from '@/lib/pagination';
 
 type Wallet = { id: number; name: string; currency: string };
 type Transfer = {
@@ -62,6 +64,11 @@ export default function TransfersPage() {
     null
   );
   const [transfers, setTransfers] = useState<Transfer[]>([]);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(getDefaultPageSize('transfers'));
+  const [totalCount, setTotalCount] = useState(0);
+  const [listLoading, setListLoading] = useState(false);
+  const fetchAbortRef = useRef<AbortController | null>(null);
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [settings, setSettings] = useState<{
     displayCurrency: string;
@@ -130,11 +137,25 @@ export default function TransfersPage() {
 
   useEffect(() => {
     if (!user) return;
-    const params = new URLSearchParams({ dateFrom, dateTo, ...(tab === 'deleted' && { deletedOnly: 'true' }) });
-    fetch(`/api/transfers?${params}`)
-      .then((r) => r.json() as Promise<Transfer[]>)
-      .then(setTransfers);
-  }, [user, dateFrom, dateTo, tab]);
+    if (fetchAbortRef.current) fetchAbortRef.current.abort();
+    fetchAbortRef.current = new AbortController();
+    setListLoading(true);
+    const params = new URLSearchParams({
+      dateFrom,
+      dateTo,
+      page: String(page),
+      pageSize: String(pageSize),
+      ...(tab === 'deleted' && { deletedOnly: 'true' }),
+    });
+    fetch(`/api/transfers?${params}`, { signal: fetchAbortRef.current.signal })
+      .then((r) => r.json() as Promise<{ items: Transfer[]; page: number; pageSize: number; totalCount: number }>)
+      .then((data) => {
+        setTransfers(data.items);
+        setTotalCount(data.totalCount);
+      })
+      .catch((err) => { if (err.name !== 'AbortError') console.error(err); })
+      .finally(() => { setListLoading(false); fetchAbortRef.current = null; });
+  }, [user, dateFrom, dateTo, tab, page, pageSize]);
 
   const sameWallet =
     form.type === 'INTERNAL' &&
@@ -193,9 +214,17 @@ export default function TransfersPage() {
           note: '',
         });
         setOpen(false);
-        const params = new URLSearchParams({ dateFrom, dateTo, ...(tab === 'deleted' && { deletedOnly: 'true' }) });
-        const list = (await fetch(`/api/transfers?${params}`).then((r) => r.json())) as Transfer[];
-        setTransfers(list);
+        setPage(1);
+        const params = new URLSearchParams({
+          dateFrom,
+          dateTo,
+          page: '1',
+          pageSize: String(pageSize),
+          ...(tab === 'deleted' && { deletedOnly: 'true' }),
+        });
+        const data = (await fetch(`/api/transfers?${params}`).then((r) => r.json())) as { items: Transfer[]; totalCount: number };
+        setTransfers(data.items);
+        setTotalCount(data.totalCount);
         setError(null);
       } else {
         setError(typeof data.error === 'string' ? data.error : 'เกิดข้อผิดพลาด');
@@ -253,13 +282,13 @@ export default function TransfersPage() {
             <Input
               type="date"
               value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
+              onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
               className="w-36"
             />
             <Input
               type="date"
               value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
+              onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
               className="w-36"
             />
             {canMutate && (
@@ -270,12 +299,15 @@ export default function TransfersPage() {
 
         <Card className="border-[#1F2937] bg-[#0F172A]">
           <CardContent className="pt-6">
-            <Tabs value={tab} onValueChange={(v) => setTab(v as 'active' | 'deleted')}>
+            <Tabs value={tab} onValueChange={(v) => { setTab(v as 'active' | 'deleted'); setPage(1); }}>
               <TabsList>
                 <TabsTrigger value="active">รายการปกติ</TabsTrigger>
                 <TabsTrigger value="deleted">รายการที่ลบ</TabsTrigger>
               </TabsList>
               <TabsContent value="active">
+            {listLoading && (
+              <p className="text-center text-sm text-[#9CA3AF]">กำลังโหลด...</p>
+            )}
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -355,7 +387,7 @@ export default function TransfersPage() {
                       )}
                     </tr>
                   ))}
-                  {transfers.length === 0 && (
+                  {transfers.length === 0 && !listLoading && (
                     <tr>
                       <td
                         colSpan={canMutate && tab === 'active' ? 8 : 7}
@@ -368,8 +400,20 @@ export default function TransfersPage() {
                 </tbody>
               </table>
             </div>
+            <div className="mt-4">
+              <PaginationBar
+                page={page}
+                pageSize={pageSize}
+                totalCount={totalCount}
+                onPageChange={setPage}
+                onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+              />
+            </div>
               </TabsContent>
               <TabsContent value="deleted">
+            {listLoading && (
+              <p className="text-center text-sm text-[#9CA3AF]">กำลังโหลด...</p>
+            )}
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -419,7 +463,7 @@ export default function TransfersPage() {
                       </td>
                     </tr>
                   ))}
-                  {transfers.length === 0 && (
+                  {transfers.length === 0 && !listLoading && (
                     <tr>
                       <td colSpan={9} className="py-6 text-center text-[#9CA3AF]">
                         ไม่มีรายการที่ลบ
@@ -428,6 +472,15 @@ export default function TransfersPage() {
                   )}
                 </tbody>
               </table>
+            </div>
+            <div className="mt-4">
+              <PaginationBar
+                page={page}
+                pageSize={pageSize}
+                totalCount={totalCount}
+                onPageChange={setPage}
+                onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+              />
             </div>
               </TabsContent>
             </Tabs>
@@ -466,9 +519,16 @@ export default function TransfersPage() {
                     if (res.ok) {
                       setDeleteModal(null);
                       setDeleteReason('');
-                      const params = new URLSearchParams({ dateFrom, dateTo, ...(tab === 'deleted' && { deletedOnly: 'true' }) });
-                      const list = (await fetch(`/api/transfers?${params}`).then((r) => r.json())) as Transfer[];
-                      setTransfers(list);
+                      const params = new URLSearchParams({
+                        dateFrom,
+                        dateTo,
+                        page: String(page),
+                        pageSize: String(pageSize),
+                        ...(tab === 'deleted' && { deletedOnly: 'true' }),
+                      });
+                      const data = (await fetch(`/api/transfers?${params}`).then((r) => r.json())) as { items: Transfer[]; totalCount: number };
+                      setTransfers(data.items);
+                      setTotalCount(data.totalCount);
                     } else {
                       alert(typeof data.error === 'string' ? data.error : 'ลบไม่ได้');
                     }

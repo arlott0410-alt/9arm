@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -19,6 +19,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { formatMinorToDisplay, parseDisplayToMinor, todayStr, formatDateTimeThailand } from '@/lib/utils';
 import { TimeInput24 } from '@/components/ui/time-input-24';
 import { Copy } from 'lucide-react';
+import { PaginationBar } from '@/components/PaginationBar';
+import { getDefaultPageSize } from '@/lib/pagination';
 
 type Website = { id: number; name: string; prefix: string };
 type CreditCut = {
@@ -45,6 +47,11 @@ export default function CreditCutsPage() {
   const [websites, setWebsites] = useState<Website[]>([]);
   const [creditCuts, setCreditCuts] = useState<CreditCut[]>([]);
   const [settings, setSettings] = useState<{ displayCurrency: string } | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(getDefaultPageSize('credit-cuts'));
+  const [totalCount, setTotalCount] = useState(0);
+  const [listLoading, setListLoading] = useState(false);
+  const fetchAbortRef = useRef<AbortController | null>(null);
   const [dateFrom, setDateFrom] = useState(todayStr());
   const [dateTo, setDateTo] = useState(todayStr());
   const [filterWebsite, setFilterWebsite] = useState('__all__');
@@ -85,20 +92,26 @@ export default function CreditCutsPage() {
 
   useEffect(() => {
     if (!user) return;
+    if (fetchAbortRef.current) fetchAbortRef.current.abort();
+    fetchAbortRef.current = new AbortController();
+    setListLoading(true);
     const params = new URLSearchParams({
       dateFrom,
       dateTo,
+      page: String(page),
+      pageSize: String(pageSize),
       ...(filterWebsite !== '__all__' && { websiteId: filterWebsite }),
       ...(filterDeleted && { deletedOnly: 'true' }),
     });
-    fetch(`/api/credit-cuts?${params}`)
-      .then((r) => r.json() as Promise<CreditCut[]>)
-      .then(setCreditCuts);
-  }, [user, dateFrom, dateTo, filterWebsite, filterDeleted]);
-
-  const sortedCreditCuts = [...creditCuts].sort((a, b) =>
-    (a.cutTime || '').localeCompare(b.cutTime || '')
-  );
+    fetch(`/api/credit-cuts?${params}`, { signal: fetchAbortRef.current.signal })
+      .then((r) => r.json() as Promise<{ items: CreditCut[]; page: number; pageSize: number; totalCount: number }>)
+      .then((data) => {
+        setCreditCuts(data.items);
+        setTotalCount(data.totalCount);
+      })
+      .catch((err) => { if (err.name !== 'AbortError') console.error(err); })
+      .finally(() => { setListLoading(false); fetchAbortRef.current = null; });
+  }, [user, dateFrom, dateTo, filterWebsite, filterDeleted, page, pageSize]);
 
   function getSelectedWebsite() {
     return websites.find((w) => w.id === form.websiteId);
@@ -139,14 +152,18 @@ export default function CreditCutsPage() {
       const data = (await res.json()) as CreditCut & { error?: string };
       if (res.ok) {
         setForm({ ...form, amountMinor: 0, userIdInput: '', cutReason: '' });
+        setPage(1);
         const params = new URLSearchParams({
           dateFrom,
           dateTo,
+          page: '1',
+          pageSize: String(pageSize),
           ...(filterWebsite !== '__all__' && { websiteId: filterWebsite }),
           ...(filterDeleted && { deletedOnly: 'true' }),
         });
-        const list = (await fetch(`/api/credit-cuts?${params}`).then((r) => r.json())) as CreditCut[];
-        setCreditCuts(list);
+        const data = (await fetch(`/api/credit-cuts?${params}`).then((r) => r.json())) as { items: CreditCut[]; totalCount: number };
+        setCreditCuts(data.items);
+        setTotalCount(data.totalCount);
       } else {
         alert(typeof data.error === 'string' ? data.error : 'เกิดข้อผิดพลาด');
       }
@@ -264,16 +281,16 @@ export default function CreditCutsPage() {
                 <Input
                   type="date"
                   value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
+                  onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
                   className="w-36"
                 />
                 <Input
                   type="date"
                   value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
+                  onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
                   className="w-36"
                 />
-                <Select value={filterWebsite} onValueChange={setFilterWebsite}>
+                <Select value={filterWebsite} onValueChange={(v) => { setFilterWebsite(v); setPage(1); }}>
                   <SelectTrigger className="w-40">
                     <SelectValue placeholder="เว็บไซต์" />
                   </SelectTrigger>
@@ -290,7 +307,7 @@ export default function CreditCutsPage() {
                   <input
                     type="checkbox"
                     checked={filterDeleted}
-                    onChange={(e) => setFilterDeleted(e.target.checked)}
+                    onChange={(e) => { setFilterDeleted(e.target.checked); setPage(1); }}
                   />
                   รายการที่ลบ
                 </label>
@@ -298,6 +315,9 @@ export default function CreditCutsPage() {
             </div>
           </CardHeader>
           <CardContent>
+            {listLoading && (
+              <p className="text-center text-sm text-[#9CA3AF]">กำลังโหลด...</p>
+            )}
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -318,7 +338,7 @@ export default function CreditCutsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedCreditCuts.map((c) => (
+                  {creditCuts.map((c) => (
                     <tr key={c.id} className="border-b border-[#1F2937] whitespace-nowrap">
                       <td className="py-2 text-[#E5E7EB]">{formatDateTimeThailand(c.cutTime)}</td>
                       <td className="py-2">{c.websiteName}</td>
@@ -356,7 +376,7 @@ export default function CreditCutsPage() {
                       </td>
                     </tr>
                   ))}
-                  {sortedCreditCuts.length === 0 && (
+                  {creditCuts.length === 0 && !listLoading && (
                     <tr>
                       <td colSpan={filterDeleted ? 9 : 7} className="py-6 text-center text-[#9CA3AF]">
                         ไม่มีรายการตัดเครดิต
@@ -365,6 +385,15 @@ export default function CreditCutsPage() {
                   )}
                 </tbody>
               </table>
+            </div>
+            <div className="mt-4">
+              <PaginationBar
+                page={page}
+                pageSize={pageSize}
+                totalCount={totalCount}
+                onPageChange={setPage}
+                onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+              />
             </div>
           </CardContent>
         </Card>
@@ -404,11 +433,14 @@ export default function CreditCutsPage() {
                       const params = new URLSearchParams({
                         dateFrom,
                         dateTo,
+                        page: String(page),
+                        pageSize: String(pageSize),
                         ...(filterWebsite !== '__all__' && { websiteId: filterWebsite }),
                         ...(filterDeleted && { deletedOnly: 'true' }),
                       });
-                      const list = (await fetch(`/api/credit-cuts?${params}`).then((r) => r.json())) as CreditCut[];
-                      setCreditCuts(list);
+                      const data = (await fetch(`/api/credit-cuts?${params}`).then((r) => r.json())) as { items: CreditCut[]; totalCount: number };
+                      setCreditCuts(data.items);
+                      setTotalCount(data.totalCount);
                     } else {
                       alert(typeof data.error === 'string' ? data.error : 'ลบไม่ได้');
                     }

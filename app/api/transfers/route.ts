@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth, requireMutate } from '@/lib/api-helpers';
 import { transfers, transactions, wallets, users } from '@/db/schema';
-import { eq, gte, lte, and, isNull, isNotNull, inArray } from 'drizzle-orm';
+import { eq, gte, lte, and, isNull, isNotNull, inArray, sql } from 'drizzle-orm';
 import { transferSchema } from '@/lib/validations';
 import { settings } from '@/db/schema';
 import type { Currency } from '@/lib/rates';
@@ -11,6 +11,7 @@ import {
   type RateSnapshot,
 } from '@/lib/rates';
 import { getWalletBalance } from '@/lib/wallet-balance';
+import { parsePageParams, buildPaginatedResponse, getDefaultPageSize } from '@/lib/pagination';
 
 export async function GET(request: Request) {
   try {
@@ -26,13 +27,26 @@ export async function GET(request: Request) {
     const type = url.searchParams.get('type');
     const deletedOnly = url.searchParams.get('deletedOnly') === 'true';
 
+    const { page, pageSize, offset } = parsePageParams(
+      url.searchParams,
+      getDefaultPageSize('transfers')
+    );
+
     const conditions: Parameters<typeof and>[0][] = [];
     if (dateFrom) conditions.push(gte(transfers.txnDate, dateFrom));
     if (dateTo) conditions.push(lte(transfers.txnDate, dateTo));
     if (type) conditions.push(eq(transfers.type, type as 'INTERNAL' | 'EXTERNAL_OUT' | 'EXTERNAL_IN'));
     conditions.push(deletedOnly ? isNotNull(transfers.deletedAt) : isNull(transfers.deletedAt));
 
-    const baseQuery = db
+    const whereClause = and(...conditions);
+
+    const [countRow] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(transfers)
+      .where(whereClause);
+    const totalCount = Number(countRow?.count ?? 0);
+
+    const list = await db
       .select({
         id: transfers.id,
         txnDate: transfers.txnDate,
@@ -53,10 +67,10 @@ export async function GET(request: Request) {
         deleteReason: transfers.deleteReason,
       })
       .from(transfers)
-      .where(and(...conditions))
-      .orderBy(transfers.txnDate, transfers.id);
-
-    const list = await baseQuery;
+      .where(whereClause)
+      .orderBy(transfers.txnDate, transfers.id)
+      .limit(pageSize)
+      .offset(offset);
 
     const walletIds = [...new Set(
       list.flatMap((t) => [t.fromWalletId, t.toWalletId].filter((id): id is number => id != null))
@@ -87,7 +101,9 @@ export async function GET(request: Request) {
       deletedByUsername: t.deletedBy ? (userMap.get(t.deletedBy) ?? '?') : null,
     }));
 
-    return NextResponse.json(withNames);
+    return NextResponse.json(
+      buildPaginatedResponse(withNames, totalCount, page, pageSize)
+    );
   } catch (e) {
     console.error(e);
     return NextResponse.json(

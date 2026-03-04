@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -19,6 +19,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { formatMinorToDisplay, parseDisplayToMinor, todayStr, formatDateTimeThailand } from '@/lib/utils';
 import { TimeInput24 } from '@/components/ui/time-input-24';
 import { Copy } from 'lucide-react';
+import { PaginationBar } from '@/components/PaginationBar';
+import { getDefaultPageSize } from '@/lib/pagination';
 
 type Website = { id: number; name: string; prefix: string };
 type BonusCategory = { id: number; name: string; sortOrder: number };
@@ -48,6 +50,11 @@ export default function BonusesPage() {
   const [categories, setCategories] = useState<BonusCategory[]>([]);
   const [bonuses, setBonuses] = useState<Bonus[]>([]);
   const [settings, setSettings] = useState<{ displayCurrency: string } | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(getDefaultPageSize('bonuses'));
+  const [totalCount, setTotalCount] = useState(0);
+  const [listLoading, setListLoading] = useState(false);
+  const fetchAbortRef = useRef<AbortController | null>(null);
   const [dateFrom, setDateFrom] = useState(todayStr());
   const [dateTo, setDateTo] = useState(todayStr());
   const [filterWebsite, setFilterWebsite] = useState('__all__');
@@ -91,21 +98,27 @@ export default function BonusesPage() {
 
   useEffect(() => {
     if (!user) return;
+    if (fetchAbortRef.current) fetchAbortRef.current.abort();
+    fetchAbortRef.current = new AbortController();
+    setListLoading(true);
     const params = new URLSearchParams({
       dateFrom,
       dateTo,
+      page: String(page),
+      pageSize: String(pageSize),
       ...(filterWebsite !== '__all__' && { websiteId: filterWebsite }),
       ...(filterCategory !== '__all__' && { categoryId: filterCategory }),
       ...(filterDeleted && { deletedOnly: 'true' }),
     });
-    fetch(`/api/bonuses?${params}`)
-      .then((r) => r.json() as Promise<Bonus[]>)
-      .then(setBonuses);
-  }, [user, dateFrom, dateTo, filterWebsite, filterCategory, filterDeleted]);
-
-  const sortedBonuses = [...bonuses].sort((a, b) =>
-    (a.bonusTime || '').localeCompare(b.bonusTime || '')
-  );
+    fetch(`/api/bonuses?${params}`, { signal: fetchAbortRef.current.signal })
+      .then((r) => r.json() as Promise<{ items: Bonus[]; page: number; pageSize: number; totalCount: number }>)
+      .then((data) => {
+        setBonuses(data.items);
+        setTotalCount(data.totalCount);
+      })
+      .catch((err) => { if (err.name !== 'AbortError') console.error(err); })
+      .finally(() => { setListLoading(false); fetchAbortRef.current = null; });
+  }, [user, dateFrom, dateTo, filterWebsite, filterCategory, filterDeleted, page, pageSize]);
 
   function getSelectedWebsite() {
     return websites.find((w) => w.id === form.websiteId);
@@ -145,15 +158,19 @@ export default function BonusesPage() {
       const data = (await res.json()) as Bonus & { error?: string };
       if (res.ok) {
         setForm({ ...form, amountMinor: 0, userIdInput: '' });
+        setPage(1);
         const params = new URLSearchParams({
           dateFrom,
           dateTo,
+          page: '1',
+          pageSize: String(pageSize),
           ...(filterWebsite !== '__all__' && { websiteId: filterWebsite }),
           ...(filterCategory !== '__all__' && { categoryId: filterCategory }),
           ...(filterDeleted && { deletedOnly: 'true' }),
         });
-        const list = (await fetch(`/api/bonuses?${params}`).then((r) => r.json())) as Bonus[];
-        setBonuses(list);
+        const data = (await fetch(`/api/bonuses?${params}`).then((r) => r.json())) as { items: Bonus[]; totalCount: number };
+        setBonuses(data.items);
+        setTotalCount(data.totalCount);
       } else {
         alert(typeof data.error === 'string' ? data.error : 'เกิดข้อผิดพลาด');
       }
@@ -286,16 +303,16 @@ export default function BonusesPage() {
                 <Input
                   type="date"
                   value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
+                  onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
                   className="w-36"
                 />
                 <Input
                   type="date"
                   value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
+                  onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
                   className="w-36"
                 />
-                <Select value={filterWebsite} onValueChange={setFilterWebsite}>
+                <Select value={filterWebsite} onValueChange={(v) => { setFilterWebsite(v); setPage(1); }}>
                   <SelectTrigger className="w-40">
                     <SelectValue placeholder="เว็บไซต์" />
                   </SelectTrigger>
@@ -308,7 +325,7 @@ export default function BonusesPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                <Select value={filterCategory} onValueChange={setFilterCategory}>
+                <Select value={filterCategory} onValueChange={(v) => { setFilterCategory(v); setPage(1); }}>
                   <SelectTrigger className="w-40">
                     <SelectValue placeholder="หมวดหมู่" />
                   </SelectTrigger>
@@ -325,7 +342,7 @@ export default function BonusesPage() {
                   <input
                     type="checkbox"
                     checked={filterDeleted}
-                    onChange={(e) => setFilterDeleted(e.target.checked)}
+                    onChange={(e) => { setFilterDeleted(e.target.checked); setPage(1); }}
                   />
                   รายการที่ลบ
                 </label>
@@ -333,6 +350,9 @@ export default function BonusesPage() {
             </div>
           </CardHeader>
           <CardContent>
+            {listLoading && (
+              <p className="text-center text-sm text-[#9CA3AF]">กำลังโหลด...</p>
+            )}
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -353,7 +373,7 @@ export default function BonusesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedBonuses.map((b) => (
+                  {bonuses.map((b) => (
                     <tr key={b.id} className="border-b border-[#1F2937] whitespace-nowrap">
                       <td className="py-2 text-[#E5E7EB]">{formatDateTimeThailand(b.bonusTime)}</td>
                       <td className="py-2">{b.websiteName}</td>
@@ -389,7 +409,7 @@ export default function BonusesPage() {
                       </td>
                     </tr>
                   ))}
-                  {sortedBonuses.length === 0 && (
+                  {bonuses.length === 0 && !listLoading && (
                     <tr>
                       <td colSpan={filterDeleted ? 9 : 7} className="py-6 text-center text-[#9CA3AF]">
                         ไม่มีรายการโบนัส
@@ -398,6 +418,15 @@ export default function BonusesPage() {
                   )}
                 </tbody>
               </table>
+            </div>
+            <div className="mt-4">
+              <PaginationBar
+                page={page}
+                pageSize={pageSize}
+                totalCount={totalCount}
+                onPageChange={setPage}
+                onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+              />
             </div>
           </CardContent>
         </Card>
@@ -437,12 +466,15 @@ export default function BonusesPage() {
                       const params = new URLSearchParams({
                         dateFrom,
                         dateTo,
+                        page: String(page),
+                        pageSize: String(pageSize),
                         ...(filterWebsite !== '__all__' && { websiteId: filterWebsite }),
                         ...(filterCategory !== '__all__' && { categoryId: filterCategory }),
                         ...(filterDeleted && { deletedOnly: 'true' }),
                       });
-                      const list = (await fetch(`/api/bonuses?${params}`).then((r) => r.json())) as Bonus[];
-                      setBonuses(list);
+                      const data = (await fetch(`/api/bonuses?${params}`).then((r) => r.json())) as { items: Bonus[]; totalCount: number };
+                      setBonuses(data.items);
+                      setTotalCount(data.totalCount);
                     } else {
                       alert(typeof data.error === 'string' ? data.error : 'ลบไม่ได้');
                     }

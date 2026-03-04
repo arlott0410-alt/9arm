@@ -7,7 +7,7 @@ import {
   users,
   transactionEdits,
 } from '@/db/schema';
-import { eq, and, gte, lte, sql, desc, isNull, isNotNull, inArray } from 'drizzle-orm';
+import { eq, and, gte, lte, sql, asc, desc, isNull, isNotNull, inArray } from 'drizzle-orm';
 import {
   depositTransactionSchema,
   withdrawTransactionSchema,
@@ -20,6 +20,7 @@ import {
   type RateSnapshot,
 } from '@/lib/rates';
 import { getWalletBalance } from '@/lib/wallet-balance';
+import { parsePageParams, buildPaginatedResponse, getDefaultPageSize } from '@/lib/pagination';
 
 export async function GET(request: Request) {
   try {
@@ -38,6 +39,13 @@ export async function GET(request: Request) {
     const type = url.searchParams.get('type');
     const editedOnly = url.searchParams.get('editedOnly') === 'true';
     const deletedOnly = url.searchParams.get('deletedOnly') === 'true';
+    const orderBy = url.searchParams.get('orderBy') as 'depositSlipTime' | 'withdrawSlipTime' | null;
+    const order = (url.searchParams.get('order') === 'desc' ? 'desc' : 'asc') as 'asc' | 'desc';
+
+    const { page, pageSize, offset } = parsePageParams(
+      url.searchParams,
+      getDefaultPageSize('transactions')
+    );
 
     const conditions: Parameters<typeof and>[0][] = [];
     if (dateFrom) conditions.push(gte(transactions.txnDate, dateFrom));
@@ -47,8 +55,32 @@ export async function GET(request: Request) {
     if (createdBy) conditions.push(eq(transactions.createdBy, parseInt(createdBy)));
     if (type) conditions.push(eq(transactions.type, type as 'DEPOSIT' | 'WITHDRAW'));
     conditions.push(deletedOnly ? isNotNull(transactions.deletedAt) : isNull(transactions.deletedAt));
+    if (editedOnly) {
+      conditions.push(
+        sql`EXISTS (SELECT 1 FROM transaction_edits WHERE transaction_edits.transaction_id = ${transactions.id})`
+      );
+    }
 
-    const baseQuery = db
+    const whereClause = conditions.length > 0 ? and(...conditions) : sql`1=1`;
+
+    const [countRow] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(transactions)
+      .where(whereClause);
+    const totalCount = Number(countRow?.count ?? 0);
+
+    const orderByClause =
+      orderBy === 'depositSlipTime'
+        ? order === 'desc'
+          ? [desc(transactions.depositSlipTime), transactions.id]
+          : [asc(transactions.depositSlipTime), transactions.id]
+        : orderBy === 'withdrawSlipTime'
+          ? order === 'desc'
+            ? [desc(transactions.withdrawSlipTime), transactions.id]
+            : [asc(transactions.withdrawSlipTime), transactions.id]
+          : [transactions.txnDate, transactions.id];
+
+    const list = await db
       .select({
         id: transactions.id,
         txnDate: transactions.txnDate,
@@ -81,22 +113,11 @@ export async function GET(request: Request) {
       .from(transactions)
       .leftJoin(websites, eq(transactions.websiteId, websites.id))
       .leftJoin(wallets, eq(transactions.walletId, wallets.id))
-      .leftJoin(users, eq(transactions.createdBy, users.id));
-
-    const filteredQuery =
-      conditions.length > 0
-        ? baseQuery.where(and(...conditions))
-        : baseQuery;
-
-    let list = await filteredQuery.orderBy(transactions.txnDate, transactions.id);
-
-    if (editedOnly) {
-      const editedIds = await db
-        .selectDistinct({ transactionId: transactionEdits.transactionId })
-        .from(transactionEdits);
-      const idSet = new Set(editedIds.map((r) => r.transactionId));
-      list = list.filter((r) => idSet.has(r.id));
-    }
+      .leftJoin(users, eq(transactions.createdBy, users.id))
+      .where(whereClause)
+      .orderBy(...(orderByClause as [typeof transactions.txnDate, typeof transactions.id]))
+      .limit(pageSize)
+      .offset(offset);
 
     const deletedByIds = [...new Set(list.filter((r) => r.deletedBy != null).map((r) => r.deletedBy!))];
     const deletedByUsers =
@@ -109,7 +130,9 @@ export async function GET(request: Request) {
       deletedByUsername: r.deletedBy ? (deletedByMap.get(r.deletedBy) ?? '?') : null,
     }));
 
-    return NextResponse.json(listWithDeletedBy);
+    return NextResponse.json(
+      buildPaginatedResponse(listWithDeletedBy, totalCount, page, pageSize)
+    );
   } catch (e) {
     console.error(e);
     return NextResponse.json(

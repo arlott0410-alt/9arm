@@ -41,6 +41,7 @@ export default function SettingsPage() {
   const [bonusCategories, setBonusCategories] = useState<BonusCategory[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [displayCurrency, setDisplayCurrency] = useState('THB');
+  const [salaryCurrency, setSalaryCurrency] = useState('THB');
   const [rates, setRates] = useState<Record<string, number>>({});
   const [websiteOpen, setWebsiteOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
@@ -57,6 +58,10 @@ export default function SettingsPage() {
     password: '',
     role: 'ADMIN' as 'ADMIN' | 'AUDIT',
   });
+  const [holidayHeadUserId, setHolidayHeadUserId] = useState<number | null>(null);
+  type AllowanceType = { id: string; name: string };
+  const [allowanceTypes, setAllowanceTypes] = useState<AllowanceType[]>([]);
+  const [newAllowanceName, setNewAllowanceName] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -81,14 +86,19 @@ export default function SettingsPage() {
       fetch('/api/settings/websites').then((r) => r.json() as Promise<Website[]>),
       fetch('/api/settings/bonus-categories').then((r) => r.json() as Promise<BonusCategory[]>),
       fetch('/api/settings/users').then((r) => r.json() as Promise<AppUser[]>),
-      fetch('/api/settings').then((r) => r.json() as Promise<{ DISPLAY_CURRENCY?: string }>),
+      fetch('/api/settings').then((r) => r.json() as Promise<{ DISPLAY_CURRENCY?: string; SALARY_CURRENCY?: string }>),
       fetch('/api/settings/exchange-rates').then((r) => r.json() as Promise<{ rates?: Record<string, number> }>),
-    ]).then(([w, bc, u, s, r]) => {
+      fetch('/api/settings/holiday-head').then((r) => r.json() as Promise<{ userId?: number | null }>),
+      fetch('/api/settings/allowance-types').then((r) => r.json() as Promise<{ items: { id: string; name: string }[] }>),
+    ]).then(([w, bc, u, s, r, h, a]) => {
       setWebsites(Array.isArray(w) ? w : []);
       setBonusCategories(Array.isArray(bc) ? bc : []);
       setUsers(Array.isArray(u) ? u : []);
       setDisplayCurrency(s.DISPLAY_CURRENCY || 'THB');
+      setSalaryCurrency(s.SALARY_CURRENCY || 'THB');
       setRates(getBaseRatesFromFull(r.rates || {}));
+      setHolidayHeadUserId(h.userId ?? null);
+      setAllowanceTypes(Array.isArray(a?.items) ? a.items : []);
     });
   }, [user]);
 
@@ -236,6 +246,57 @@ export default function SettingsPage() {
               </Select>
             </div>
             <Button onClick={saveDisplayCurrency} disabled={loading}>
+              บันทึก
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-[#1F2937] bg-[#0F172A]">
+          <CardHeader>
+            <CardTitle className="text-[#E5E7EB]">สกุลเงินเดือน</CardTitle>
+            <p className="text-sm text-[#9CA3AF]">
+              ตั้งค่าแยกจากสกุลเงินแสดงผลในธุรกรรม — ใช้เป็นค่าพื้นฐานในการคำนวณเงินเดือนและค่าตอบแทนพนักงาน (ADMIN)
+            </p>
+          </CardHeader>
+          <CardContent className="flex items-end gap-4">
+            <div className="w-40">
+              <Label>สกุลเงินเดือน</Label>
+              <Select
+                value={salaryCurrency}
+                onValueChange={setSalaryCurrency}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="LAK">LAK</SelectItem>
+                  <SelectItem value="THB">THB</SelectItem>
+                  <SelectItem value="USD">USD</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              disabled={loading}
+              onClick={async () => {
+                setLoading(true);
+                try {
+                  const res = await fetch('/api/settings/salary-currency', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ salaryCurrency }),
+                  });
+                  if (res.ok) {
+                    const d = (await res.json()) as { salaryCurrency: string };
+                    setSalaryCurrency(d.salaryCurrency);
+                  } else {
+                    const d = (await res.json()) as { error?: string };
+                    alert(d.error ?? 'บันทึกไม่ได้');
+                  }
+                } finally {
+                  setLoading(false);
+                }
+              }}
+            >
               บันทึก
             </Button>
           </CardContent>
@@ -455,6 +516,142 @@ export default function SettingsPage() {
                 </tbody>
               </table>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-[#1F2937] bg-[#0F172A]">
+          <CardHeader>
+            <CardTitle className="text-[#E5E7EB]">หัวหน้าวันหยุด</CardTitle>
+            <p className="text-sm text-[#9CA3AF]">
+              เลือก ADMIN คนหนึ่งเป็นหัวหน้า — เฉพาะคนนี้เท่านั้นที่ลงวันหยุดให้พนักงาน (ADMIN) ทุกคนได้ (รวมถึงตัวเอง)
+            </p>
+          </CardHeader>
+          <CardContent className="flex flex-wrap items-end gap-4">
+            <div className="w-56">
+              <Label>หัวหน้าวันหยุด</Label>
+              <Select
+                value={holidayHeadUserId != null ? String(holidayHeadUserId) : '__none__'}
+                onValueChange={(v) => setHolidayHeadUserId(v === '__none__' ? null : parseInt(v, 10))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="ไม่กำหนด" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">ไม่กำหนด</SelectItem>
+                  {users
+                    .filter((u) => u.role === 'ADMIN' && u.isActive)
+                    .map((u) => (
+                      <SelectItem key={u.id} value={String(u.id)}>
+                        {u.username} ({u.role})
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              disabled={loading}
+              onClick={async () => {
+                setLoading(true);
+                try {
+                  const res = await fetch('/api/settings/holiday-head', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: holidayHeadUserId }),
+                  });
+                  if (res.ok) {
+                    const d = (await res.json()) as { userId: number | null };
+                    setHolidayHeadUserId(d.userId);
+                  } else {
+                    const d = (await res.json()) as { error?: string };
+                    alert(d.error ?? 'บันทึกไม่ได้');
+                  }
+                } finally {
+                  setLoading(false);
+                }
+              }}
+            >
+              บันทึก
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-[#1F2937] bg-[#0F172A]">
+          <CardHeader>
+            <CardTitle className="text-[#E5E7EB]">รายการค่าตอบแทนเพิ่ม (ค่าไฟ, โบนัส, อื่น)</CardTitle>
+            <p className="text-sm text-[#9CA3AF]">
+              ใช้สำหรับคำนวณเงินเดือน — สามารถเพิ่มรายการเช่น ค่าไฟ ค่าโบนัส ค่าอื่น ได้ตามต้องการ
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="min-w-[200px]">
+                <Label>ชื่อรายการ</Label>
+                <Input
+                  value={newAllowanceName}
+                  onChange={(e) => setNewAllowanceName(e.target.value)}
+                  placeholder="เช่น ค่าไฟ, ค่าโบนัส"
+                />
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  const name = newAllowanceName.trim();
+                  if (!name) return;
+                  setAllowanceTypes((prev) => [...prev, { id: String(Date.now()), name }]);
+                  setNewAllowanceName('');
+                }}
+                disabled={loading}
+              >
+                เพิ่ม
+              </Button>
+            </div>
+            <div className="space-y-2">
+              {allowanceTypes.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between rounded border border-[#1F2937] px-4 py-2"
+                >
+                  <span className="text-[#E5E7EB]">{item.name}</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-red-400"
+                    onClick={() => setAllowanceTypes((prev) => prev.filter((x) => x.id !== item.id))}
+                    disabled={loading}
+                  >
+                    ลบ
+                  </Button>
+                </div>
+              ))}
+              {allowanceTypes.length === 0 && (
+                <p className="py-2 text-sm text-[#9CA3AF]">ยังไม่มีรายการ (ค่าเริ่มต้น: ค่าไฟ, ค่าโบนัส, ค่าอื่น)</p>
+              )}
+            </div>
+            <Button
+              disabled={loading}
+              onClick={async () => {
+                setLoading(true);
+                try {
+                  const res = await fetch('/api/settings/allowance-types', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items: allowanceTypes }),
+                  });
+                  if (res.ok) {
+                    const d = (await res.json()) as { items: AllowanceType[] };
+                    setAllowanceTypes(d.items);
+                  } else {
+                    const d = (await res.json()) as { error?: string };
+                    alert(d.error ?? 'บันทึกไม่ได้');
+                  }
+                } finally {
+                  setLoading(false);
+                }
+              }}
+            >
+              บันทึกรายการค่าตอบแทน
+            </Button>
           </CardContent>
         </Card>
 

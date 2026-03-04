@@ -24,4 +24,11 @@ export async function bootstrapSettings(db: Db): Promise<void> {
       value: JSON.stringify(DEFAULT_RATES),
     });
   }
+
+  if (!keys.has('SALARY_CURRENCY')) {
+    await db.insert(settings).values({
+      key: 'SALARY_CURRENCY',
+      value: JSON.stringify('THB'),
+    });
+  }
 }

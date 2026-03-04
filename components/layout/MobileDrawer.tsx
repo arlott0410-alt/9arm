@@ -8,6 +8,8 @@ import {
   CreditCard,
   Gift,
   Scissors,
+  Calendar,
+  Users,
   ArrowLeftRight,
   Wallet,
   FileText,
@@ -22,6 +24,8 @@ const navAll = [
   { href: '/transactions', label: 'ธุรกรรม', icon: CreditCard },
   { href: '/bonuses', label: 'โบนัส', icon: Gift },
   { href: '/credit-cuts', label: 'ตัดเครดิต', icon: Scissors },
+  { href: '/holidays', label: 'ตารางวันหยุด', icon: Calendar },
+  { href: '/employees', label: 'จัดการพนักงาน', icon: Users },
   { href: '/wallets', label: 'กระเป๋าเงิน', icon: Wallet },
   { href: '/transfers', label: 'โอนเงิน', icon: ArrowLeftRight },
   { href: '/reports', label: 'รายงาน', icon: FileText },
@@ -34,16 +38,19 @@ export function MobileDrawer({
   onClose,
   canAccessSettings,
   canAccessWallets,
+  canAccessEmployees,
 }: {
   open: boolean;
   onClose: () => void;
   canAccessSettings: boolean;
   canAccessWallets?: boolean;
+  canAccessEmployees?: boolean;
 }) {
   const pathname = usePathname();
   const items = navAll.filter((n) => {
     if (n.href === '/settings' && !canAccessSettings) return false;
     if (n.href === '/wallets' && !canAccessWallets) return false;
+    if (n.href === '/employees' && !canAccessEmployees) return false;
     return true;
   });
 

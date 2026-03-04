@@ -197,6 +197,18 @@ export const settings = sqliteTable('settings', {
   value: text('value', { mode: 'json' }).notNull(),
 });
 
+export const holidayEntries = sqliteTable('holiday_entries', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  holidayDate: text('holiday_date').notNull(),
+  createdBy: integer('created_by')
+    .notNull()
+    .references(() => users.id, { onDelete: 'restrict' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+});
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Session = typeof sessions.$inferSelect;
@@ -211,3 +223,5 @@ export type BonusEdit = typeof bonusEdits.$inferInsert;
 export type CreditCut = typeof creditCuts.$inferSelect;
 export type CreditCutEdit = typeof creditCutEdits.$inferInsert;
 export type Setting = typeof settings.$inferSelect;
+export type HolidayEntry = typeof holidayEntries.$inferSelect;
+export type NewHolidayEntry = typeof holidayEntries.$inferInsert;
