@@ -16,16 +16,26 @@ export function AppLayout({
   const canAccessSettings = user.role === 'SUPER_ADMIN';
   const canAccessWallets = user.role === 'SUPER_ADMIN';
   const canAccessEmployees = user.role === 'SUPER_ADMIN';
+  const canAccessPayroll = user.role === 'SUPER_ADMIN';
+  const canAccessMySalary = user.role === 'ADMIN';
 
   return (
     <div className="min-h-screen bg-[#0B0F1A]">
-      <Sidebar canAccessSettings={canAccessSettings} canAccessWallets={canAccessWallets} canAccessEmployees={canAccessEmployees} />
+      <Sidebar
+        canAccessSettings={canAccessSettings}
+        canAccessWallets={canAccessWallets}
+        canAccessEmployees={canAccessEmployees}
+        canAccessPayroll={canAccessPayroll}
+        canAccessMySalary={canAccessMySalary}
+      />
       <MobileDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         canAccessSettings={canAccessSettings}
         canAccessWallets={canAccessWallets}
         canAccessEmployees={canAccessEmployees}
+        canAccessPayroll={canAccessPayroll}
+        canAccessMySalary={canAccessMySalary}
       />
       <Header
         username={user.username}

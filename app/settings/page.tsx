@@ -58,7 +58,6 @@ export default function SettingsPage() {
     password: '',
     role: 'ADMIN' as 'ADMIN' | 'AUDIT',
   });
-  const [holidayHeadUserId, setHolidayHeadUserId] = useState<number | null>(null);
   type AllowanceType = { id: string; name: string };
   const [allowanceTypes, setAllowanceTypes] = useState<AllowanceType[]>([]);
   const [newAllowanceName, setNewAllowanceName] = useState('');
@@ -88,16 +87,14 @@ export default function SettingsPage() {
       fetch('/api/settings/users').then((r) => r.json() as Promise<AppUser[]>),
       fetch('/api/settings').then((r) => r.json() as Promise<{ DISPLAY_CURRENCY?: string; SALARY_CURRENCY?: string }>),
       fetch('/api/settings/exchange-rates').then((r) => r.json() as Promise<{ rates?: Record<string, number> }>),
-      fetch('/api/settings/holiday-head').then((r) => r.json() as Promise<{ userId?: number | null }>),
       fetch('/api/settings/allowance-types').then((r) => r.json() as Promise<{ items: { id: string; name: string }[] }>),
-    ]).then(([w, bc, u, s, r, h, a]) => {
+    ]).then(([w, bc, u, s, r, a]) => {
       setWebsites(Array.isArray(w) ? w : []);
       setBonusCategories(Array.isArray(bc) ? bc : []);
       setUsers(Array.isArray(u) ? u : []);
       setDisplayCurrency(s.DISPLAY_CURRENCY || 'THB');
       setSalaryCurrency(s.SALARY_CURRENCY || 'THB');
       setRates(getBaseRatesFromFull(r.rates || {}));
-      setHolidayHeadUserId(h.userId ?? null);
       setAllowanceTypes(Array.isArray(a?.items) ? a.items : []);
     });
   }, [user]);
@@ -516,62 +513,6 @@ export default function SettingsPage() {
                 </tbody>
               </table>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-[#1F2937] bg-[#0F172A]">
-          <CardHeader>
-            <CardTitle className="text-[#E5E7EB]">หัวหน้าวันหยุด</CardTitle>
-            <p className="text-sm text-[#9CA3AF]">
-              เลือก ADMIN คนหนึ่งเป็นหัวหน้า — เฉพาะคนนี้เท่านั้นที่ลงวันหยุดให้พนักงาน (ADMIN) ทุกคนได้ (รวมถึงตัวเอง)
-            </p>
-          </CardHeader>
-          <CardContent className="flex flex-wrap items-end gap-4">
-            <div className="w-56">
-              <Label>หัวหน้าวันหยุด</Label>
-              <Select
-                value={holidayHeadUserId != null ? String(holidayHeadUserId) : '__none__'}
-                onValueChange={(v) => setHolidayHeadUserId(v === '__none__' ? null : parseInt(v, 10))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="ไม่กำหนด" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">ไม่กำหนด</SelectItem>
-                  {users
-                    .filter((u) => u.role === 'ADMIN' && u.isActive)
-                    .map((u) => (
-                      <SelectItem key={u.id} value={String(u.id)}>
-                        {u.username} ({u.role})
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button
-              disabled={loading}
-              onClick={async () => {
-                setLoading(true);
-                try {
-                  const res = await fetch('/api/settings/holiday-head', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: holidayHeadUserId }),
-                  });
-                  if (res.ok) {
-                    const d = (await res.json()) as { userId: number | null };
-                    setHolidayHeadUserId(d.userId);
-                  } else {
-                    const d = (await res.json()) as { error?: string };
-                    alert(d.error ?? 'บันทึกไม่ได้');
-                  }
-                } finally {
-                  setLoading(false);
-                }
-              }}
-            >
-              บันทึก
-            </Button>
           </CardContent>
         </Card>
 

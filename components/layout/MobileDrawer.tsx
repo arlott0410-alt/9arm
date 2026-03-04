@@ -16,6 +16,8 @@ import {
   Settings,
   User,
   X,
+  Banknote,
+  Receipt,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -26,6 +28,8 @@ const navAll = [
   { href: '/credit-cuts', label: 'ตัดเครดิต', icon: Scissors },
   { href: '/holidays', label: 'ตารางวันหยุด', icon: Calendar },
   { href: '/employees', label: 'จัดการพนักงาน', icon: Users },
+  { href: '/payroll', label: 'เงินเดือน', icon: Banknote },
+  { href: '/my-salary', label: 'เงินเดือนของฉัน', icon: Receipt },
   { href: '/wallets', label: 'กระเป๋าเงิน', icon: Wallet },
   { href: '/transfers', label: 'โอนเงิน', icon: ArrowLeftRight },
   { href: '/reports', label: 'รายงาน', icon: FileText },
@@ -39,18 +43,24 @@ export function MobileDrawer({
   canAccessSettings,
   canAccessWallets,
   canAccessEmployees,
+  canAccessPayroll,
+  canAccessMySalary,
 }: {
   open: boolean;
   onClose: () => void;
   canAccessSettings: boolean;
   canAccessWallets?: boolean;
   canAccessEmployees?: boolean;
+  canAccessPayroll?: boolean;
+  canAccessMySalary?: boolean;
 }) {
   const pathname = usePathname();
   const items = navAll.filter((n) => {
     if (n.href === '/settings' && !canAccessSettings) return false;
     if (n.href === '/wallets' && !canAccessWallets) return false;
     if (n.href === '/employees' && !canAccessEmployees) return false;
+    if (n.href === '/payroll' && !canAccessPayroll) return false;
+    if (n.href === '/my-salary' && !canAccessMySalary) return false;
     return true;
   });
 

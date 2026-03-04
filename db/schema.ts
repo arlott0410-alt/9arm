@@ -209,6 +209,52 @@ export const holidayEntries = sqliteTable('holiday_entries', {
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
 
+export const employeeSalaries = sqliteTable('employee_salaries', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  effectiveFrom: text('effective_from').notNull(),
+  baseSalaryMinor: integer('base_salary_minor').notNull(),
+  currency: text('currency').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  createdBy: integer('created_by')
+    .notNull()
+    .references(() => users.id, { onDelete: 'restrict' }),
+});
+
+export const payrollRuns = sqliteTable('payroll_runs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  yearMonth: text('year_month').notNull(),
+  status: text('status', { enum: ['DRAFT', 'CONFIRMED'] }).notNull(),
+  bonusPoolMinor: integer('bonus_pool_minor'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  createdBy: integer('created_by')
+    .notNull()
+    .references(() => users.id, { onDelete: 'restrict' }),
+});
+
+export const payrollItems = sqliteTable('payroll_items', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  payrollRunId: integer('payroll_run_id')
+    .notNull()
+    .references(() => payrollRuns.id, { onDelete: 'cascade' }),
+  userId: integer('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'restrict' }),
+  baseSalaryMinor: integer('base_salary_minor').notNull(),
+  totalDays: integer('total_days').notNull(),
+  holidayDays: integer('holiday_days').notNull(),
+  workingDays: integer('working_days').notNull(),
+  salaryAfterHolidayMinor: integer('salary_after_holiday_minor').notNull(),
+  bonusPortionMinor: integer('bonus_portion_minor').notNull().default(0),
+  deductions: text('deductions', { mode: 'json' }).notNull().default('[]'),
+  totalDeductionsMinor: integer('total_deductions_minor').notNull().default(0),
+  netAmountMinor: integer('net_amount_minor').notNull(),
+  note: text('note'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+});
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Session = typeof sessions.$inferSelect;
@@ -225,3 +271,9 @@ export type CreditCutEdit = typeof creditCutEdits.$inferInsert;
 export type Setting = typeof settings.$inferSelect;
 export type HolidayEntry = typeof holidayEntries.$inferSelect;
 export type NewHolidayEntry = typeof holidayEntries.$inferInsert;
+export type EmployeeSalary = typeof employeeSalaries.$inferSelect;
+export type NewEmployeeSalary = typeof employeeSalaries.$inferInsert;
+export type PayrollRun = typeof payrollRuns.$inferSelect;
+export type NewPayrollRun = typeof payrollRuns.$inferInsert;
+export type PayrollItem = typeof payrollItems.$inferSelect;
+export type NewPayrollItem = typeof payrollItems.$inferInsert;

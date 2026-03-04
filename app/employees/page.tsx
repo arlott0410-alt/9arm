@@ -5,7 +5,17 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, Calendar } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Users, Calendar, Banknote } from 'lucide-react';
 
 type Employee = {
   id: number;
@@ -21,6 +31,16 @@ export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [holidayHeadUserId, setHolidayHeadUserId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
+  const [savingHolidayHead, setSavingHolidayHead] = useState(false);
+  const [salaryYearMonth, setSalaryYearMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+  type SalaryRow = { userId: number; username: string; baseSalaryMinor: number | null; currency: string | null; effectiveFrom: string | null };
+  const [salaryRows, setSalaryRows] = useState<SalaryRow[]>([]);
+  const [salaryLoading, setSalaryLoading] = useState(false);
+  const [savingSalary, setSavingSalary] = useState<number | null>(null);
+  const [pendingSalaries, setPendingSalaries] = useState<Record<number, { baseSalaryMinor: number; currency: string }>>({});
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -50,6 +70,16 @@ export default function EmployeesPage() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    setSalaryLoading(true);
+    fetch(`/api/employee-salaries?yearMonth=${salaryYearMonth}`)
+      .then((r) => r.json() as Promise<{ yearMonth: string; items: SalaryRow[] }>)
+      .then((data) => setSalaryRows(data.items ?? []))
+      .catch(console.error)
+      .finally(() => setSalaryLoading(false));
+  }, [user, salaryYearMonth]);
 
   if (!user) return null;
 
@@ -122,12 +152,201 @@ export default function EmployeesPage() {
                 )}
               </div>
             )}
-            <p className="mt-4 text-xs text-[#6B7280]">
-              ตั้งค่าหัวหน้าวันหยุดได้ที่{' '}
-              <Link href="/settings" className="text-[#D4AF37] hover:underline">
-                ตั้งค่า → หัวหน้าวันหยุด
-              </Link>
+          </CardContent>
+        </Card>
+
+        <Card className="border-[#1F2937] bg-[#0F172A]">
+          <CardHeader>
+            <CardTitle className="text-[#E5E7EB] flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              หัวหน้าวันหยุด
+            </CardTitle>
+            <p className="text-sm text-[#9CA3AF]">
+              เลือก ADMIN คนหนึ่งเป็นหัวหน้า — เฉพาะคนนี้เท่านั้นที่ลงวันหยุดให้พนักงาน (ADMIN) ทุกคนได้ (รวมถึงตัวเอง)
             </p>
+          </CardHeader>
+          <CardContent className="flex flex-wrap items-end gap-4">
+            <div className="w-56">
+              <Label>หัวหน้าวันหยุด</Label>
+              <Select
+                value={holidayHeadUserId != null ? String(holidayHeadUserId) : '__none__'}
+                onValueChange={(v) => setHolidayHeadUserId(v === '__none__' ? null : parseInt(v, 10))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="ไม่กำหนด" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">ไม่กำหนด</SelectItem>
+                  {employees
+                    .filter((e) => e.isActive)
+                    .map((e) => (
+                      <SelectItem key={e.id} value={String(e.id)}>
+                        {e.username}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              disabled={savingHolidayHead || loading}
+              onClick={async () => {
+                setSavingHolidayHead(true);
+                try {
+                  const res = await fetch('/api/settings/holiday-head', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: holidayHeadUserId }),
+                  });
+                  if (res.ok) {
+                    const d = (await res.json()) as { userId: number | null };
+                    setHolidayHeadUserId(d.userId);
+                  } else {
+                    const d = (await res.json()) as { error?: string };
+                    alert(d.error ?? 'บันทึกไม่ได้');
+                  }
+                } finally {
+                  setSavingHolidayHead(false);
+                }
+              }}
+            >
+              บันทึก
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-[#1F2937] bg-[#0F172A]">
+          <CardHeader>
+            <CardTitle className="text-[#E5E7EB] flex items-center gap-2">
+              <Banknote className="h-5 w-5" />
+              เงินเดือนฐาน
+            </CardTitle>
+            <p className="text-sm text-[#9CA3AF]">
+              ตั้งค่าเงินเดือนฐานต่อพนักงาน (ใช้คำนวณรอบเงินเดือน). เลือกเดือนแล้วกรอกจำนวนเงิน (บาท) และสกุลเงิน
+            </p>
+            <div className="flex items-center gap-4 pt-2">
+              <div>
+                <Label>เดือนที่ใช้</Label>
+                <Input
+                  type="month"
+                  value={salaryYearMonth}
+                  onChange={(e) => setSalaryYearMonth(e.target.value)}
+                  className="mt-1 w-40 bg-[#1F2937] border-[#374151]"
+                />
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {salaryLoading ? (
+              <p className="py-4 text-center text-[#9CA3AF]">กำลังโหลด...</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-[#1F2937]">
+                      <th className="py-2 text-left text-[#9CA3AF]">ชื่อผู้ใช้</th>
+                      <th className="py-2 text-left text-[#9CA3AF]">เงินเดือนฐาน (บาท)</th>
+                      <th className="py-2 text-left text-[#9CA3AF]">สกุลเงิน</th>
+                      <th className="py-2 text-left text-[#9CA3AF]">ดำเนินการ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {salaryRows.map((row) => {
+                      const base = pendingSalaries[row.userId]?.baseSalaryMinor ?? row.baseSalaryMinor ?? 0;
+                      const currency = pendingSalaries[row.userId]?.currency ?? row.currency ?? 'THB';
+                      return (
+                        <tr key={row.userId} className="border-b border-[#1F2937]">
+                          <td className="py-2 text-[#E5E7EB] font-medium">{row.username}</td>
+                          <td className="py-2">
+                            <Input
+                              type="number"
+                              min={0}
+                              step={100}
+                              className="w-32 bg-[#1F2937] border-[#374151]"
+                              value={base ? base / 100 : ''}
+                              onChange={(e) => {
+                                const v = e.target.value === '' ? 0 : Math.round(parseFloat(e.target.value) * 100);
+                                setPendingSalaries((p) => ({ ...p, [row.userId]: { baseSalaryMinor: v, currency } }));
+                              }}
+                            />
+                          </td>
+                          <td className="py-2">
+                            <Select
+                              value={currency}
+                              onValueChange={(v) => {
+                                setPendingSalaries((p) => ({
+                                  ...p,
+                                  [row.userId]: { baseSalaryMinor: base, currency: v },
+                                }));
+                              }}
+                            >
+                              <SelectTrigger className="w-24 bg-[#1F2937] border-[#374151]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="LAK">LAK</SelectItem>
+                                <SelectItem value="THB">THB</SelectItem>
+                                <SelectItem value="USD">USD</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </td>
+                          <td className="py-2">
+                            <Button
+                              size="sm"
+                              disabled={savingSalary === row.userId}
+                              onClick={async () => {
+                                setSavingSalary(row.userId);
+                                try {
+                                  const b = pendingSalaries[row.userId] ?? { baseSalaryMinor: row.baseSalaryMinor ?? 0, currency: row.currency ?? 'THB' };
+                                  const res = await fetch('/api/employee-salaries', {
+                                    method: 'PUT',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                      userId: row.userId,
+                                      effectiveFrom: `${salaryYearMonth}-01`,
+                                      baseSalaryMinor: b.baseSalaryMinor,
+                                      currency: b.currency,
+                                    }),
+                                  });
+                                  if (res.ok) {
+                                    setPendingSalaries((p) => {
+                                      const next = { ...p };
+                                      delete next[row.userId];
+                                      return next;
+                                    });
+                                    setSalaryRows((prev) =>
+                                      prev.map((r) =>
+                                        r.userId === row.userId
+                                          ? {
+                                              ...r,
+                                              baseSalaryMinor: b.baseSalaryMinor,
+                                              currency: b.currency,
+                                              effectiveFrom: `${salaryYearMonth}-01`,
+                                            }
+                                          : r
+                                      )
+                                    );
+                                  } else {
+                                    const d = (await res.json()) as { error?: string };
+                                    alert(d.error ?? 'บันทึกไม่ได้');
+                                  }
+                                } finally {
+                                  setSavingSalary(null);
+                                }
+                              }}
+                            >
+                              {savingSalary === row.userId ? 'กำลังบันทึก...' : 'บันทึก'}
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {salaryRows.length === 0 && (
+                  <p className="py-4 text-center text-[#9CA3AF]">ไม่มีข้อมูลเงินเดือนฐานในเดือนนี้</p>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

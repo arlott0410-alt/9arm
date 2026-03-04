@@ -31,4 +31,18 @@ export async function bootstrapSettings(db: Db): Promise<void> {
       value: JSON.stringify('THB'),
     });
   }
+
+  if (!keys.has('SALARY_FREE_HOLIDAY_DAYS')) {
+    await db.insert(settings).values({
+      key: 'SALARY_FREE_HOLIDAY_DAYS',
+      value: JSON.stringify(4),
+    });
+  }
+
+  if (!keys.has('SALARY_DEDUCT_MULTIPLIER_PER_DAY')) {
+    await db.insert(settings).values({
+      key: 'SALARY_DEDUCT_MULTIPLIER_PER_DAY',
+      value: JSON.stringify(2),
+    });
+  }
 }
