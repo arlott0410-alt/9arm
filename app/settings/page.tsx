@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/dialog';
 import { BASE_RATE_KEYS, expandRatesFromBase, getBaseRatesFromFull } from '@/lib/rates';
 import { KeyRound, Power, PowerOff } from 'lucide-react';
+import { useAuth } from '@/components/providers/AuthProvider';
 
 type Website = { id: number; name: string; prefix: string };
 type BonusCategory = { id: number; name: string; sortOrder: number };
@@ -34,9 +35,7 @@ type AppUser = {
 
 export default function SettingsPage() {
   const router = useRouter();
-  const [user, setUser] = useState<{ username: string; role: string } | null>(
-    null
-  );
+  const { user, loading: authLoading } = useAuth();
   const [websites, setWebsites] = useState<Website[]>([]);
   const [bonusCategories, setBonusCategories] = useState<BonusCategory[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
@@ -64,20 +63,16 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json() as Promise<{ user?: { username: string; role: string } }>)
-      .then((d) => {
-        if (!d.user) {
-          router.replace('/login');
-          return;
-        }
-        if (d.user.role !== 'SUPER_ADMIN') {
-          router.replace('/dashboard');
-          return;
-        }
-        setUser(d.user);
-      });
-  }, [router]);
+    if (authLoading) return;
+    if (!user) {
+      router.replace('/login');
+      return;
+    }
+    if (user.role !== 'SUPER_ADMIN') {
+      router.replace('/dashboard');
+      return;
+    }
+  }, [authLoading, user, router]);
 
   useEffect(() => {
     if (!user) return;
@@ -214,7 +209,7 @@ export default function SettingsPage() {
     }
   }
 
-  if (!user) return null;
+  if (authLoading || !user) return null;
 
   return (
     <AppLayout user={user}>
@@ -518,9 +513,9 @@ export default function SettingsPage() {
 
         <Card className="border-[#1F2937] bg-[#0F172A]">
           <CardHeader>
-            <CardTitle className="text-[#E5E7EB]">รายการค่าตอบแทนเพิ่ม (ค่าไฟ, โบนัส, อื่น)</CardTitle>
+            <CardTitle className="text-[#E5E7EB]">รายการค่าตอบแทนเพิ่ม (ค่าข้าว, ค่าไฟ, โบนัส ฯลฯ)</CardTitle>
             <p className="text-sm text-[#9CA3AF]">
-              ใช้สำหรับคำนวณเงินเดือน — สามารถเพิ่มรายการเช่น ค่าไฟ ค่าโบนัส ค่าอื่น ได้ตามต้องการ
+              กำหนดชื่อรายการที่ใช้ในเงินเดือน — เพิ่มชื่อเช่น ค่าข้าว ค่าไฟ ค่าโบนัส แล้วไปกรอกจำนวนเงินจริงที่ เงินเดือน → รอบนั้น → กดกรอกรายการในแถวของแต่ละคน
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -530,7 +525,7 @@ export default function SettingsPage() {
                 <Input
                   value={newAllowanceName}
                   onChange={(e) => setNewAllowanceName(e.target.value)}
-                  placeholder="เช่น ค่าไฟ, ค่าโบนัส"
+                  placeholder="เช่น ค่าข้าว, ค่าไฟ, ค่าโบนัส"
                 />
               </div>
               <Button

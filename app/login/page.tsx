@@ -7,9 +7,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { safeJson } from '@/lib/fetch-json';
+import { useAuth } from '@/components/providers/AuthProvider';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { refreshAuth } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -30,6 +32,7 @@ export default function LoginPage() {
         setError(data?.error || 'เข้าสู่ระบบไม่สำเร็จ');
         return;
       }
+      await refreshAuth();
       router.replace('/dashboard');
     } finally {
       setLoading(false);

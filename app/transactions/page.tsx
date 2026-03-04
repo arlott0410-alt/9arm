@@ -23,6 +23,7 @@ import { convertToDisplay, convertFromDisplay } from '@/lib/rates';
 import { Copy, ChevronUp, ChevronDown } from 'lucide-react';
 import { PaginationBar } from '@/components/PaginationBar';
 import { getDefaultPageSize } from '@/lib/pagination';
+import { useAuth } from '@/components/providers/AuthProvider';
 
 type Website = { id: number; name: string; prefix: string };
 type Wallet = { id: number; name: string; currency: string };
@@ -49,7 +50,7 @@ type Txn = {
 
 export default function TransactionsPage() {
   const router = useRouter();
-  const [user, setUser] = useState<{ username: string; role: string } | null>(null);
+  const { user, loading: authLoading } = useAuth();
   const [websites, setWebsites] = useState<Website[]>([]);
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [settings, setSettings] = useState<{
@@ -118,13 +119,9 @@ export default function TransactionsPage() {
   }, []);
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json() as Promise<{ user?: { username: string; role: string } }>)
-      .then((d) => {
-        if (!d.user) router.replace('/login');
-        else setUser(d.user);
-      });
-  }, [router]);
+    if (authLoading) return;
+    if (!user) router.replace('/login');
+  }, [authLoading, user, router]);
 
   useEffect(() => {
     if (!user) return;
@@ -318,7 +315,7 @@ export default function TransactionsPage() {
     }
   }
 
-  if (!user) return null;
+  if (authLoading || !user) return null;
 
   const dispCur = settings?.displayCurrency || 'THB';
   const depositWallet = wallets.find((w) => w.id === depositForm.walletId);
@@ -829,6 +826,7 @@ export default function TransactionsPage() {
                           <td className="py-2 flex items-center gap-2">
                             <Link
                               href={`/transactions/${t.id}`}
+                              prefetch={false}
                               className="text-[#D4AF37] hover:underline"
                             >
                               ดู
@@ -929,6 +927,7 @@ export default function TransactionsPage() {
                           <td className="py-2 flex items-center gap-2">
                             <Link
                               href={`/transactions/${t.id}`}
+                              prefetch={false}
                               className="text-[#D4AF37] hover:underline"
                             >
                               ดู

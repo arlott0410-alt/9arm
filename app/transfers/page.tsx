@@ -36,6 +36,7 @@ import {
 } from '@/lib/rates';
 import { PaginationBar } from '@/components/PaginationBar';
 import { getDefaultPageSize } from '@/lib/pagination';
+import { useAuth } from '@/components/providers/AuthProvider';
 
 type Wallet = { id: number; name: string; currency: string };
 type Transfer = {
@@ -60,9 +61,7 @@ type Transfer = {
 
 export default function TransfersPage() {
   const router = useRouter();
-  const [user, setUser] = useState<{ username: string; role: string } | null>(
-    null
-  );
+  const { user, loading: authLoading } = useAuth();
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(getDefaultPageSize('transfers'));
@@ -96,13 +95,9 @@ export default function TransfersPage() {
   const canMutate = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json() as Promise<{ user?: { username: string; role: string } }>)
-      .then((d) => {
-        if (!d.user) router.replace('/login');
-        else setUser(d.user);
-      });
-  }, [router]);
+    if (authLoading) return;
+    if (!user) router.replace('/login');
+  }, [authLoading, user, router]);
 
   useEffect(() => {
     if (!user) return;
@@ -271,7 +266,7 @@ export default function TransfersPage() {
         )
       : form.inputAmountMinor;
 
-  if (!user) return null;
+  if (authLoading || !user) return null;
 
   return (
     <AppLayout user={user}>

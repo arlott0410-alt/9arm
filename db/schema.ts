@@ -215,7 +215,7 @@ export const lateArrivals = sqliteTable('late_arrivals', {
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
   lateDate: text('late_date').notNull(),
-  secondsLate: integer('seconds_late').notNull(),
+  minutesLate: integer('minutes_late').notNull(),
   createdBy: integer('created_by')
     .notNull()
     .references(() => users.id, { onDelete: 'restrict' }),
@@ -265,7 +265,7 @@ export const payrollItems = sqliteTable('payroll_items', {
   totalAllowancesMinor: integer('total_allowances_minor').notNull().default(0),
   deductions: text('deductions', { mode: 'json' }).notNull().default('[]'),
   totalDeductionsMinor: integer('total_deductions_minor').notNull().default(0),
-  lateSeconds: integer('late_seconds').notNull().default(0),
+  lateMinutes: integer('late_minutes').notNull().default(0),
   lateDeductionMinor: integer('late_deduction_minor').notNull().default(0),
   netAmountMinor: integer('net_amount_minor').notNull(),
   note: text('note'),

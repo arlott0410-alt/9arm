@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { formatMinorToDisplay, formatDateThailand } from '@/lib/utils';
+import { useAuth } from '@/components/providers/AuthProvider';
 
 const now = new Date(Date.now() + 7 * 60 * 60 * 1000); // Thailand UTC+7
 const currentYear = now.getUTCFullYear();
@@ -19,9 +20,7 @@ const currentMonth = String(now.getUTCMonth() + 1).padStart(2, '0');
 
 export default function ReportsPage() {
   const router = useRouter();
-  const [user, setUser] = useState<{ username: string; role: string } | null>(
-    null
-  );
+  const { user, loading: authLoading } = useAuth();
   const [period, setPeriod] = useState<'daily' | 'monthly' | 'yearly' | 'custom'>('daily');
   const [year, setYear] = useState(String(currentYear));
   const [month, setMonth] = useState(currentMonth);
@@ -65,13 +64,9 @@ export default function ReportsPage() {
   } | null>(null);
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json() as Promise<{ user?: { username: string; role: string } }>)
-      .then((d) => {
-        if (!d.user) router.replace('/login');
-        else setUser(d.user);
-      });
-  }, [router]);
+    if (authLoading) return;
+    if (!user) router.replace('/login');
+  }, [authLoading, user, router]);
 
   useEffect(() => {
     if (!user) return;
@@ -99,7 +94,7 @@ export default function ReportsPage() {
     });
   }, [user, period, year, month, dateFrom, dateTo, filterWebsite]);
 
-  if (!user) return null;
+  if (authLoading || !user) return null;
 
   const dispCur = data?.displayCurrency || 'THB';
 

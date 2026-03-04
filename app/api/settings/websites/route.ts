@@ -13,7 +13,9 @@ export async function GET(request: Request) {
     if (err) return err;
 
     const list = await db.select().from(websites).orderBy(websites.name);
-    return NextResponse.json(list);
+    const res = NextResponse.json(list);
+    res.headers.set('Cache-Control', 'private, max-age=30');
+    return res;
   } catch (e) {
     console.error(e);
     return NextResponse.json(

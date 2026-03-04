@@ -7,12 +7,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useAuth } from '@/components/providers/AuthProvider';
 
 export default function ProfilePage() {
   const router = useRouter();
-  const [user, setUser] = useState<{ username: string; role: string } | null>(
-    null
-  );
+  const { user, loading: authLoading } = useAuth();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -21,13 +20,12 @@ export default function ProfilePage() {
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json() as Promise<{ user?: { username: string; role: string } }>)
-      .then((d) => {
-        if (!d.user) router.replace('/login');
-        else setUser(d.user);
-      });
-  }, [router]);
+    if (authLoading) return;
+    if (!user) {
+      router.replace('/login');
+      return;
+    }
+  }, [authLoading, user, router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -65,7 +63,7 @@ export default function ProfilePage() {
     }
   }
 
-  if (!user) return null;
+  if (authLoading || !user) return null;
 
   return (
     <AppLayout user={user}>

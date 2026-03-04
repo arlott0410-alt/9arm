@@ -15,6 +15,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, Banknote, User, PlusCircle, MinusCircle } from 'lucide-react';
+import { useAuth } from '@/components/providers/AuthProvider';
 
 type PayrollAllowance = { name: string; amountMinor: number };
 type PayrollDeduction = { label: string; amountMinor: number };
@@ -33,7 +34,7 @@ type PayrollItem = {
   totalAllowancesMinor: number;
   deductions: PayrollDeduction[];
   totalDeductionsMinor: number;
-  lateSeconds: number;
+  lateMinutes: number;
   lateDeductionMinor: number;
   netAmountMinor: number;
   note: string | null;
@@ -61,7 +62,7 @@ export default function PayrollDetailPage() {
   const router = useRouter();
   const params = useParams();
   const id = params?.id as string;
-  const [user, setUser] = useState<{ username: string; role: string } | null>(null);
+  const { user, loading: authLoading } = useAuth();
   const [run, setRun] = useState<Run | null>(null);
   const [items, setItems] = useState<PayrollItem[]>([]);
   const [allowanceTypes, setAllowanceTypes] = useState<AllowanceType[]>([]);
@@ -74,20 +75,16 @@ export default function PayrollDetailPage() {
   const [reopening, setReopening] = useState(false);
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json() as Promise<{ user?: { username: string; role: string } }>)
-      .then((d) => {
-        if (!d.user) {
-          router.replace('/login');
-          return;
-        }
-        if (d.user.role !== 'SUPER_ADMIN' && d.user.role !== 'AUDIT') {
-          router.replace('/payroll');
-          return;
-        }
-        setUser(d.user);
-      });
-  }, [router]);
+    if (authLoading) return;
+    if (!user) {
+      router.replace('/login');
+      return;
+    }
+    if (user.role !== 'SUPER_ADMIN' && user.role !== 'AUDIT') {
+      router.replace('/payroll');
+      return;
+    }
+  }, [authLoading, user, router]);
 
   useEffect(() => {
     if (!user || !id) return;
@@ -221,7 +218,7 @@ export default function PayrollDetailPage() {
     }
   };
 
-  if (!user) return null;
+  if (authLoading || !user) return null;
 
   const totalNet = items.reduce((s, i) => s + i.netAmountMinor, 0);
 
@@ -231,6 +228,7 @@ export default function PayrollDetailPage() {
         <div className="flex items-center gap-4">
           <Link
             href="/payroll"
+            prefetch={false}
             className="inline-flex items-center gap-1 text-sm text-[#9CA3AF] hover:text-[#E5E7EB] transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -315,6 +313,11 @@ export default function PayrollDetailPage() {
                 <p className="text-sm text-[#9CA3AF]">
                   เงินหลังหักวันหยุด + โบนัส + รายการเพิ่ม (ค่าไฟ/ค่าข้าว/ฯลฯ) − รายการหัก = ยอดสุทธิ
                 </p>
+                {run.status === 'DRAFT' && user.role === 'SUPER_ADMIN' && (
+                  <p className="text-sm text-[#D4AF37]/90">
+                    → ใส่ค่าข้าว / รายการเพิ่มอื่น และหักเงินเดือนได้ที่ปุ่ม <strong>กรอกรายการ</strong> ในแถวของแต่ละคน
+                  </p>
+                )}
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto rounded-lg border border-[#1F2937]">
@@ -350,7 +353,7 @@ export default function PayrollDetailPage() {
                           </td>
                           <td className="px-4 py-3 text-right">
                             {(item.lateDeductionMinor ?? 0) > 0 ? (
-                              <span className="text-orange-400" title={`${item.lateSeconds ?? 0} วินาที`}>
+                              <span className="text-orange-400" title={`${item.lateMinutes ?? 0} นาที`}>
                                 −{formatMinor(item.lateDeductionMinor ?? 0)}
                               </span>
                             ) : (

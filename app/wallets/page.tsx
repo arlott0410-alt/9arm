@@ -22,14 +22,13 @@ import {
 } from '@/components/ui/dialog';
 import { formatMinorToDisplay, parseDisplayToMinor } from '@/lib/utils';
 import { Trash2 } from 'lucide-react';
+import { useAuth } from '@/components/providers/AuthProvider';
 
 type Wallet = { id: number; name: string; currency: string; balance?: number };
 
 export default function WalletsPage() {
   const router = useRouter();
-  const [user, setUser] = useState<{ username: string; role: string } | null>(
-    null
-  );
+  const { user, loading: authLoading } = useAuth();
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [balances, setBalances] = useState<Map<number, number>>(new Map());
   const [open, setOpen] = useState(false);
@@ -43,14 +42,16 @@ export default function WalletsPage() {
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json() as Promise<{ user?: { username: string; role: string } }>)
-      .then((d) => {
-        if (!d.user) router.replace('/login');
-        else if (d.user.role !== 'SUPER_ADMIN') router.replace('/dashboard');
-        else setUser(d.user);
-      });
-  }, [router]);
+    if (authLoading) return;
+    if (!user) {
+      router.replace('/login');
+      return;
+    }
+    if (user.role !== 'SUPER_ADMIN') {
+      router.replace('/dashboard');
+      return;
+    }
+  }, [authLoading, user, router]);
 
   useEffect(() => {
     if (!user) return;
@@ -122,7 +123,7 @@ export default function WalletsPage() {
     }
   }
 
-  if (!user) return null;
+  if (authLoading || !user) return null;
 
   return (
     <AppLayout user={user}>

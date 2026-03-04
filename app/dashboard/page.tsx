@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatMinorToDisplay } from '@/lib/utils';
+import { useAuth } from '@/components/providers/AuthProvider';
 import {
   Wallet,
   ArrowDownCircle,
@@ -14,53 +15,39 @@ import {
   PiggyBank,
 } from 'lucide-react';
 
+type DashboardData = {
+  displayCurrency: string;
+  websites: { id: number; name: string; prefix: string }[];
+  today: { deposits: number; withdraws: number; net: number };
+  month: { deposits: number; withdraws: number; net: number };
+  wallets: { id: number; name: string; currency: string; balance: number }[];
+};
+
 export default function DashboardPage() {
   const router = useRouter();
-  const [user, setUser] = useState<{ username: string; role: string } | null>(
-    null
-  );
+  const { user, loading: authLoading } = useAuth();
   const [filterWebsite, setFilterWebsite] = useState('__all__');
-  const [websites, setWebsites] = useState<{ id: number; name: string; prefix: string }[]>([]);
-  const [data, setData] = useState<{
-    displayCurrency: string;
-    today: { deposits: number; withdraws: number; net: number };
-    month: { deposits: number; withdraws: number; net: number };
-    wallets: { id: number; name: string; currency: string; balance: number }[];
-  } | null>(null);
+  const [data, setData] = useState<DashboardData | null>(null);
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json() as Promise<{ user?: { username: string; role: string } }>)
-      .then((d) => {
-        if (!d.user) {
-          router.replace('/login');
-          return;
-        }
-        setUser(d.user);
-      });
-  }, [router]);
-
-  useEffect(() => {
-    if (!user) return;
-    fetch('/api/settings/websites').then((r) => r.json() as Promise<{ id: number; name: string; prefix: string }[]>).then((w) => setWebsites(Array.isArray(w) ? w : []));
-  }, [user]);
-
-  useEffect(() => {
-    if (!user) return;
+    if (authLoading || !user) return;
     const params = new URLSearchParams();
     if (filterWebsite !== '__all__') params.set('websiteId', filterWebsite);
     fetch(`/api/dashboard?${params}`)
-      .then((r) => r.json() as Promise<{
-        displayCurrency: string;
-        today: { deposits: number; withdraws: number; net: number };
-        month: { deposits: number; withdraws: number; net: number };
-        wallets: { id: number; name: string; currency: string; balance: number }[];
-      }>)
+      .then((r) => r.json() as Promise<DashboardData>)
       .then(setData)
       .catch(console.error);
-  }, [user, filterWebsite]);
+  }, [user, authLoading, filterWebsite]);
 
-  if (!user) return null;
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      router.replace('/login');
+      return;
+    }
+  }, [authLoading, user, router]);
+
+  if (authLoading || !user) return null;
 
   const cur = data?.displayCurrency || 'THB';
 
@@ -71,7 +58,7 @@ export default function DashboardPage() {
     <AppLayout user={user}>
       <div className="space-y-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <h1 className="text-2xl font-semibold text-[#E5E7EB]">แดชบอร์ด</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-[#E5E7EB]">แดชบอร์ด</h1>
           <div className="flex items-center gap-2">
             <label className="text-sm text-[#9CA3AF]">เว็บ</label>
             <select
@@ -80,7 +67,7 @@ export default function DashboardPage() {
               className="h-10 rounded-lg border border-[#2D3748] bg-[#0F172A] px-4 text-sm text-[#E5E7EB] focus:border-[#D4AF37] focus:outline-none focus:ring-1 focus:ring-[#D4AF37]/50"
             >
               <option value="__all__">ทั้งหมด</option>
-              {websites.map((w) => (
+              {(data?.websites ?? []).map((w) => (
                 <option key={w.id} value={String(w.id)}>{w.name}</option>
               ))}
             </select>
@@ -253,7 +240,7 @@ export default function DashboardPage() {
                   ))}
                   {(!data?.wallets || data.wallets.length === 0) && (
                     <tr>
-                      <td colSpan={3} className="py-10 text-center text-[#9CA3AF]">
+                      <td colSpan={3} className="py-12 text-center text-[#9CA3AF]">
                         ไม่มีกระเป๋าเงิน
                       </td>
                     </tr>

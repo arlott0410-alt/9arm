@@ -24,6 +24,7 @@ import {
 import { formatMinorToDisplay, parseDisplayToMinor, formatDateTimeThailand } from '@/lib/utils';
 import { TimeInput24 } from '@/components/ui/time-input-24';
 import { ArrowLeft } from 'lucide-react';
+import { useAuth } from '@/components/providers/AuthProvider';
 
 type CreditCutDetail = {
   id: number;
@@ -55,7 +56,7 @@ export default function CreditCutDetailPage() {
   const router = useRouter();
   const params = useParams();
   const id = params?.id as string;
-  const [user, setUser] = useState<{ username: string; role: string } | null>(null);
+  const { user, loading: authLoading } = useAuth();
   const [cut, setCut] = useState<CreditCutDetail | null>(null);
   const [websites, setWebsites] = useState<{ id: number; name: string; prefix: string }[]>([]);
   const [editOpen, setEditOpen] = useState(false);
@@ -75,13 +76,9 @@ export default function CreditCutDetailPage() {
   const canEdit = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json() as Promise<{ user?: { username: string; role: string } }>)
-      .then((d) => {
-        if (!d.user) router.replace('/login');
-        else setUser(d.user);
-      });
-  }, [router]);
+    if (authLoading) return;
+    if (!user) router.replace('/login');
+  }, [authLoading, user, router]);
 
   useEffect(() => {
     if (!user || !id) return;
@@ -168,7 +165,7 @@ export default function CreditCutDetailPage() {
     }
   }
 
-  if (!user || !cut) return null;
+  if (authLoading || !user || !cut) return null;
 
   const isDeleted = !!cut.deletedAt;
 
@@ -177,6 +174,7 @@ export default function CreditCutDetailPage() {
       <div className="space-y-6">
         <Link
           href="/credit-cuts"
+          prefetch={false}
           className="inline-flex items-center gap-2 text-sm text-[#9CA3AF] hover:text-[#D4AF37]"
         >
           <ArrowLeft className="h-4 w-4" />

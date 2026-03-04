@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth } from '@/lib/api-helpers';
 import type { Db } from '@/db';
-import { transactions, wallets, transfers, settings } from '@/db/schema';
+import { transactions, wallets, transfers, settings, websites } from '@/db/schema';
 import { eq, and, gte, lte, sql, isNull } from 'drizzle-orm';
 import { convertToDisplay, type Currency, type RateSnapshot } from '@/lib/rates';
 import { todayStrThailand } from '@/lib/utils';
@@ -106,7 +106,10 @@ export async function GET(request: Request) {
         }),
       ]);
 
-    const walletList = await db.select().from(wallets).orderBy(wallets.name);
+    const [walletList, websiteList] = await Promise.all([
+      db.select().from(wallets).orderBy(wallets.name),
+      db.select().from(websites).orderBy(websites.name),
+    ]);
 
     // Grouped aggregations: 4 queries total instead of 4 per wallet
     const [depRows, withRows, fromRows, toRows] = await Promise.all([
@@ -175,8 +178,9 @@ export async function GET(request: Request) {
       };
     });
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       displayCurrency,
+      websites: websiteList,
       today: {
         deposits: todayDepTotal,
         withdraws: todayWithTotal,
@@ -189,6 +193,8 @@ export async function GET(request: Request) {
       },
       wallets: balances,
     });
+    res.headers.set('Cache-Control', 'private, max-age=30');
+    return res;
   } catch (e) {
     console.error(e);
     return NextResponse.json(

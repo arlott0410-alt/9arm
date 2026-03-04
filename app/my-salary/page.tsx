@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Receipt } from 'lucide-react';
+import { useAuth } from '@/components/providers/AuthProvider';
 
 type SalaryItem = {
   runId: number;
@@ -23,7 +24,7 @@ type SalaryItem = {
     totalAllowancesMinor: number;
     deductions: { label: string; amountMinor: number }[];
     totalDeductionsMinor: number;
-    lateSeconds: number;
+    lateMinutes: number;
     lateDeductionMinor: number;
     netAmountMinor: number;
     note: string | null;
@@ -39,25 +40,21 @@ function formatMinor(amount: number): string {
 
 export default function MySalaryPage() {
   const router = useRouter();
-  const [user, setUser] = useState<{ username: string; role: string } | null>(null);
+  const { user, loading: authLoading } = useAuth();
   const [items, setItems] = useState<SalaryItem[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json() as Promise<{ user?: { username: string; role: string } }>)
-      .then((d) => {
-        if (!d.user) {
-          router.replace('/login');
-          return;
-        }
-        if (d.user.role !== 'ADMIN') {
-          router.replace('/dashboard');
-          return;
-        }
-        setUser(d.user);
-      });
-  }, [router]);
+    if (authLoading) return;
+    if (!user) {
+      router.replace('/login');
+      return;
+    }
+    if (user.role !== 'ADMIN') {
+      router.replace('/dashboard');
+      return;
+    }
+  }, [authLoading, user, router]);
 
   useEffect(() => {
     if (!user) return;
@@ -69,7 +66,7 @@ export default function MySalaryPage() {
       .finally(() => setLoading(false));
   }, [user]);
 
-  if (!user) return null;
+  if (authLoading || !user) return null;
 
   return (
     <AppLayout user={user}>
@@ -121,7 +118,7 @@ export default function MySalaryPage() {
                       )}
                       {(s.item.lateDeductionMinor ?? 0) > 0 && (
                         <div className="flex justify-between text-[#9CA3AF]">
-                          <span>หักมาสาย ({(s.item.lateSeconds ?? 0)} วินาที)</span>
+                          <span>หักมาสาย ({(s.item.lateMinutes ?? 0)} นาที)</span>
                           <span className="text-orange-400">−{formatMinor(s.item.lateDeductionMinor ?? 0)} ฿</span>
                         </div>
                       )}

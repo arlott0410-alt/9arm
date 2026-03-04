@@ -16,6 +16,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Banknote } from 'lucide-react';
+import { useAuth } from '@/components/providers/AuthProvider';
 
 type Run = {
   id: number;
@@ -28,7 +29,7 @@ type Run = {
 
 export default function PayrollPage() {
   const router = useRouter();
-  const [user, setUser] = useState<{ username: string; role: string } | null>(null);
+  const { user, loading: authLoading } = useAuth();
   const [runs, setRuns] = useState<Run[]>([]);
   const [loading, setLoading] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -37,20 +38,16 @@ export default function PayrollPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json() as Promise<{ user?: { username: string; role: string } }>)
-      .then((d) => {
-        if (!d.user) {
-          router.replace('/login');
-          return;
-        }
-        if (d.user.role !== 'SUPER_ADMIN' && d.user.role !== 'AUDIT') {
-          router.replace('/dashboard');
-          return;
-        }
-        setUser(d.user);
-      });
-  }, [router]);
+    if (authLoading) return;
+    if (!user) {
+      router.replace('/login');
+      return;
+    }
+    if (user.role !== 'SUPER_ADMIN' && user.role !== 'AUDIT') {
+      router.replace('/dashboard');
+      return;
+    }
+  }, [authLoading, user, router]);
 
   useEffect(() => {
     if (!user) return;
@@ -95,7 +92,7 @@ export default function PayrollPage() {
     }
   };
 
-  if (!user) return null;
+  if (authLoading || !user) return null;
 
   const now = new Date();
   const defaultYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -178,6 +175,7 @@ export default function PayrollPage() {
                   <Link
                     key={r.id}
                     href={`/payroll/${r.id}`}
+                    prefetch={false}
                     className="flex items-center justify-between rounded-lg border border-[#1F2937] px-4 py-3 text-[#E5E7EB] transition-colors hover:bg-[#111827] hover:border-[#374151]"
                   >
                     <span className="font-medium">{r.yearMonth}</span>

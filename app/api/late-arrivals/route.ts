@@ -18,7 +18,7 @@ async function getHolidayHeadUserId(db: Db): Promise<number | null> {
   return null;
 }
 
-/** POST: ลง/แก้ไข/ลบ มาสาย (วินาที). เฉพาะหัวหน้าวันหยุด */
+/** POST: ลง/แก้ไข/ลบ มาสาย (นาที). เฉพาะหัวหน้าวันหยุด */
 export async function POST(request: Request) {
   try {
     const result = await getDbAndUser(request);
@@ -35,15 +35,15 @@ export async function POST(request: Request) {
       );
     }
 
-    const body = (await request.json()) as { userId?: number; date?: string; seconds?: number };
+    const body = (await request.json()) as { userId?: number; date?: string; minutes?: number };
     const userId = typeof body.userId === 'number' ? body.userId : null;
     const date =
       typeof body.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.date) ? body.date : null;
-    const seconds = typeof body.seconds === 'number' && body.seconds >= 0 ? Math.round(body.seconds) : null;
+    const minutes = typeof body.minutes === 'number' && body.minutes >= 0 ? Math.round(body.minutes) : null;
 
-    if (userId === null || date === null || seconds === null) {
+    if (userId === null || date === null || minutes === null) {
       return NextResponse.json(
-        { error: 'ต้องส่ง userId, date (YYYY-MM-DD), seconds (จำนวนวินาที)' },
+        { error: 'ต้องส่ง userId, date (YYYY-MM-DD), minutes (จำนวนนาที)' },
         { status: 400 }
       );
     }
@@ -61,30 +61,30 @@ export async function POST(request: Request) {
 
     const now = new Date();
 
-    if (seconds === 0) {
+    if (minutes === 0) {
       await db
         .delete(lateArrivals)
         .where(and(eq(lateArrivals.userId, userId), eq(lateArrivals.lateDate, date)));
-      return NextResponse.json({ userId, date, seconds: 0, deleted: true });
+      return NextResponse.json({ userId, date, minutes: 0, deleted: true });
     }
 
     if (existing.length > 0) {
       await db
         .update(lateArrivals)
-        .set({ secondsLate: seconds })
+        .set({ minutesLate: minutes })
         .where(and(eq(lateArrivals.userId, userId), eq(lateArrivals.lateDate, date)));
-      return NextResponse.json({ userId, date, seconds });
+      return NextResponse.json({ userId, date, minutes });
     }
 
     await db.insert(lateArrivals).values({
       userId,
       lateDate: date,
-      secondsLate: seconds,
+      minutesLate: minutes,
       createdBy: user!.id,
       createdAt: now,
     });
 
-    return NextResponse.json({ userId, date, seconds });
+    return NextResponse.json({ userId, date, minutes });
   } catch (e) {
     console.error(e);
     return NextResponse.json(

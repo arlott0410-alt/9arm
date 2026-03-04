@@ -46,9 +46,9 @@ export async function bootstrapSettings(db: Db): Promise<void> {
     });
   }
 
-  if (!keys.has('SALARY_LATE_PENALTY_PER_SECOND')) {
+  if (!keys.has('SALARY_LATE_PENALTY_PER_MINUTE')) {
     await db.insert(settings).values({
-      key: 'SALARY_LATE_PENALTY_PER_SECOND',
+      key: 'SALARY_LATE_PENALTY_PER_MINUTE',
       value: JSON.stringify(1000),
     });
   }

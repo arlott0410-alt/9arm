@@ -134,8 +134,8 @@ export function computeNetAmount(
   return { totalAllowancesMinor, totalDeductionsMinor, netAmountMinor };
 }
 
-/** ผลรวมวินาทีที่มาสายต่อ user ในเดือนที่กำหนด */
-export async function getLateSecondsByUser(
+/** ผลรวมนาทีที่มาสายต่อ user ในเดือนที่กำหนด */
+export async function getLateMinutesByUser(
   db: Db,
   yearMonth: string
 ): Promise<Map<number, number>> {
@@ -143,7 +143,7 @@ export async function getLateSecondsByUser(
   const rows = await db
     .select({
       userId: lateArrivals.userId,
-      total: sql<number>`sum(${lateArrivals.secondsLate})`.mapWith(Number),
+      total: sql<number>`sum(${lateArrivals.minutesLate})`.mapWith(Number),
     })
     .from(lateArrivals)
     .where(like(lateArrivals.lateDate, `${prefix}%`))
@@ -153,9 +153,9 @@ export async function getLateSecondsByUser(
   return map;
 }
 
-/** ค่าหักมาสาย (วิละ 1000 กีบ จาก settings) */
-export async function getLatePenaltyPerSecond(db: Db): Promise<number> {
-  const rows = await db.select().from(settings).where(eq(settings.key, 'SALARY_LATE_PENALTY_PER_SECOND')).limit(1);
+/** ค่าหักมาสาย (นาทีละ 1000 กีบ จาก settings) */
+export async function getLatePenaltyPerMinute(db: Db): Promise<number> {
+  const rows = await db.select().from(settings).where(eq(settings.key, 'SALARY_LATE_PENALTY_PER_MINUTE')).limit(1);
   if (rows.length === 0) return 1000;
   const v = rows[0].value;
   if (typeof v === 'number' && v >= 0) return v;

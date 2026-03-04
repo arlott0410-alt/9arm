@@ -122,6 +122,7 @@ export function MobileDrawer({
                 <li key={item.href}>
                   <Link
                     href={item.href}
+                    prefetch={false}
                     onClick={onClose}
                     className={cn(
                       'flex items-center gap-3 rounded-xl px-4 py-3 text-base transition-all',

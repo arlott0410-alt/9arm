@@ -24,6 +24,7 @@ import {
 import { formatMinorToDisplay, parseDisplayToMinor, formatDateTimeThailand } from '@/lib/utils';
 import { TimeInput24 } from '@/components/ui/time-input-24';
 import { ArrowLeft } from 'lucide-react';
+import { useAuth } from '@/components/providers/AuthProvider';
 
 type BonusDetail = {
   id: number;
@@ -56,7 +57,7 @@ export default function BonusDetailPage() {
   const router = useRouter();
   const params = useParams();
   const id = params?.id as string;
-  const [user, setUser] = useState<{ username: string; role: string } | null>(null);
+  const { user, loading: authLoading } = useAuth();
   const [bonus, setBonus] = useState<BonusDetail | null>(null);
   const [websites, setWebsites] = useState<{ id: number; name: string; prefix: string }[]>([]);
   const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);
@@ -76,13 +77,9 @@ export default function BonusDetailPage() {
   const canEdit = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json() as Promise<{ user?: { username: string; role: string } }>)
-      .then((d) => {
-        if (!d.user) router.replace('/login');
-        else setUser(d.user);
-      });
-  }, [router]);
+    if (authLoading) return;
+    if (!user) router.replace('/login');
+  }, [authLoading, user, router]);
 
   useEffect(() => {
     if (!user || !id) return;
@@ -170,7 +167,7 @@ export default function BonusDetailPage() {
     }
   }
 
-  if (!user || !bonus) return null;
+  if (authLoading || !user || !bonus) return null;
 
   const isDeleted = !!bonus.deletedAt;
 
@@ -179,6 +176,7 @@ export default function BonusDetailPage() {
       <div className="space-y-6">
         <Link
           href="/bonuses"
+          prefetch={false}
           className="inline-flex items-center gap-2 text-sm text-[#9CA3AF] hover:text-[#D4AF37]"
         >
           <ArrowLeft className="h-4 w-4" />

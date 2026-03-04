@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Users, Calendar, Banknote } from 'lucide-react';
+import { useAuth } from '@/components/providers/AuthProvider';
 
 type Employee = {
   id: number;
@@ -27,7 +28,7 @@ type Employee = {
 
 export default function EmployeesPage() {
   const router = useRouter();
-  const [user, setUser] = useState<{ username: string; role: string } | null>(null);
+  const { user, loading: authLoading } = useAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [holidayHeadUserId, setHolidayHeadUserId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
@@ -44,20 +45,16 @@ export default function EmployeesPage() {
   const [pendingSalaries, setPendingSalaries] = useState<Record<number, { baseSalaryMinor: number; currency: string }>>({});
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json() as Promise<{ user?: { username: string; role: string } }>)
-      .then((d) => {
-        if (!d.user) {
-          router.replace('/login');
-          return;
-        }
-        if (d.user.role !== 'SUPER_ADMIN') {
-          router.replace('/dashboard');
-          return;
-        }
-        setUser(d.user);
-      });
-  }, [router]);
+    if (authLoading) return;
+    if (!user) {
+      router.replace('/login');
+      return;
+    }
+    if (user.role !== 'SUPER_ADMIN') {
+      router.replace('/dashboard');
+      return;
+    }
+  }, [authLoading, user, router]);
 
   useEffect(() => {
     if (!user) return;
@@ -85,7 +82,7 @@ export default function EmployeesPage() {
       .finally(() => setSalaryLoading(false));
   }, [user, salaryYearMonth]);
 
-  if (!user) return null;
+  if (authLoading || !user) return null;
 
   return (
     <AppLayout user={user}>
@@ -93,7 +90,7 @@ export default function EmployeesPage() {
         <h1 className="text-2xl font-semibold text-[#E5E7EB]">จัดการพนักงาน</h1>
         <p className="text-sm text-[#9CA3AF]">
           รายชื่อผู้ใช้ role ADMIN (พนักงาน) — ใช้สำหรับตารางวันหยุดและเงินเดือน. การเปิด/ปิดใช้งาน และเปลี่ยนรหัสผ่าน ทำได้ที่{' '}
-          <Link href="/settings" className="text-[#D4AF37] hover:underline">
+          <Link href="/settings" prefetch={false} className="text-[#D4AF37] hover:underline">
             ตั้งค่า → ผู้ใช้
           </Link>
         </p>

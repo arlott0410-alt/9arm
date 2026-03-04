@@ -14,10 +14,11 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Calendar, Plus, User, Clock } from 'lucide-react';
+import { useAuth } from '@/components/providers/AuthProvider';
 
 type Employee = { id: number; username: string; role: string };
 type HolidayEntry = { userId: number; date: string };
-type LateEntry = { userId: number; date: string; seconds: number };
+type LateEntry = { userId: number; date: string; minutes: number };
 
 function getDaysInMonth(year: number, month: number): number {
   return new Date(year, month, 0).getDate();
@@ -27,7 +28,7 @@ const LONG_PRESS_MS = 1000;
 
 export default function HolidaysPage() {
   const router = useRouter();
-  const [user, setUser] = useState<{ id: number; username: string; role: string } | null>(null);
+  const { user, loading: authLoading } = useAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [entries, setEntries] = useState<HolidayEntry[]>([]);
   const [lateArrivals, setLateArrivals] = useState<LateEntry[]>([]);
@@ -37,24 +38,20 @@ export default function HolidaysPage() {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
 
-  const [lateDialog, setLateDialog] = useState<{ empId: number; empName: string; date: string; day: number; seconds: number } | null>(null);
-  const [lateInputSeconds, setLateInputSeconds] = useState('');
+  const [lateDialog, setLateDialog] = useState<{ empId: number; empName: string; date: string; day: number; minutes: number } | null>(null);
+  const [lateInputMinutes, setLateInputMinutes] = useState('');
   const [savingLate, setSavingLate] = useState(false);
 
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressHandledRef = useRef(false);
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json() as Promise<{ user?: { id: number; username: string; role: string } }>)
-      .then((d) => {
-        if (!d.user) {
-          router.replace('/login');
-          return;
-        }
-        setUser(d.user);
-      });
-  }, [router]);
+    if (authLoading) return;
+    if (!user) {
+      router.replace('/login');
+      return;
+    }
+  }, [authLoading, user, router]);
 
   useEffect(() => {
     if (!user) return;
@@ -87,7 +84,7 @@ export default function HolidaysPage() {
   const lateMap = useMemo(() => {
     const map = new Map<string, number>();
     for (const e of lateArrivals) {
-      map.set(`${e.userId}:${e.date}`, e.seconds);
+      map.set(`${e.userId}:${e.date}`, e.minutes);
     }
     return map;
   }, [lateArrivals]);
@@ -130,9 +127,9 @@ export default function HolidaysPage() {
     longPressTimerRef.current = setTimeout(() => {
       longPressTimerRef.current = null;
       longPressHandledRef.current = true;
-      const seconds = lateMap.get(`${empId}:${date}`) ?? 0;
-      setLateDialog({ empId, empName, date, day, seconds });
-      setLateInputSeconds(seconds > 0 ? String(seconds) : '');
+      const minutes = lateMap.get(`${empId}:${date}`) ?? 0;
+      setLateDialog({ empId, empName, date, day, minutes });
+      setLateInputMinutes(minutes > 0 ? String(minutes) : '');
     }, LONG_PRESS_MS);
   }
 
@@ -153,21 +150,21 @@ export default function HolidaysPage() {
 
   async function saveLateArrival() {
     if (!lateDialog) return;
-    const seconds = Math.max(0, Math.round(parseInt(lateInputSeconds, 10) || 0));
+    const minutes = Math.max(0, Math.round(parseInt(lateInputMinutes, 10) || 0));
     setSavingLate(true);
     try {
       const res = await fetch('/api/late-arrivals', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: lateDialog.empId, date: lateDialog.date, seconds }),
+        body: JSON.stringify({ userId: lateDialog.empId, date: lateDialog.date, minutes }),
       });
       if (res.ok) {
-        if (seconds === 0) {
+        if (minutes === 0) {
           setLateArrivals((prev) => prev.filter((e) => e.userId !== lateDialog.empId || e.date !== lateDialog.date));
         } else {
           setLateArrivals((prev) => {
             const rest = prev.filter((e) => e.userId !== lateDialog.empId || e.date !== lateDialog.date);
-            return [...rest, { userId: lateDialog.empId, date: lateDialog.date, seconds }];
+            return [...rest, { userId: lateDialog.empId, date: lateDialog.date, minutes }];
           });
         }
         setLateDialog(null);
@@ -180,7 +177,7 @@ export default function HolidaysPage() {
     }
   }
 
-  if (!user) return null;
+  if (authLoading || !user) return null;
 
   return (
     <AppLayout user={user}>
@@ -189,7 +186,7 @@ export default function HolidaysPage() {
         <p className="text-sm text-[#9CA3AF]">
           ตารางนี้แสดงเฉพาะผู้ใช้ role ADMIN (เงินเดือนและวันหยุดนับเฉพาะ ADMIN).
           {isHead
-            ? ' คุณเป็นหัวหน้าวันหยุด — คลิกเซลล์เพิ่ม/ลบวันหยุด · กดค้าง 1 วินาทีที่ปุ่ม + เพื่อลงมาสาย (วิละ 1000 กีบตอนคำนวณเงินเดือน)'
+            ? ' คุณเป็นหัวหน้าวันหยุด — คลิกเซลล์เพิ่ม/ลบวันหยุด · กดค้าง 1 วินาทีที่ปุ่ม + เพื่อลงมาสาย (หักนาทีละ 1000 กีบตอนคำนวณเงินเดือน)'
             : ' เฉพาะหัวหน้าวันหยุดสามารถลงวันหยุดได้'}
         </p>
 
@@ -222,7 +219,7 @@ export default function HolidaysPage() {
             </div>
             {isHead && (
               <p className="text-xs text-[#6B7280]">
-                สีส้ม = มาสาย · กดค้าง 1 วินาทีที่ปุ่ม + เพื่อกรอก/แก้ไข/ลบ (วินาที)
+                สีส้ม = มาสาย · กดค้าง 1 วินาทีที่ปุ่ม + เพื่อกรอก/แก้ไข/ลบ (นาที)
               </p>
             )}
           </CardHeader>
@@ -261,8 +258,8 @@ export default function HolidaysPage() {
                           const date = `${prefix}${String(day).padStart(2, '0')}`;
                           const key = `${emp.id}:${date}`;
                           const isHoliday = entrySet.has(key);
-                          const lateSeconds = lateMap.get(key) ?? 0;
-                          const isLate = lateSeconds > 0;
+                          const lateMinutes = lateMap.get(key) ?? 0;
+                          const isLate = lateMinutes > 0;
 
                           return (
                             <td
@@ -285,8 +282,8 @@ export default function HolidaysPage() {
                                   }`}
                                   title={
                                     isLate
-                                      ? `มาสาย ${lateSeconds} วิ — กดค้างเพื่อแก้ไข/ลบ`
-                                      : isHoliday
+? `มาสาย ${lateMinutes} นาที — กดค้างเพื่อแก้ไข/ลบ`
+                                        : isHoliday
                                         ? `ลบวันหยุด ${date}`
                                         : `เพิ่มวันหยุด ${date} · กดค้าง 1 วิ สำหรับมาสาย`
                                   }
@@ -294,7 +291,7 @@ export default function HolidaysPage() {
                                   {isHoliday ? (
                                     <span className="text-xs font-medium">หยุด</span>
                                   ) : isLate ? (
-                                    <span className="text-xs font-medium">{lateSeconds}วิ</span>
+                                    <span className="text-xs font-medium">{lateMinutes}น</span>
                                   ) : (
                                     <Plus className="h-4 w-4" />
                                   )}
@@ -309,7 +306,7 @@ export default function HolidaysPage() {
                                         : 'text-[#374151]'
                                   }`}
                                 >
-                                  {isHoliday ? 'หยุด' : isLate ? `${lateSeconds}วิ` : '—'}
+                                  {isHoliday ? 'หยุด' : isLate ? `${lateMinutes}น` : '—'}
                                 </span>
                               )}
                             </td>
@@ -337,15 +334,15 @@ export default function HolidaysPage() {
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-[#9CA3AF]">
-            จำนวนวินาทีที่มาสาย (หักวิละ 1000 กีบตอนคำนวณเงินเดือน). ใส่ 0 เพื่อลบรายการ
+            จำนวนนาทีที่มาสาย (หักนาทีละ 1000 กีบตอนคำนวณเงินเดือน). ใส่ 0 เพื่อลบรายการ
           </p>
           <div className="flex items-center gap-2 pt-2">
-            <Label className="min-w-[80px]">วินาที</Label>
+            <Label className="min-w-[80px]">นาที</Label>
             <Input
               type="number"
               min={0}
-              value={lateInputSeconds}
-              onChange={(e) => setLateInputSeconds(e.target.value)}
+              value={lateInputMinutes}
+              onChange={(e) => setLateInputMinutes(e.target.value)}
               className="flex-1 bg-[#1F2937] border-[#374151]"
               placeholder="0"
             />

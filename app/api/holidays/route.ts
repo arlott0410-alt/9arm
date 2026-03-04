@@ -57,14 +57,14 @@ export async function GET(request: Request) {
         .from(holidayEntries)
         .where(like(holidayEntries.holidayDate, `${prefix}%`)),
       db
-        .select({ userId: lateArrivals.userId, lateDate: lateArrivals.lateDate, secondsLate: lateArrivals.secondsLate })
+        .select({ userId: lateArrivals.userId, lateDate: lateArrivals.lateDate, minutesLate: lateArrivals.minutesLate })
         .from(lateArrivals)
         .where(like(lateArrivals.lateDate, `${prefix}%`)),
       getHolidayHeadUserId(db),
     ]);
 
     const entries = entriesRows.map((r) => ({ userId: r.userId, date: r.holidayDate }));
-    const lateArrivalsList = lateRows.map((r) => ({ userId: r.userId, date: r.lateDate, seconds: r.secondsLate }));
+    const lateArrivalsList = lateRows.map((r) => ({ userId: r.userId, date: r.lateDate, minutes: r.minutesLate }));
 
     return NextResponse.json({
       employees: employeeList,

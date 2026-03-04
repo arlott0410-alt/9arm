@@ -21,6 +21,7 @@ import { TimeInput24 } from '@/components/ui/time-input-24';
 import { Copy } from 'lucide-react';
 import { PaginationBar } from '@/components/PaginationBar';
 import { getDefaultPageSize } from '@/lib/pagination';
+import { useAuth } from '@/components/providers/AuthProvider';
 
 type Website = { id: number; name: string; prefix: string };
 type CreditCut = {
@@ -43,7 +44,7 @@ type CreditCut = {
 
 export default function CreditCutsPage() {
   const router = useRouter();
-  const [user, setUser] = useState<{ username: string; role: string } | null>(null);
+  const { user, loading: authLoading } = useAuth();
   const [websites, setWebsites] = useState<Website[]>([]);
   const [creditCuts, setCreditCuts] = useState<CreditCut[]>([]);
   const [settings, setSettings] = useState<{ displayCurrency: string } | null>(null);
@@ -71,13 +72,9 @@ export default function CreditCutsPage() {
   const canMutate = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json() as Promise<{ user?: { username: string; role: string } }>)
-      .then((d) => {
-        if (!d.user) router.replace('/login');
-        else setUser(d.user);
-      });
-  }, [router]);
+    if (authLoading) return;
+    if (!user) router.replace('/login');
+  }, [authLoading, user, router]);
 
   useEffect(() => {
     if (!user) return;
@@ -172,7 +169,7 @@ export default function CreditCutsPage() {
     }
   }
 
-  if (!user) return null;
+  if (authLoading || !user) return null;
 
   const dispCur = settings?.displayCurrency || 'THB';
 
@@ -361,6 +358,7 @@ export default function CreditCutsPage() {
                       <td className="py-2 flex items-center gap-2">
                         <Link
                           href={`/credit-cuts/${c.id}`}
+                          prefetch={false}
                           className="text-[#D4AF37] hover:underline"
                         >
                           ดู

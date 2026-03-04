@@ -7,8 +7,8 @@ import {
   getHolidayCountByUser,
   getBaseSalaryForUser,
   getSalaryPolicySettings,
-  getLateSecondsByUser,
-  getLatePenaltyPerSecond,
+  getLateMinutesByUser,
+  getLatePenaltyPerMinute,
   computeSalaryAfterHoliday,
   computeBonusPortion,
   computeNetAmount,
@@ -107,8 +107,8 @@ export async function POST(request: Request) {
     ]);
 
     const [lateByUser, latePenalty] = await Promise.all([
-      getLateSecondsByUser(db, yearMonth),
-      getLatePenaltyPerSecond(db),
+      getLateMinutesByUser(db, yearMonth),
+      getLatePenaltyPerMinute(db),
     ]);
 
     const itemsData: {
@@ -123,7 +123,7 @@ export async function POST(request: Request) {
       totalAllowancesMinor: number;
       deductions: PayrollDeduction[];
       totalDeductionsMinor: number;
-      lateSeconds: number;
+      lateMinutes: number;
       lateDeductionMinor: number;
       netAmountMinor: number;
     }[] = [];
@@ -141,8 +141,8 @@ export async function POST(request: Request) {
         policy.freeHolidayDays,
         policy.deductMultiplierPerDay
       );
-      const lateSec = lateByUser.get(u.id) ?? 0;
-      const lateDeductionMinor = lateSec * latePenalty;
+      const lateMin = lateByUser.get(u.id) ?? 0;
+      const lateDeductionMinor = lateMin * latePenalty;
       itemsData.push({
         userId: u.id,
         baseSalaryMinor: sal.baseSalaryMinor,
@@ -155,7 +155,7 @@ export async function POST(request: Request) {
         totalAllowancesMinor: 0,
         deductions: [],
         totalDeductionsMinor: 0,
-        lateSeconds: lateSec,
+        lateMinutes: lateMin,
         lateDeductionMinor,
         netAmountMinor: Math.max(0, salaryAfterHolidayMinor - lateDeductionMinor),
       });
@@ -214,7 +214,7 @@ export async function POST(request: Request) {
         totalAllowancesMinor: d.totalAllowancesMinor,
         deductions: d.deductions,
         totalDeductionsMinor: d.totalDeductionsMinor,
-        lateSeconds: d.lateSeconds,
+        lateMinutes: d.lateMinutes,
         lateDeductionMinor: d.lateDeductionMinor,
         netAmountMinor: d.netAmountMinor,
         createdAt: now,
