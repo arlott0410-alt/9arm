@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth, requireSettings } from '@/lib/api-helpers';
 import { payrollRuns, payrollItems, users } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
-import { computeNetAmount, type PayrollDeduction } from '@/lib/payroll';
+import type { PayrollDeduction, PayrollAllowance } from '@/lib/payroll';
 
 export async function GET(
   request: Request,
@@ -47,6 +47,8 @@ export async function GET(
         workingDays: payrollItems.workingDays,
         salaryAfterHolidayMinor: payrollItems.salaryAfterHolidayMinor,
         bonusPortionMinor: payrollItems.bonusPortionMinor,
+        allowances: payrollItems.allowances,
+        totalAllowancesMinor: payrollItems.totalAllowancesMinor,
         deductions: payrollItems.deductions,
         totalDeductionsMinor: payrollItems.totalDeductionsMinor,
         netAmountMinor: payrollItems.netAmountMinor,
@@ -66,6 +68,8 @@ export async function GET(
       workingDays: r.workingDays,
       salaryAfterHolidayMinor: r.salaryAfterHolidayMinor,
       bonusPortionMinor: r.bonusPortionMinor,
+      allowances: (Array.isArray(r.allowances) ? r.allowances : []) as PayrollAllowance[],
+      totalAllowancesMinor: r.totalAllowancesMinor ?? 0,
       deductions: (Array.isArray(r.deductions) ? r.deductions : []) as PayrollDeduction[],
       totalDeductionsMinor: r.totalDeductionsMinor,
       netAmountMinor: r.netAmountMinor,

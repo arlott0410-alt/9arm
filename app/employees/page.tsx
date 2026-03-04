@@ -38,6 +38,7 @@ export default function EmployeesPage() {
   });
   type SalaryRow = { userId: number; username: string; baseSalaryMinor: number | null; currency: string | null; effectiveFrom: string | null };
   const [salaryRows, setSalaryRows] = useState<SalaryRow[]>([]);
+  const [salaryCurrencyDefault, setSalaryCurrencyDefault] = useState<string>('THB');
   const [salaryLoading, setSalaryLoading] = useState(false);
   const [savingSalary, setSavingSalary] = useState<number | null>(null);
   const [pendingSalaries, setPendingSalaries] = useState<Record<number, { baseSalaryMinor: number; currency: string }>>({});
@@ -75,8 +76,11 @@ export default function EmployeesPage() {
     if (!user) return;
     setSalaryLoading(true);
     fetch(`/api/employee-salaries?yearMonth=${salaryYearMonth}`)
-      .then((r) => r.json() as Promise<{ yearMonth: string; items: SalaryRow[] }>)
-      .then((data) => setSalaryRows(data.items ?? []))
+      .then((r) => r.json() as Promise<{ yearMonth: string; salaryCurrency?: string; items: SalaryRow[] }>)
+      .then((data) => {
+        setSalaryRows(data.items ?? []);
+        setSalaryCurrencyDefault(data.salaryCurrency ?? 'THB');
+      })
       .catch(console.error)
       .finally(() => setSalaryLoading(false));
   }, [user, salaryYearMonth]);
@@ -221,7 +225,7 @@ export default function EmployeesPage() {
               เงินเดือนฐาน
             </CardTitle>
             <p className="text-sm text-[#9CA3AF]">
-              ตั้งค่าเงินเดือนฐานต่อพนักงาน (ใช้คำนวณรอบเงินเดือน). เลือกเดือนแล้วกรอกจำนวนเงิน (บาท) และสกุลเงิน
+              ตั้งค่าเงินเดือนฐานต่อพนักงาน (ใช้คำนวณรอบเงินเดือน). เลือกเดือนแล้วกรอกจำนวนเงินและสกุลเงิน — ค่าเริ่มต้นตาม ตั้งค่า → สกุลเงินเดือน
             </p>
             <div className="flex items-center gap-4 pt-2">
               <div>
@@ -244,7 +248,9 @@ export default function EmployeesPage() {
                   <thead>
                     <tr className="border-b border-[#1F2937]">
                       <th className="py-2 text-left text-[#9CA3AF]">ชื่อผู้ใช้</th>
-                      <th className="py-2 text-left text-[#9CA3AF]">เงินเดือนฐาน (บาท)</th>
+                      <th className="py-2 text-left text-[#9CA3AF]">
+                      เงินเดือนฐาน ({salaryCurrencyDefault === 'LAK' ? 'กีบ' : salaryCurrencyDefault === 'USD' ? 'ดอลลาร์' : 'บาท'})
+                    </th>
                       <th className="py-2 text-left text-[#9CA3AF]">สกุลเงิน</th>
                       <th className="py-2 text-left text-[#9CA3AF]">ดำเนินการ</th>
                     </tr>
@@ -252,7 +258,7 @@ export default function EmployeesPage() {
                   <tbody>
                     {salaryRows.map((row) => {
                       const base = pendingSalaries[row.userId]?.baseSalaryMinor ?? row.baseSalaryMinor ?? 0;
-                      const currency = pendingSalaries[row.userId]?.currency ?? row.currency ?? 'THB';
+                      const currency = pendingSalaries[row.userId]?.currency ?? row.currency ?? salaryCurrencyDefault;
                       return (
                         <tr key={row.userId} className="border-b border-[#1F2937]">
                           <td className="py-2 text-[#E5E7EB] font-medium">{row.username}</td>
@@ -296,7 +302,7 @@ export default function EmployeesPage() {
                               onClick={async () => {
                                 setSavingSalary(row.userId);
                                 try {
-                                  const b = pendingSalaries[row.userId] ?? { baseSalaryMinor: row.baseSalaryMinor ?? 0, currency: row.currency ?? 'THB' };
+                                  const b = pendingSalaries[row.userId] ?? { baseSalaryMinor: row.baseSalaryMinor ?? 0, currency: row.currency ?? salaryCurrencyDefault };
                                   const res = await fetch('/api/employee-salaries', {
                                     method: 'PUT',
                                     headers: { 'Content-Type': 'application/json' },

@@ -40,6 +40,8 @@ export async function GET(request: Request) {
         workingDays: number;
         salaryAfterHolidayMinor: number;
         bonusPortionMinor: number;
+        allowances: { name: string; amountMinor: number }[];
+        totalAllowancesMinor: number;
         deductions: PayrollDeduction[];
         totalDeductionsMinor: number;
         netAmountMinor: number;
@@ -73,6 +75,8 @@ export async function GET(request: Request) {
           workingDays: r.workingDays,
           salaryAfterHolidayMinor: r.salaryAfterHolidayMinor,
           bonusPortionMinor: r.bonusPortionMinor,
+          allowances: (Array.isArray(r.allowances) ? r.allowances : []) as { name: string; amountMinor: number }[],
+          totalAllowancesMinor: r.totalAllowancesMinor ?? 0,
           deductions: (Array.isArray(r.deductions) ? r.deductions : []) as PayrollDeduction[],
           totalDeductionsMinor: r.totalDeductionsMinor,
           netAmountMinor: r.netAmountMinor,

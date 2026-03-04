@@ -104,11 +104,11 @@ export default function PayrollPage() {
     <AppLayout user={user}>
       <div className="space-y-6">
         <h1 className="text-2xl font-semibold text-[#E5E7EB] flex items-center gap-2">
-          <Banknote className="h-7 w-7" />
+          <Banknote className="h-7 w-7 text-[#D4AF37]" />
           จัดการเงินเดือน
         </h1>
         <p className="text-sm text-[#9CA3AF]">
-          สร้างรอบคำนวณเงินเดือน (DRAFT) แล้วตรวจสอบ/เพิ่มรายการตัดก่อนยืนยัน
+          หัวหน้าแอดมินลงวันหยุด · จัดการเงินเดือนทุกอย่างโดย SUPER_ADMIN — สร้างรอบ (DRAFT) กรอกรายการเพิ่ม/หัก แล้วยืนยัน
         </p>
 
         <Card className="border-[#1F2937] bg-[#0F172A]">
@@ -174,14 +174,14 @@ export default function PayrollPage() {
                   <Link
                     key={r.id}
                     href={`/payroll/${r.id}`}
-                    className="flex items-center justify-between rounded border border-[#1F2937] px-4 py-3 text-[#E5E7EB] hover:bg-[#111827]"
+                    className="flex items-center justify-between rounded-lg border border-[#1F2937] px-4 py-3 text-[#E5E7EB] transition-colors hover:bg-[#111827] hover:border-[#374151]"
                   >
                     <span className="font-medium">{r.yearMonth}</span>
                     <span
                       className={
                         r.status === 'CONFIRMED'
-                          ? 'text-green-400'
-                          : 'text-[#D4AF37]'
+                          ? 'rounded-full bg-green-500/20 px-3 py-0.5 text-sm text-green-400'
+                          : 'rounded-full bg-amber-500/20 px-3 py-0.5 text-sm text-amber-400'
                       }
                     >
                       {r.status === 'CONFIRMED' ? 'ยืนยันแล้ว' : 'แบบร่าง'}

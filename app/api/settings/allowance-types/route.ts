@@ -9,8 +9,9 @@ export type AllowanceType = { id: string; name: string };
 
 const DEFAULT: AllowanceType[] = [
   { id: '1', name: 'ค่าไฟ' },
-  { id: '2', name: 'ค่าโบนัส' },
-  { id: '3', name: 'ค่าอื่น' },
+  { id: '2', name: 'ค่าข้าว' },
+  { id: '3', name: 'ค่าโบนัส' },
+  { id: '4', name: 'ค่าอื่น' },
 ];
 
 function parse(value: unknown): AllowanceType[] {

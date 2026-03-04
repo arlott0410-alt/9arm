@@ -3,6 +3,7 @@ import { settings, employeeSalaries, users, holidayEntries } from '@/db/schema';
 import { eq, and, lte, sql, like, inArray } from 'drizzle-orm';
 
 export type PayrollDeduction = { label: string; amountMinor: number };
+export type PayrollAllowance = { name: string; amountMinor: number };
 
 export function getDaysInMonth(year: number, month: number): number {
   return new Date(year, month, 0).getDate();
@@ -112,17 +113,23 @@ export function computeBonusPortion(
 }
 
 /**
- * คำนวณยอดสุทธิ หลังหักรายการตัด (deductions)
+ * คำนวณยอดสุทธิ = เงินหลังหักวันหยุด + โบนัส + รายการเพิ่ม(ค่าไฟ/ค่าข้าว/ฯลฯ) − รายการหัก
  */
 export function computeNetAmount(
   salaryAfterHolidayMinor: number,
   bonusPortionMinor: number,
+  allowances: PayrollAllowance[],
   deductions: PayrollDeduction[]
-): { totalDeductionsMinor: number; netAmountMinor: number } {
+): {
+  totalAllowancesMinor: number;
+  totalDeductionsMinor: number;
+  netAmountMinor: number;
+} {
+  const totalAllowancesMinor = allowances.reduce((s, a) => s + a.amountMinor, 0);
   const totalDeductionsMinor = deductions.reduce((s, d) => s + d.amountMinor, 0);
   const netAmountMinor = Math.max(
     0,
-    salaryAfterHolidayMinor + bonusPortionMinor - totalDeductionsMinor
+    salaryAfterHolidayMinor + bonusPortionMinor + totalAllowancesMinor - totalDeductionsMinor
   );
-  return { totalDeductionsMinor, netAmountMinor };
+  return { totalAllowancesMinor, totalDeductionsMinor, netAmountMinor };
 }

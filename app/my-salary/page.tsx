@@ -19,6 +19,8 @@ type SalaryItem = {
     workingDays: number;
     salaryAfterHolidayMinor: number;
     bonusPortionMinor: number;
+    allowances: { name: string; amountMinor: number }[];
+    totalAllowancesMinor: number;
     deductions: { label: string; amountMinor: number }[];
     totalDeductionsMinor: number;
     netAmountMinor: number;
@@ -109,6 +111,12 @@ export default function MySalaryPage() {
                         <span>โบนัส (จากก้อนรวม)</span>
                         <span>{formatMinor(s.item.bonusPortionMinor)} ฿</span>
                       </div>
+                      {(s.item.totalAllowancesMinor ?? 0) > 0 && (
+                        <div className="flex justify-between text-[#9CA3AF]">
+                          <span>รายการเพิ่ม (ค่าไฟ, ค่าข้าว ฯลฯ)</span>
+                          <span className="text-green-400">+{formatMinor(s.item.totalAllowancesMinor ?? 0)} ฿</span>
+                        </div>
+                      )}
                       {s.item.deductions.length > 0 && (
                         <div className="pt-2 border-t border-[#1F2937]">
                           <p className="text-[#9CA3AF] mb-1">รายการตัดเงินเดือน</p>

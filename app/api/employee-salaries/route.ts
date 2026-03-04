@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireSettings } from '@/lib/api-helpers';
-import { users, employeeSalaries } from '@/db/schema';
+import { users, employeeSalaries, settings } from '@/db/schema';
 import { eq, and, lte, sql, desc } from 'drizzle-orm';
 import type { Db } from '@/db';
 import { getBaseSalaryForUser } from '@/lib/payroll';
@@ -16,6 +16,13 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const yearMonth = searchParams.get('yearMonth') ?? getCurrentYearMonth();
+
+    let salaryCurrency = 'THB';
+    const settingRows = await db.select().from(settings).where(eq(settings.key, 'SALARY_CURRENCY')).limit(1);
+    if (settingRows.length > 0) {
+      const v = settingRows[0].value;
+      if (typeof v === 'string' && ['LAK', 'THB', 'USD'].includes(v)) salaryCurrency = v;
+    }
 
     const adminList = await db
       .select({ id: users.id, username: users.username })
@@ -42,7 +49,7 @@ export async function GET(request: Request) {
       });
     }
 
-    return NextResponse.json({ yearMonth, items });
+    return NextResponse.json({ yearMonth, salaryCurrency, items });
   } catch (e) {
     console.error(e);
     return NextResponse.json(

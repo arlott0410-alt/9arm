@@ -248,6 +248,8 @@ export const payrollItems = sqliteTable('payroll_items', {
   workingDays: integer('working_days').notNull(),
   salaryAfterHolidayMinor: integer('salary_after_holiday_minor').notNull(),
   bonusPortionMinor: integer('bonus_portion_minor').notNull().default(0),
+  allowances: text('allowances', { mode: 'json' }).notNull().default('[]'),
+  totalAllowancesMinor: integer('total_allowances_minor').notNull().default(0),
   deductions: text('deductions', { mode: 'json' }).notNull().default('[]'),
   totalDeductionsMinor: integer('total_deductions_minor').notNull().default(0),
   netAmountMinor: integer('net_amount_minor').notNull(),

@@ -11,6 +11,7 @@ import {
   computeBonusPortion,
   computeNetAmount,
   type PayrollDeduction,
+  type PayrollAllowance,
 } from '@/lib/payroll';
 
 /** GET: รายการรอบเงินเดือน. SUPER_ADMIN เห็นทุกรอบ, ADMIN เห็นเฉพาะ CONFIRMED */
@@ -111,6 +112,8 @@ export async function POST(request: Request) {
       workingDays: number;
       salaryAfterHolidayMinor: number;
       bonusPortionMinor: number;
+      allowances: PayrollAllowance[];
+      totalAllowancesMinor: number;
       deductions: PayrollDeduction[];
       totalDeductionsMinor: number;
       netAmountMinor: number;
@@ -137,6 +140,8 @@ export async function POST(request: Request) {
         workingDays,
         salaryAfterHolidayMinor,
         bonusPortionMinor: 0,
+        allowances: [],
+        totalAllowancesMinor: 0,
         deductions: [],
         totalDeductionsMinor: 0,
         netAmountMinor: salaryAfterHolidayMinor,
@@ -152,11 +157,13 @@ export async function POST(request: Request) {
         totalWorkingDaysAll,
         bonusPool
       );
-      const { totalDeductionsMinor, netAmountMinor } = computeNetAmount(
+      const { totalAllowancesMinor, totalDeductionsMinor, netAmountMinor } = computeNetAmount(
         d.salaryAfterHolidayMinor,
         d.bonusPortionMinor,
+        d.allowances,
         d.deductions
       );
+      d.totalAllowancesMinor = totalAllowancesMinor;
       d.totalDeductionsMinor = totalDeductionsMinor;
       d.netAmountMinor = netAmountMinor;
     }
@@ -190,6 +197,8 @@ export async function POST(request: Request) {
         workingDays: d.workingDays,
         salaryAfterHolidayMinor: d.salaryAfterHolidayMinor,
         bonusPortionMinor: d.bonusPortionMinor,
+        allowances: d.allowances,
+        totalAllowancesMinor: d.totalAllowancesMinor,
         deductions: d.deductions,
         totalDeductionsMinor: d.totalDeductionsMinor,
         netAmountMinor: d.netAmountMinor,
