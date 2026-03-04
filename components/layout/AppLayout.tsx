@@ -16,7 +16,7 @@ export function AppLayout({
   const canAccessSettings = user.role === 'SUPER_ADMIN';
   const canAccessWallets = user.role === 'SUPER_ADMIN';
   const canAccessEmployees = user.role === 'SUPER_ADMIN';
-  const canAccessPayroll = user.role === 'SUPER_ADMIN';
+  const canAccessPayroll = user.role === 'SUPER_ADMIN' || user.role === 'AUDIT';
   const canAccessMySalary = user.role === 'ADMIN';
 
   return (

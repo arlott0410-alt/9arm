@@ -80,12 +80,13 @@ export async function GET(
       note: r.note,
     }));
 
-    if (role !== 'SUPER_ADMIN') {
+    if (role === 'ADMIN') {
       items = items.filter((i) => i.userId === user!.id);
       if (items.length === 0) {
         return NextResponse.json({ error: 'ไม่มีข้อมูลเงินเดือนของคุณในรอบนี้' }, { status: 404 });
       }
     }
+    // SUPER_ADMIN และ AUDIT เห็นรายการทุกคน (AUDIT เฉพาะรอบ CONFIRMED)
 
     return NextResponse.json({
       run: {
@@ -107,7 +108,7 @@ export async function GET(
   }
 }
 
-/** PATCH: เปลี่ยนสถานะเป็น CONFIRMED หรืออัปเดต bonus_pool (DRAFT). SUPER_ADMIN เท่านั้น */
+/** PATCH: เปลี่ยนสถานะ CONFIRMED/DRAFT หรืออัปเดต bonus_pool (DRAFT). SUPER_ADMIN เท่านั้น */
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -116,6 +117,11 @@ export async function PATCH(
     const result = await getDbAndUser(request);
     if (result instanceof NextResponse) return result;
     const { db, user } = result;
+    const authErr = requireAuth(user);
+    if (authErr) return authErr;
+    if ((user!.role as string) !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์' }, { status: 403 });
+    }
     const err = requireSettings(user);
     if (err) return err;
 
@@ -141,6 +147,14 @@ export async function PATCH(
         .where(eq(payrollRuns.id, id));
       return NextResponse.json({ run: { id, status: 'CONFIRMED' } });
     }
+    // เปิดแก้ไขรอบที่ยืนยันแล้ว (เปลี่ยนกลับเป็น DRAFT)
+    if (body.status === 'DRAFT' && runRows[0].status === 'CONFIRMED') {
+      await db
+        .update(payrollRuns)
+        .set({ status: 'DRAFT' })
+        .where(eq(payrollRuns.id, id));
+      return NextResponse.json({ run: { id, status: 'DRAFT' } });
+    }
     if (
       typeof body.bonusPoolMinor === 'number' &&
       runRows[0].status === 'DRAFT' &&
@@ -156,7 +170,7 @@ export async function PATCH(
     }
 
     return NextResponse.json(
-      { error: 'ส่ง status: CONFIRMED หรือ bonusPoolMinor (DRAFT)' },
+      { error: 'ส่ง status: CONFIRMED หรือ DRAFT (เปิดแก้ไข) หรือ bonusPoolMinor (DRAFT)' },
       { status: 400 }
     );
   } catch (e) {

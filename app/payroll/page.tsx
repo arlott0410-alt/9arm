@@ -44,7 +44,7 @@ export default function PayrollPage() {
           router.replace('/login');
           return;
         }
-        if (d.user.role !== 'SUPER_ADMIN') {
+        if (d.user.role !== 'SUPER_ADMIN' && d.user.role !== 'AUDIT') {
           router.replace('/dashboard');
           return;
         }
@@ -108,13 +108,16 @@ export default function PayrollPage() {
           จัดการเงินเดือน
         </h1>
         <p className="text-sm text-[#9CA3AF]">
-          หัวหน้าแอดมินลงวันหยุด · จัดการเงินเดือนทุกอย่างโดย SUPER_ADMIN — สร้างรอบ (DRAFT) กรอกรายการเพิ่ม/หัก แล้วยืนยัน
+          {user.role === 'AUDIT'
+            ? 'ดูรายการรอบเงินเดือนที่ยืนยันแล้ว และเงินเดือนของทุกคนในหน้ารายละเอียด (ดูได้อย่างเดียว)'
+            : 'หัวหน้าแอดมินลงวันหยุด · จัดการเงินเดือนทุกอย่างโดย SUPER_ADMIN — สร้างรอบ (DRAFT) กรอกรายการเพิ่ม/หัก แล้วยืนยัน'}
         </p>
 
         <Card className="border-[#1F2937] bg-[#0F172A]">
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-[#E5E7EB]">รอบเงินเดือน</CardTitle>
+              {user.role === 'SUPER_ADMIN' && (
               <Dialog open={createOpen} onOpenChange={setCreateOpen}>
                 <DialogTrigger asChild>
                   <Button
@@ -161,6 +164,7 @@ export default function PayrollPage() {
                   </div>
                 </DialogContent>
               </Dialog>
+              )}
             </div>
           </CardHeader>
           <CardContent>

@@ -71,6 +71,7 @@ export default function PayrollDetailPage() {
   const [deductList, setDeductList] = useState<{ label: string; amountMinor: number }[]>([]);
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [reopening, setReopening] = useState(false);
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -80,7 +81,7 @@ export default function PayrollDetailPage() {
           router.replace('/login');
           return;
         }
-        if (d.user.role !== 'SUPER_ADMIN') {
+        if (d.user.role !== 'SUPER_ADMIN' && d.user.role !== 'AUDIT') {
           router.replace('/payroll');
           return;
         }
@@ -180,7 +181,7 @@ export default function PayrollDetailPage() {
 
   const confirmRun = async () => {
     if (!run || run.status !== 'DRAFT') return;
-    if (!confirm('ยืนยันรอบเงินเดือนนี้? หลังยืนยันจะแก้ไขไม่ได้')) return;
+    if (!confirm('ยืนยันรอบเงินเดือนนี้? หลังยืนยันจะแก้ไขไม่ได้ (สามารถเปิดแก้ไขภายหลังได้)')) return;
     setConfirming(true);
     try {
       const res = await fetch(`/api/payroll/${id}`, {
@@ -196,6 +197,27 @@ export default function PayrollDetailPage() {
       }
     } finally {
       setConfirming(false);
+    }
+  };
+
+  const reopenForEdit = async () => {
+    if (!run || run.status !== 'CONFIRMED') return;
+    if (!confirm('เปิดแก้ไขรอบนี้? รอบจะกลับเป็นแบบร่าง แล้วสามารถกรอกรายการและยืนยันใหม่ได้')) return;
+    setReopening(true);
+    try {
+      const res = await fetch(`/api/payroll/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'DRAFT' }),
+      });
+      if (res.ok) {
+        setRun((p) => (p ? { ...p, status: 'DRAFT' } : null));
+      } else {
+        const d = (await res.json()) as { error?: string };
+        alert(d.error ?? 'เปิดแก้ไขไม่ได้');
+      }
+    } finally {
+      setReopening(false);
     }
   };
 
@@ -229,18 +251,33 @@ export default function PayrollDetailPage() {
                   รอบเงินเดือน {run.yearMonth}
                 </h1>
                 <p className="mt-1 text-sm text-[#9CA3AF]">
-                  หัวหน้าแอดมินลงวันหยุด · จัดการเงินเดือนทุกอย่างโดย SUPER_ADMIN
+                  {user.role === 'AUDIT'
+                    ? 'ดูรายงานเงินเดือนของทุกคนในรอบนี้ (ดูได้อย่างเดียว)'
+                    : 'หัวหน้าแอดมินลงวันหยุด · จัดการเงินเดือนทุกอย่างโดย SUPER_ADMIN'}
                 </p>
               </div>
-              <span
-                className={
-                  run.status === 'CONFIRMED'
-                    ? 'inline-flex items-center rounded-full bg-green-500/20 px-4 py-1.5 text-sm font-medium text-green-400'
-                    : 'inline-flex items-center rounded-full bg-amber-500/20 px-4 py-1.5 text-sm font-medium text-amber-400'
-                }
-              >
-                {run.status === 'CONFIRMED' ? 'ยืนยันแล้ว' : 'แบบร่าง'}
-              </span>
+              <div className="flex flex-wrap items-center gap-3">
+                <span
+                  className={
+                    run.status === 'CONFIRMED'
+                      ? 'inline-flex items-center rounded-full bg-green-500/20 px-4 py-1.5 text-sm font-medium text-green-400'
+                      : 'inline-flex items-center rounded-full bg-amber-500/20 px-4 py-1.5 text-sm font-medium text-amber-400'
+                  }
+                >
+                  {run.status === 'CONFIRMED' ? 'ยืนยันแล้ว' : 'แบบร่าง'}
+                </span>
+                {user.role === 'SUPER_ADMIN' && run.status === 'CONFIRMED' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={reopenForEdit}
+                    disabled={reopening}
+                    className="border-amber-500/50 text-amber-400 hover:bg-amber-500/10"
+                  >
+                    {reopening ? 'กำลังเปิดแก้ไข...' : 'เปิดแก้ไข'}
+                  </Button>
+                )}
+              </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
