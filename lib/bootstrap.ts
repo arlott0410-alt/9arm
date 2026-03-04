@@ -12,7 +12,6 @@ const DEFAULT_RATES = expandRatesFromBase(DEFAULT_BASE);
 const REQUIRED_KEYS = [
   'DISPLAY_CURRENCY',
   'EXCHANGE_RATES',
-  'SALARY_CURRENCY',
   'SALARY_FREE_HOLIDAY_DAYS',
   'SALARY_DEDUCT_MULTIPLIER_PER_DAY',
   'SALARY_LATE_PENALTY_PER_MINUTE',
@@ -56,13 +55,6 @@ export async function bootstrapSettings(db: Db): Promise<void> {
       value: JSON.stringify(DEFAULT_RATES),
     });
     keys.add('EXCHANGE_RATES');
-  }
-  if (!keys.has('SALARY_CURRENCY')) {
-    await db.insert(settings).values({
-      key: 'SALARY_CURRENCY',
-      value: JSON.stringify('THB'),
-    });
-    keys.add('SALARY_CURRENCY');
   }
   if (!keys.has('SALARY_FREE_HOLIDAY_DAYS')) {
     await db.insert(settings).values({

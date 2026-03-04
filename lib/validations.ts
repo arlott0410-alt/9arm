@@ -112,10 +112,6 @@ export const displayCurrencySchema = z.object({
   displayCurrency: z.enum(['LAK', 'THB', 'USD']),
 });
 
-export const salaryCurrencySchema = z.object({
-  salaryCurrency: z.enum(['LAK', 'THB', 'USD']),
-});
-
 export const exchangeRatesSchema = z.object({
   rates: z.record(z.string(), z.number()),
 });

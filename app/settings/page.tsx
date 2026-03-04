@@ -40,7 +40,6 @@ export default function SettingsPage() {
   const [bonusCategories, setBonusCategories] = useState<BonusCategory[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [displayCurrency, setDisplayCurrency] = useState('THB');
-  const [salaryCurrency, setSalaryCurrency] = useState('THB');
   const [rates, setRates] = useState<Record<string, number>>({});
   const [websiteOpen, setWebsiteOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
@@ -80,7 +79,7 @@ export default function SettingsPage() {
       fetch('/api/settings/websites').then((r) => r.json() as Promise<Website[]>),
       fetch('/api/settings/bonus-categories').then((r) => r.json() as Promise<BonusCategory[]>),
       fetch('/api/settings/users').then((r) => r.json() as Promise<AppUser[]>),
-      fetch('/api/settings').then((r) => r.json() as Promise<{ DISPLAY_CURRENCY?: string; SALARY_CURRENCY?: string }>),
+      fetch('/api/settings').then((r) => r.json() as Promise<{ DISPLAY_CURRENCY?: string }>),
       fetch('/api/settings/exchange-rates').then((r) => r.json() as Promise<{ rates?: Record<string, number> }>),
       fetch('/api/settings/allowance-types').then((r) => r.json() as Promise<{ items: { id: string; name: string }[] }>),
     ]).then(([w, bc, u, s, r, a]) => {
@@ -88,7 +87,6 @@ export default function SettingsPage() {
       setBonusCategories(Array.isArray(bc) ? bc : []);
       setUsers(Array.isArray(u) ? u : []);
       setDisplayCurrency(s.DISPLAY_CURRENCY || 'THB');
-      setSalaryCurrency(s.SALARY_CURRENCY || 'THB');
       setRates(getBaseRatesFromFull(r.rates || {}));
       setAllowanceTypes(Array.isArray(a?.items) ? a.items : []);
     });
@@ -238,57 +236,6 @@ export default function SettingsPage() {
               </Select>
             </div>
             <Button onClick={saveDisplayCurrency} disabled={loading}>
-              บันทึก
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card className="border-[#1F2937] bg-[#0F172A]">
-          <CardHeader>
-            <CardTitle className="text-[#E5E7EB]">สกุลเงินเดือน</CardTitle>
-            <p className="text-sm text-[#9CA3AF]">
-              ตั้งค่าแยกจากสกุลเงินแสดงผลในธุรกรรม — ใช้เป็นค่าพื้นฐานในการคำนวณเงินเดือนและค่าตอบแทนพนักงาน (ADMIN)
-            </p>
-          </CardHeader>
-          <CardContent className="flex items-end gap-4">
-            <div className="w-40">
-              <Label>สกุลเงินเดือน</Label>
-              <Select
-                value={salaryCurrency}
-                onValueChange={setSalaryCurrency}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="LAK">LAK</SelectItem>
-                  <SelectItem value="THB">THB</SelectItem>
-                  <SelectItem value="USD">USD</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <Button
-              disabled={loading}
-              onClick={async () => {
-                setLoading(true);
-                try {
-                  const res = await fetch('/api/settings/salary-currency', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ salaryCurrency }),
-                  });
-                  if (res.ok) {
-                    const d = (await res.json()) as { salaryCurrency: string };
-                    setSalaryCurrency(d.salaryCurrency);
-                  } else {
-                    const d = (await res.json()) as { error?: string };
-                    alert(d.error ?? 'บันทึกไม่ได้');
-                  }
-                } finally {
-                  setLoading(false);
-                }
-              }}
-            >
               บันทึก
             </Button>
           </CardContent>

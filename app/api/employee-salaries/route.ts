@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireSettings } from '@/lib/api-helpers';
-import { users, employeeSalaries, settings } from '@/db/schema';
-import { eq, and, lte, sql, desc } from 'drizzle-orm';
+import { users, employeeSalaries } from '@/db/schema';
+import { eq, and, lte, desc } from 'drizzle-orm';
 import type { Db } from '@/db';
 import { getBaseSalaryForUser } from '@/lib/payroll';
 
-/** GET: รายการเงินเดือนฐานของพนักงาน (ADMIN) ณ เดือนที่กำหนด. SUPER_ADMIN เท่านั้น */
+/** เงินเดือนใช้กีบ (LAK) เป็นค่าเดียว ไม่มีตั้งค่าสกุลเงินเดือน */
+const SALARY_CURRENCY_LAK = 'LAK';
+
+/** GET: รายการเงินเดือนฐานของพนักงาน (ADMIN) ณ เดือนที่กำหนด. SUPER_ADMIN เท่านั้น. สกุลเงินเดือนเป็นกีบ (LAK) เท่านั้น */
 export async function GET(request: Request) {
   try {
     const result = await getDbAndUser(request);
@@ -16,13 +19,6 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const yearMonth = searchParams.get('yearMonth') ?? getCurrentYearMonth();
-
-    let salaryCurrency = 'THB';
-    const settingRows = await db.select().from(settings).where(eq(settings.key, 'SALARY_CURRENCY')).limit(1);
-    if (settingRows.length > 0) {
-      const v = settingRows[0].value;
-      if (typeof v === 'string' && ['LAK', 'THB', 'USD'].includes(v)) salaryCurrency = v;
-    }
 
     const adminList = await db
       .select({ id: users.id, username: users.username })
@@ -44,12 +40,12 @@ export async function GET(request: Request) {
         userId: u.id,
         username: u.username,
         baseSalaryMinor: sal?.baseSalaryMinor ?? null,
-        currency: sal?.currency ?? null,
+        currency: sal?.currency ?? SALARY_CURRENCY_LAK,
         effectiveFrom: sal ? await getEffectiveFromForUser(db, u.id, yearMonth) : null,
       });
     }
 
-    return NextResponse.json({ yearMonth, salaryCurrency, items });
+    return NextResponse.json({ yearMonth, items });
   } catch (e) {
     console.error(e);
     return NextResponse.json(
@@ -92,8 +88,6 @@ const salaryPayloadSchema = {
     typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v),
   baseSalaryMinor: (v: unknown) =>
     typeof v === 'number' && Number.isInteger(v) && v >= 0,
-  currency: (v: unknown) =>
-    typeof v === 'string' && ['LAK', 'THB', 'USD'].includes(v),
 };
 
 /** PUT: ตั้งค่าเงินเดือนฐานของพนักงานหนึ่งคน. SUPER_ADMIN เท่านั้น */
@@ -109,16 +103,14 @@ export async function PUT(request: Request) {
       userId?: unknown;
       effectiveFrom?: unknown;
       baseSalaryMinor?: unknown;
-      currency?: unknown;
     };
     if (
       !salaryPayloadSchema.userId(body.userId) ||
       !salaryPayloadSchema.effectiveFrom(body.effectiveFrom) ||
-      !salaryPayloadSchema.baseSalaryMinor(body.baseSalaryMinor) ||
-      !salaryPayloadSchema.currency(body.currency)
+      !salaryPayloadSchema.baseSalaryMinor(body.baseSalaryMinor)
     ) {
       return NextResponse.json(
-        { error: 'ต้องส่ง userId, effectiveFrom (YYYY-MM-DD), baseSalaryMinor, currency' },
+        { error: 'ต้องส่ง userId, effectiveFrom (YYYY-MM-DD), baseSalaryMinor' },
         { status: 400 }
       );
     }
@@ -126,7 +118,7 @@ export async function PUT(request: Request) {
     const userId = body.userId as number;
     const effectiveFrom = body.effectiveFrom as string;
     const baseSalaryMinor = body.baseSalaryMinor as number;
-    const currency = body.currency as string;
+    const currency = SALARY_CURRENCY_LAK;
 
     const now = Date.now();
     const existing = await db
@@ -168,7 +160,7 @@ export async function PUT(request: Request) {
       userId,
       effectiveFrom,
       baseSalaryMinor,
-      currency,
+      currency: SALARY_CURRENCY_LAK,
     });
   } catch (e) {
     console.error(e);
