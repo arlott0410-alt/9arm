@@ -107,11 +107,3 @@ export async function PATCH(
     );
   }
 }
-
-function requireSettings(user: { role: string } | null): NextResponse | null {
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (user.role !== 'SUPER_ADMIN') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-  return null;
-}
