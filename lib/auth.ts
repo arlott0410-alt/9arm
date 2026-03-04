@@ -2,6 +2,7 @@ import { eq, and, gt } from 'drizzle-orm';
 import type { Db } from '@/db';
 import { users, sessions } from '@/db/schema';
 import type { User } from '@/db/schema';
+import { authCache } from '@/lib/d1-cache';
 
 export type Role = 'SUPER_ADMIN' | 'ADMIN' | 'AUDIT';
 
@@ -89,29 +90,45 @@ export function getSessionTtlHours(env: { SESSION_TTL_HOURS?: string }): number 
   return 24;
 }
 
+/** Minimal user shape for auth checks (avoids reading password/salt). */
+export type SessionUser = Pick<User, 'id' | 'username' | 'role' | 'isActive'>;
+
 export async function getSessionUser(
   db: Db,
   sessionId: string,
-  appSecret: string
+  _appSecret: string
 ): Promise<User | null> {
   if (!sessionId || sessionId.length < 32) return null;
+
+  const cached = authCache.get(sessionId);
+  if (cached !== undefined) {
+    if (!cached.isActive) return null;
+    return cached as User;
+  }
+
   const now = new Date();
   const sessionRows = await db
-    .select()
+    .select({ userId: sessions.userId })
     .from(sessions)
-    .where(
-      and(
-        eq(sessions.id, sessionId),
-        gt(sessions.expiresAt, now)
-      )
-    )
+    .where(and(eq(sessions.id, sessionId), gt(sessions.expiresAt, now)))
     .limit(1);
   const session = sessionRows[0];
   if (!session) return null;
+
   const userRows = await db
-    .select()
+    .select({ id: users.id, username: users.username, role: users.role, isActive: users.isActive })
     .from(users)
     .where(and(eq(users.id, session.userId), eq(users.isActive, true)))
     .limit(1);
-  return userRows[0] ?? null;
+  const u = userRows[0];
+  if (!u) return null;
+
+  const out = { id: u.id, username: u.username, role: u.role, isActive: u.isActive };
+  authCache.set(sessionId, { ...out, isActive: true });
+  return out as User;
+}
+
+/** Call after logout so next request doesn't use stale cache. */
+export function invalidateSessionCache(sessionId: string): void {
+  authCache.invalidate(sessionId);
 }

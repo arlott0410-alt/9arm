@@ -1,15 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth } from '@/lib/api-helpers';
 import type { Db } from '@/db';
-import { lateArrivals, settings, users } from '@/db/schema';
+import { lateArrivals, users } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
+import { getSettingValueCached } from '@/lib/get-setting-cached';
 
 const HOLIDAY_HEAD_KEY = 'HOLIDAY_HEAD_USER_ID';
 
 async function getHolidayHeadUserId(db: Db): Promise<number | null> {
-  const rows = await db.select().from(settings).where(eq(settings.key, HOLIDAY_HEAD_KEY)).limit(1);
-  if (rows.length === 0) return null;
-  const v = rows[0].value;
+  const v = await getSettingValueCached(db, HOLIDAY_HEAD_KEY);
   if (typeof v === 'number') return v;
   if (typeof v === 'string') {
     const n = parseInt(v, 10);
@@ -48,7 +47,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const target = await db.select().from(users).where(and(eq(users.id, userId), eq(users.role, 'ADMIN'))).limit(1);
+    const target = await db.select({ id: users.id }).from(users).where(and(eq(users.id, userId), eq(users.role, 'ADMIN'))).limit(1);
     if (target.length === 0) {
       return NextResponse.json({ error: 'ไม่พบพนักงานที่เลือก' }, { status: 400 });
     }

@@ -4,11 +4,13 @@ import { sessions } from '@/db/schema';
 import { getSessionIdFromRequest } from '@/lib/session-cookie';
 import { buildClearCookieHeader } from '@/lib/session-cookie';
 import { getEnvAndDb } from '@/lib/cf-env';
+import { invalidateSessionCache } from '@/lib/auth';
 
 export async function POST(request: Request) {
   try {
     const sessionId = getSessionIdFromRequest(request);
     if (sessionId) {
+      invalidateSessionCache(sessionId);
       const result = getEnvAndDb({ requireAppSecret: false });
       if (result instanceof NextResponse) return result;
       const { db } = result;

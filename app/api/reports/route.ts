@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth } from '@/lib/api-helpers';
-import { transactions, transfers, settings, wallets } from '@/db/schema';
+import { transactions, transfers, wallets } from '@/db/schema';
 import { eq, sql, gte, lte, and, isNull } from 'drizzle-orm';
 import { convertToDisplay, type Currency, type RateSnapshot } from '@/lib/rates';
 import { todayStrThailand } from '@/lib/utils';
+import { getSettingValueCached } from '@/lib/get-setting-cached';
 
 export async function GET(request: Request) {
   try {
@@ -67,9 +68,13 @@ export async function GET(request: Request) {
       txnConditionsWith.push(eq(transactions.websiteId, parseInt(websiteId)));
     }
 
-    const [dcRow, ratesRow, depRows, withRows] = await Promise.all([
-      db.select().from(settings).where(eq(settings.key, 'DISPLAY_CURRENCY')).limit(1),
-      db.select().from(settings).where(eq(settings.key, 'EXCHANGE_RATES')).limit(1),
+    const [displayCurrency, rates, depRows, withRows] = await Promise.all([
+      getSettingValueCached(db, 'DISPLAY_CURRENCY').then(
+        (v) => (typeof v === 'string' ? v : 'THB') as Currency
+      ),
+      getSettingValueCached(db, 'EXCHANGE_RATES').then(
+        (v) => (v && typeof v === 'object' ? (v as RateSnapshot) : {})
+      ),
       db
         .select({
           amountMinor: transactions.amountMinor,
@@ -88,12 +93,6 @@ export async function GET(request: Request) {
         .where(and(...txnConditionsWith)),
     ]);
 
-    const displayCurrency: Currency =
-      (dcRow[0]?.value && typeof dcRow[0].value === 'string' && JSON.parse(dcRow[0].value)) || 'THB';
-    const rates: RateSnapshot =
-      ratesRow[0]?.value && typeof ratesRow[0].value === 'string'
-        ? JSON.parse(ratesRow[0].value)
-        : {};
 
     let depositsTotal = 0;
     for (const r of depRows) {

@@ -12,7 +12,7 @@ import {
   depositTransactionSchema,
   withdrawTransactionSchema,
 } from '@/lib/validations';
-import { settings } from '@/db/schema';
+import { getSettingValueCached } from '@/lib/get-setting-cached';
 import {
   convertToDisplay,
   convertFromDisplay,
@@ -159,26 +159,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const [settingsRow] = await db
-      .select()
-      .from(settings)
-      .where(eq(settings.key, 'DISPLAY_CURRENCY'))
-      .limit(1);
-    const displayCurrency: Currency =
-      (settingsRow?.value &&
-        typeof settingsRow.value === 'string' &&
-        JSON.parse(settingsRow.value)) ||
-      'THB';
-
-    const [ratesRow] = await db
-      .select()
-      .from(settings)
-      .where(eq(settings.key, 'EXCHANGE_RATES'))
-      .limit(1);
-    const rateSnapshot: RateSnapshot =
-      ratesRow?.value && typeof ratesRow.value === 'string'
-        ? JSON.parse(ratesRow.value)
-        : {};
+    const [displayCurrency, rateSnapshot] = await Promise.all([
+      getSettingValueCached(db, 'DISPLAY_CURRENCY').then(
+        (v) => (typeof v === 'string' ? v : 'THB') as Currency
+      ),
+      getSettingValueCached(db, 'EXCHANGE_RATES').then(
+        (v) => (v && typeof v === 'object' ? (v as RateSnapshot) : {})
+      ),
+    ]);
 
     const now = new Date();
 

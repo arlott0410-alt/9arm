@@ -3,6 +3,7 @@ import { getDbAndUser, requireSettings } from '@/lib/api-helpers';
 import { settings, users } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { holidayHeadSchema } from '@/lib/validations';
+import { getSettingValueCached } from '@/lib/get-setting-cached';
 
 const HOLIDAY_HEAD_KEY = 'HOLIDAY_HEAD_USER_ID';
 
@@ -14,15 +15,12 @@ export async function GET(request: Request) {
     const err = requireSettings(user);
     if (err) return err;
 
-    const rows = await db.select().from(settings).where(eq(settings.key, HOLIDAY_HEAD_KEY)).limit(1);
+    const v = await getSettingValueCached(db, HOLIDAY_HEAD_KEY);
     let userId: number | null = null;
-    if (rows.length > 0) {
-      const v = rows[0].value;
-      if (typeof v === 'number') userId = v;
-      else if (typeof v === 'string') {
-        const n = parseInt(v, 10);
-        if (!isNaN(n)) userId = n;
-      }
+    if (typeof v === 'number') userId = v;
+    else if (typeof v === 'string') {
+      const n = parseInt(v, 10);
+      if (!isNaN(n)) userId = n;
     }
 
     return NextResponse.json({ userId });

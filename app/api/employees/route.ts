@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireSettings } from '@/lib/api-helpers';
-import { users, settings } from '@/db/schema';
+import { users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import { getSettingValueCached } from '@/lib/get-setting-cached';
 
 const HOLIDAY_HEAD_KEY = 'HOLIDAY_HEAD_USER_ID';
 
@@ -13,7 +14,7 @@ export async function GET(request: Request) {
     const err = requireSettings(user);
     if (err) return err;
 
-    const [list, headRows] = await Promise.all([
+    const [list, headVal] = await Promise.all([
       db
         .select({
           id: users.id,
@@ -25,23 +26,22 @@ export async function GET(request: Request) {
         .from(users)
         .where(eq(users.role, 'ADMIN'))
         .orderBy(users.username),
-      db.select().from(settings).where(eq(settings.key, HOLIDAY_HEAD_KEY)).limit(1),
+      getSettingValueCached(db, HOLIDAY_HEAD_KEY),
     ]);
 
     let holidayHeadUserId: number | null = null;
-    if (headRows.length > 0) {
-      const v = headRows[0].value;
-      if (typeof v === 'number') holidayHeadUserId = v;
-      else if (typeof v === 'string') {
-        const n = parseInt(v, 10);
-        if (!isNaN(n)) holidayHeadUserId = n;
-      }
+    if (typeof headVal === 'number') holidayHeadUserId = headVal;
+    else if (typeof headVal === 'string') {
+      const n = parseInt(headVal, 10);
+      if (!isNaN(n)) holidayHeadUserId = n;
     }
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       employees: list,
       holidayHeadUserId,
     });
+    res.headers.set('Cache-Control', 'private, max-age=30');
+    return res;
   } catch (e) {
     console.error(e);
     return NextResponse.json(

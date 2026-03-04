@@ -1,16 +1,15 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth } from '@/lib/api-helpers';
 import type { Db } from '@/db';
-import { users, holidayEntries, lateArrivals, settings } from '@/db/schema';
+import { users, holidayEntries, lateArrivals } from '@/db/schema';
 import { eq, and, like } from 'drizzle-orm';
 import { holidayEntrySchema } from '@/lib/validations';
+import { getSettingValueCached } from '@/lib/get-setting-cached';
 
 const HOLIDAY_HEAD_KEY = 'HOLIDAY_HEAD_USER_ID';
 
 async function getHolidayHeadUserId(db: Db): Promise<number | null> {
-  const rows = await db.select().from(settings).where(eq(settings.key, HOLIDAY_HEAD_KEY)).limit(1);
-  if (rows.length === 0) return null;
-  const v = rows[0].value;
+  const v = await getSettingValueCached(db, HOLIDAY_HEAD_KEY);
   if (typeof v === 'number') return v;
   if (typeof v === 'string') {
     const n = parseInt(v, 10);

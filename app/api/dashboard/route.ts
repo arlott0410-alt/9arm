@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth } from '@/lib/api-helpers';
 import type { Db } from '@/db';
-import { transactions, wallets, transfers, settings, websites } from '@/db/schema';
+import { transactions, wallets, transfers, websites } from '@/db/schema';
 import { eq, and, gte, lte, sql, isNull } from 'drizzle-orm';
 import { convertToDisplay, type Currency, type RateSnapshot } from '@/lib/rates';
 import { todayStrThailand } from '@/lib/utils';
@@ -50,25 +50,14 @@ export async function GET(request: Request) {
     const err = requireAuth(user);
     if (err) return err;
 
-    const [dcRow] = await db
-      .select()
-      .from(settings)
-      .where(eq(settings.key, 'DISPLAY_CURRENCY'))
-      .limit(1);
-    const displayCurrency: Currency =
-      (dcRow?.value &&
-        typeof dcRow.value === 'string' &&
-        JSON.parse(dcRow.value)) ||
-      'THB';
-    const [ratesRow] = await db
-      .select()
-      .from(settings)
-      .where(eq(settings.key, 'EXCHANGE_RATES'))
-      .limit(1);
-    const rates: RateSnapshot =
-      ratesRow?.value && typeof ratesRow.value === 'string'
-        ? JSON.parse(ratesRow.value)
-        : {};
+    const [displayCurrency, rates] = await Promise.all([
+      getSettingValueCached(db, 'DISPLAY_CURRENCY').then(
+        (v) => (typeof v === 'string' ? v : 'THB') as Currency
+      ),
+      getSettingValueCached(db, 'EXCHANGE_RATES').then(
+        (v) => (v && typeof v === 'object' ? (v as RateSnapshot) : {})
+      ),
+    ]);
 
     const url = new URL(request.url);
     const websiteIdParam = url.searchParams.get('websiteId');

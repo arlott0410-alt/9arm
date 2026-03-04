@@ -1,6 +1,7 @@
 import type { Db } from '@/db';
-import { settings, employeeSalaries, users, holidayEntries, lateArrivals } from '@/db/schema';
-import { eq, and, lte, sql, like, inArray } from 'drizzle-orm';
+import { employeeSalaries, users, holidayEntries, lateArrivals } from '@/db/schema';
+import { eq, and, lte, sql, like } from 'drizzle-orm';
+import { getSettingValueCached } from '@/lib/get-setting-cached';
 
 export type PayrollDeduction = { label: string; amountMinor: number };
 export type PayrollAllowance = { name: string; amountMinor: number };
@@ -58,28 +59,19 @@ export async function getSalaryPolicySettings(db: Db): Promise<{
   freeHolidayDays: number;
   deductMultiplierPerDay: number;
 }> {
-  const rows = await db
-    .select()
-    .from(settings)
-    .where(
-      inArray(settings.key, [
-        'SALARY_FREE_HOLIDAY_DAYS',
-        'SALARY_DEDUCT_MULTIPLIER_PER_DAY',
-      ])
-    );
-  const obj: Record<string, number> = {};
-  for (const r of rows) {
-    const v = r.value;
-    if (typeof v === 'number') obj[r.key] = v;
-    else if (typeof v === 'string') {
+  function toInt(v: unknown, def: number): number {
+    if (typeof v === 'number' && !isNaN(v)) return v;
+    if (typeof v === 'string') {
       const n = parseInt(v, 10);
-      if (!isNaN(n)) obj[r.key] = n;
+      if (!isNaN(n)) return n;
     }
+    return def;
   }
-  return {
-    freeHolidayDays: obj.SALARY_FREE_HOLIDAY_DAYS ?? 4,
-    deductMultiplierPerDay: obj.SALARY_DEDUCT_MULTIPLIER_PER_DAY ?? 2,
-  };
+  const [freeHolidayDays, deductMultiplierPerDay] = await Promise.all([
+    getSettingValueCached(db, 'SALARY_FREE_HOLIDAY_DAYS').then((v) => toInt(v, 4)),
+    getSettingValueCached(db, 'SALARY_DEDUCT_MULTIPLIER_PER_DAY').then((v) => toInt(v, 2)),
+  ]);
+  return { freeHolidayDays, deductMultiplierPerDay };
 }
 
 /**
@@ -153,11 +145,9 @@ export async function getLateMinutesByUser(
   return map;
 }
 
-/** ค่าหักมาสาย (นาทีละ 1000 กีบ จาก settings) */
+/** ค่าหักมาสาย (นาทีละ 1000 กีบ จาก settings, cached) */
 export async function getLatePenaltyPerMinute(db: Db): Promise<number> {
-  const rows = await db.select().from(settings).where(eq(settings.key, 'SALARY_LATE_PENALTY_PER_MINUTE')).limit(1);
-  if (rows.length === 0) return 1000;
-  const v = rows[0].value;
+  const v = await getSettingValueCached(db, 'SALARY_LATE_PENALTY_PER_MINUTE');
   if (typeof v === 'number' && v >= 0) return v;
   if (typeof v === 'string') {
     const n = parseInt(v, 10);
