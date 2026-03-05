@@ -215,6 +215,8 @@ export const lateArrivals = sqliteTable('late_arrivals', {
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
   lateDate: text('late_date').notNull(),
+  /** เก็บไว้เพื่อความเข้ากันได้กับ migration 0010 (NOT NULL ไม่มี DEFAULT) — ใช้ 0 สำหรับแถวใหม่ */
+  secondsLate: integer('seconds_late').notNull().default(0),
   minutesLate: integer('minutes_late').notNull(),
   createdBy: integer('created_by')
     .notNull()

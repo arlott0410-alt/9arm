@@ -3,12 +3,12 @@ import { getDbAndUser, requireSettings } from '@/lib/api-helpers';
 import { users, employeeSalaries } from '@/db/schema';
 import { eq, and, lte, desc } from 'drizzle-orm';
 import type { Db } from '@/db';
-import { getBaseSalaryForUser } from '@/lib/payroll';
+import { getBaseSalariesForUsers } from '@/lib/payroll';
 
 /** เงินเดือนใช้กีบ (LAK) เป็นค่าเดียว ไม่มีตั้งค่าสกุลเงินเดือน */
 const SALARY_CURRENCY_LAK = 'LAK';
 
-/** GET: รายการเงินเดือนฐานของพนักงาน (ADMIN) ณ เดือนที่กำหนด. SUPER_ADMIN เท่านั้น. สกุลเงินเดือนเป็นกีบ (LAK) เท่านั้น */
+/** GET: รายการเงินเดือนฐานของพนักงาน (ADMIN) ณ เดือนที่กำหนด. SUPER_ADMIN เท่านั้น. สกุลเงินเดือนเป็นกีบ (LAK) เท่านั้น. ใช้ batch query แทน N+1 */
 export async function GET(request: Request) {
   try {
     const result = await getDbAndUser(request);
@@ -26,24 +26,19 @@ export async function GET(request: Request) {
       .where(eq(users.role, 'ADMIN'))
       .orderBy(users.username);
 
-    const items: {
-      userId: number;
-      username: string;
-      baseSalaryMinor: number | null;
-      currency: string | null;
-      effectiveFrom: string | null;
-    }[] = [];
+    const userIds = adminList.map((u) => u.id);
+    const salaryMap = await getBaseSalariesForUsers(db, userIds, yearMonth);
 
-    for (const u of adminList) {
-      const sal = await getBaseSalaryForUser(db, u.id, yearMonth);
-      items.push({
+    const items = adminList.map((u) => {
+      const sal = salaryMap.get(u.id);
+      return {
         userId: u.id,
         username: u.username,
         baseSalaryMinor: sal?.baseSalaryMinor ?? null,
         currency: sal?.currency ?? SALARY_CURRENCY_LAK,
-        effectiveFrom: sal ? await getEffectiveFromForUser(db, u.id, yearMonth) : null,
-      });
-    }
+        effectiveFrom: sal?.effectiveFrom ?? null,
+      };
+    });
 
     return NextResponse.json({ yearMonth, items });
   } catch (e) {
@@ -53,26 +48,6 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-}
-
-async function getEffectiveFromForUser(
-  db: Db,
-  userId: number,
-  yearMonth: string
-): Promise<string | null> {
-  const firstDay = `${yearMonth}-01`;
-  const rows = await db
-    .select({ effectiveFrom: employeeSalaries.effectiveFrom })
-    .from(employeeSalaries)
-    .where(
-      and(
-        eq(employeeSalaries.userId, userId),
-        lte(employeeSalaries.effectiveFrom, firstDay)
-      )
-    )
-    .orderBy(desc(employeeSalaries.effectiveFrom))
-    .limit(1);
-  return rows[0]?.effectiveFrom ?? null;
 }
 
 function getCurrentYearMonth(): string {

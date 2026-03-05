@@ -1,6 +1,6 @@
 import type { Db } from '@/db';
 import { employeeSalaries, users, holidayEntries, lateArrivals } from '@/db/schema';
-import { eq, and, lte, sql, like } from 'drizzle-orm';
+import { eq, and, lte, sql, like, inArray, desc } from 'drizzle-orm';
 import { getSettingValueCached } from '@/lib/get-setting-cached';
 
 export type PayrollDeduction = { label: string; amountMinor: number };
@@ -53,6 +53,36 @@ export async function getBaseSalaryForUser(
     baseSalaryMinor: rows[0].baseSalaryMinor,
     currency: rows[0].currency,
   };
+}
+
+/** เงินเดือนฐานของหลาย user ในครั้งเดียว (ลด D1 queries แทน N+1) */
+export async function getBaseSalariesForUsers(
+  db: Db,
+  userIds: number[],
+  yearMonth: string
+): Promise<Map<number, { baseSalaryMinor: number; currency: string; effectiveFrom: string }>> {
+  if (userIds.length === 0) return new Map();
+  const firstDay = `${yearMonth}-01`;
+  const rows = await db
+    .select({
+      userId: employeeSalaries.userId,
+      baseSalaryMinor: employeeSalaries.baseSalaryMinor,
+      currency: employeeSalaries.currency,
+      effectiveFrom: employeeSalaries.effectiveFrom,
+    })
+    .from(employeeSalaries)
+    .where(
+      and(
+        inArray(employeeSalaries.userId, userIds),
+        lte(employeeSalaries.effectiveFrom, firstDay)
+      )
+    )
+    .orderBy(employeeSalaries.userId, desc(employeeSalaries.effectiveFrom));
+  const map = new Map<number, { baseSalaryMinor: number; currency: string; effectiveFrom: string }>();
+  for (const r of rows) {
+    if (!map.has(r.userId)) map.set(r.userId, { baseSalaryMinor: r.baseSalaryMinor, currency: r.currency, effectiveFrom: r.effectiveFrom });
+  }
+  return map;
 }
 
 export async function getSalaryPolicySettings(db: Db): Promise<{

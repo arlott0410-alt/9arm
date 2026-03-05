@@ -34,11 +34,20 @@ export async function POST(request: Request) {
       );
     }
 
-    const body = (await request.json()) as { userId?: number; date?: string; minutes?: number };
+    const body = (await request.json()) as { userId?: unknown; date?: string; minutes?: unknown };
     const userId = typeof body.userId === 'number' ? body.userId : null;
     const date =
       typeof body.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.date) ? body.date : null;
-    const minutes = typeof body.minutes === 'number' && body.minutes >= 0 ? Math.round(body.minutes) : null;
+    const rawMinutes = body.minutes;
+    const minutes =
+      typeof rawMinutes === 'number' && rawMinutes >= 0
+        ? Math.round(rawMinutes)
+        : typeof rawMinutes === 'string'
+          ? (() => {
+              const n = parseInt(rawMinutes, 10);
+              return isNaN(n) || n < 0 ? null : n;
+            })()
+          : null;
 
     if (userId === null || date === null || minutes === null) {
       return NextResponse.json(
@@ -70,7 +79,7 @@ export async function POST(request: Request) {
     if (existing.length > 0) {
       await db
         .update(lateArrivals)
-        .set({ minutesLate: minutes })
+        .set({ secondsLate: 0, minutesLate: minutes })
         .where(and(eq(lateArrivals.userId, userId), eq(lateArrivals.lateDate, date)));
       return NextResponse.json({ userId, date, minutes });
     }
@@ -78,6 +87,7 @@ export async function POST(request: Request) {
     await db.insert(lateArrivals).values({
       userId,
       lateDate: date,
+      secondsLate: 0,
       minutesLate: minutes,
       createdBy: user!.id,
       createdAt: now,
@@ -86,6 +96,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ userId, date, minutes });
   } catch (e) {
     console.error(e);
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/no such column|no such table/.test(msg)) {
+      return NextResponse.json(
+        {
+          error:
+            'ตารางมาสายยังไม่อัปเดต — กรุณารัน migration 0011_late_arrivals_minutes.sql ใน D1 Console (Workers & Pages → D1 → เลือก DB → Console)',
+        },
+        { status: 503 }
+      );
+    }
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

@@ -5,7 +5,7 @@ import { eq, desc } from 'drizzle-orm';
 import {
   getDaysInMonth,
   getHolidayCountByUser,
-  getBaseSalaryForUser,
+  getBaseSalariesForUsers,
   getSalaryPolicySettings,
   getLateMinutesByUser,
   getLatePenaltyPerMinute,
@@ -106,9 +106,10 @@ export async function POST(request: Request) {
         .where(eq(users.role, 'ADMIN')),
     ]);
 
-    const [lateByUser, latePenalty] = await Promise.all([
+    const [lateByUser, latePenalty, salaryMap] = await Promise.all([
       getLateMinutesByUser(db, yearMonth),
       getLatePenaltyPerMinute(db),
+      getBaseSalariesForUsers(db, adminList.map((u) => u.id), yearMonth),
     ]);
 
     const itemsData: {
@@ -130,7 +131,7 @@ export async function POST(request: Request) {
     let totalWorkingDaysAll = 0;
 
     for (const u of adminList) {
-      const sal = await getBaseSalaryForUser(db, u.id, yearMonth);
+      const sal = salaryMap.get(u.id);
       if (!sal) continue;
       const holidayDays = holidayByUser.get(u.id) ?? 0;
       const workingDays = totalDays - holidayDays;
