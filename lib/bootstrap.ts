@@ -51,7 +51,7 @@ export async function bootstrapSettings(db: Db): Promise<void> {
 
   if (toInsert.length > 0) {
     const batchItems = toInsert.map((row) => db.insert(settings).values({ key: row.key, value: row.value }));
-    await db.batch(batchItems as Parameters<Db['batch']>[0]);
+    await db.batch(batchItems as unknown as Parameters<Db['batch']>[0]);
     toInsert.forEach((row) => keys.add(row.key));
   }
 
