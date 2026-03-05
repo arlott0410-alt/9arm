@@ -50,9 +50,8 @@ export async function bootstrapSettings(db: Db): Promise<void> {
   if (!keys.has('SALARY_LATE_PENALTY_PER_MINUTE')) toInsert.push({ key: 'SALARY_LATE_PENALTY_PER_MINUTE', value: JSON.stringify(1000) });
 
   if (toInsert.length > 0) {
-    await db.batch(
-      toInsert.map((row) => db.insert(settings).values({ key: row.key, value: row.value }))
-    );
+    const batchItems = toInsert.map((row) => db.insert(settings).values({ key: row.key, value: row.value }));
+    await db.batch(batchItems as Parameters<Db['batch']>[0]);
     toInsert.forEach((row) => keys.add(row.key));
   }
 
