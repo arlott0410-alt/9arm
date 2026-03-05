@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth } from '@/lib/api-helpers';
 import type { Db } from '@/db';
-import { lateArrivals, users } from '@/db/schema';
+import { lateArrivals, users, holidayEntries } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { getSettingValueCached } from '@/lib/get-setting-cached';
 
@@ -68,6 +68,16 @@ export async function POST(request: Request) {
       .limit(1);
 
     const now = new Date();
+
+    // วันหนึ่งลงได้อย่างใดอย่างหนึ่ง: ถ้าลงมาสาย ให้ลบวันหยุดของวันนั้น
+    await db
+      .delete(holidayEntries)
+      .where(
+        and(
+          eq(holidayEntries.userId, userId),
+          eq(holidayEntries.holidayDate, date)
+        )
+      );
 
     if (minutes === 0) {
       await db

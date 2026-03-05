@@ -131,6 +131,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true });
     }
 
+    // วันหนึ่งลงได้อย่างใดอย่างหนึ่ง: ถ้าลงหยุด ให้ลบรายการมาสายของวันนั้น
+    await db
+      .delete(lateArrivals)
+      .where(
+        and(
+          eq(lateArrivals.userId, parsed.data.userId),
+          eq(lateArrivals.lateDate, parsed.data.date)
+        )
+      );
+
     const now = new Date();
     await db.insert(holidayEntries).values({
       userId: parsed.data.userId,

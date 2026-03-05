@@ -116,6 +116,7 @@ export default function HolidaysPage() {
       });
       if (res.ok) {
         setEntries((prev) => [...prev, { userId: empId, date }]);
+        setLateArrivals((prev) => prev.filter((e) => e.userId !== empId || e.date !== date));
       }
     }
   }
@@ -166,6 +167,7 @@ export default function HolidaysPage() {
             const rest = prev.filter((e) => e.userId !== lateDialog.empId || e.date !== lateDialog.date);
             return [...rest, { userId: lateDialog.empId, date: lateDialog.date, minutes }];
           });
+          setEntries((prev) => prev.filter((e) => e.userId !== lateDialog.empId || e.date !== lateDialog.date));
         }
         setLateDialog(null);
       } else {
