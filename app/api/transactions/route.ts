@@ -21,6 +21,7 @@ import {
 } from '@/lib/rates';
 import { getWalletBalance } from '@/lib/wallet-balance';
 import { parsePageParams, buildPaginatedResponse, getDefaultPageSize } from '@/lib/pagination';
+import { setNoStore } from '@/lib/cache-headers';
 
 export async function GET(request: Request) {
   try {
@@ -130,9 +131,11 @@ export async function GET(request: Request) {
       deletedByUsername: r.deletedBy ? (deletedByMap.get(r.deletedBy) ?? '?') : null,
     }));
 
-    return NextResponse.json(
+    const res = NextResponse.json(
       buildPaginatedResponse(listWithDeletedBy, totalCount, page, pageSize)
     );
+    setNoStore(res);
+    return res;
   } catch (e) {
     console.error(e);
     return NextResponse.json(

@@ -3,6 +3,7 @@ import { getDbAndUser, requireSettings } from '@/lib/api-helpers';
 import { users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { getSettingValueCached } from '@/lib/get-setting-cached';
+import { setNoStore } from '@/lib/cache-headers';
 
 const HOLIDAY_HEAD_KEY = 'HOLIDAY_HEAD_USER_ID';
 
@@ -40,7 +41,7 @@ export async function GET(request: Request) {
       employees: list,
       holidayHeadUserId,
     });
-    res.headers.set('Cache-Control', 'private, max-age=30');
+    setNoStore(res);
     return res;
   } catch (e) {
     console.error(e);

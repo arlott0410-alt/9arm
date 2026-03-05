@@ -17,31 +17,28 @@ import {
 } from '@/components/ui/select';
 import { Users, Calendar, Banknote } from 'lucide-react';
 import { useAuth } from '@/components/providers/AuthProvider';
-
-type Employee = {
-  id: number;
-  username: string;
-  isActive: boolean;
-  createdAt: string;
-  lastLoginAt: string | null;
-};
+import { useEmployees, type Employee } from '@/hooks/use-employees';
+import { useEmployeeSalaries, type SalaryRow } from '@/hooks/use-employee-salaries';
 
 export default function EmployeesPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [holidayHeadUserId, setHolidayHeadUserId] = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
+  const canLoad = !!user && user.role === 'SUPER_ADMIN';
+  const { data: employeesData, isLoading: loading, mutate: mutateEmployees } = useEmployees(canLoad);
   const [savingHolidayHead, setSavingHolidayHead] = useState(false);
   const [salaryYearMonth, setSalaryYearMonth] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
-  type SalaryRow = { userId: number; username: string; baseSalaryMinor: number | null; currency: string | null; effectiveFrom: string | null };
-  const [salaryRows, setSalaryRows] = useState<SalaryRow[]>([]);
-  const [salaryLoading, setSalaryLoading] = useState(false);
+  const { data: salariesData, isLoading: salaryLoading, mutate: mutateSalaries } = useEmployeeSalaries(canLoad ? salaryYearMonth : '');
   const [savingSalary, setSavingSalary] = useState<number | null>(null);
   const [pendingSalaries, setPendingSalaries] = useState<Record<number, { baseSalaryMinor: number; currency: string }>>({});
+
+  const employees = employeesData?.employees ?? [];
+  const holidayHeadUserId = employeesData?.holidayHeadUserId ?? null;
+  const [holidayHeadInput, setHolidayHeadInput] = useState<number | null | undefined>(undefined);
+  const salaryRows = salariesData?.items ?? [];
+  const displayHolidayHead = holidayHeadInput !== undefined ? holidayHeadInput : holidayHeadUserId;
 
   useEffect(() => {
     if (authLoading) return;
@@ -54,31 +51,6 @@ export default function EmployeesPage() {
       return;
     }
   }, [authLoading, user, router]);
-
-  useEffect(() => {
-    if (!user) return;
-    setLoading(true);
-    fetch('/api/employees')
-      .then((r) => r.json() as Promise<{ employees: Employee[]; holidayHeadUserId: number | null }>)
-      .then((data) => {
-        setEmployees(data.employees ?? []);
-        setHolidayHeadUserId(data.holidayHeadUserId ?? null);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [user]);
-
-  useEffect(() => {
-    if (!user) return;
-    setSalaryLoading(true);
-    fetch(`/api/employee-salaries?yearMonth=${salaryYearMonth}`)
-      .then((r) => r.json() as Promise<{ yearMonth: string; items: SalaryRow[] }>)
-      .then((data) => {
-        setSalaryRows(data.items ?? []);
-      })
-      .catch(console.error)
-      .finally(() => setSalaryLoading(false));
-  }, [user, salaryYearMonth]);
 
   if (authLoading || !user) return null;
 
@@ -196,8 +168,8 @@ export default function EmployeesPage() {
             <div className="w-56">
               <Label>หัวหน้าวันหยุด</Label>
               <Select
-                value={holidayHeadUserId != null ? String(holidayHeadUserId) : '__none__'}
-                onValueChange={(v) => setHolidayHeadUserId(v === '__none__' ? null : parseInt(v, 10))}
+                value={displayHolidayHead != null ? String(displayHolidayHead) : '__none__'}
+                onValueChange={(v) => setHolidayHeadInput(v === '__none__' ? null : parseInt(v, 10))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="ไม่กำหนด" />
@@ -222,11 +194,11 @@ export default function EmployeesPage() {
                   const res = await fetch('/api/settings/holiday-head', {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: holidayHeadUserId }),
+                    body: JSON.stringify({ userId: displayHolidayHead ?? holidayHeadUserId }),
                   });
                   if (res.ok) {
-                    const d = (await res.json()) as { userId: number | null };
-                    setHolidayHeadUserId(d.userId);
+                    setHolidayHeadInput(undefined);
+                    void mutateEmployees();
                   } else {
                     const d = (await res.json()) as { error?: string };
                     alert(d.error ?? 'บันทึกไม่ได้');
@@ -317,18 +289,7 @@ export default function EmployeesPage() {
                                       delete next[row.userId];
                                       return next;
                                     });
-                                    setSalaryRows((prev) =>
-                                      prev.map((r) =>
-                                        r.userId === row.userId
-                                          ? {
-                                              ...r,
-                                              baseSalaryMinor: b.baseSalaryMinor,
-                                              currency: 'LAK',
-                                              effectiveFrom: `${salaryYearMonth}-01`,
-                                            }
-                                          : r
-                                      )
-                                    );
+                                    void mutateSalaries();
                                   } else {
                                     const d = (await res.json()) as { error?: string };
                                     alert(d.error ?? 'บันทึกไม่ได้');

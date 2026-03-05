@@ -6,6 +6,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatMinorToDisplay } from '@/lib/utils';
 import { useAuth } from '@/components/providers/AuthProvider';
+import { useDashboard } from '@/hooks/use-dashboard';
 import {
   Wallet,
   ArrowDownCircle,
@@ -15,32 +16,11 @@ import {
   PiggyBank,
 } from 'lucide-react';
 
-type DashboardData = {
-  displayCurrency: string;
-  websites: { id: number; name: string; prefix: string }[];
-  today: { deposits: number; withdraws: number; net: number };
-  month: { deposits: number; withdraws: number; net: number };
-  wallets: { id: number; name: string; currency: string; balance: number }[];
-};
-
 export default function DashboardPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const [filterWebsite, setFilterWebsite] = useState('__all__');
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [dataLoading, setDataLoading] = useState(true);
-
-  useEffect(() => {
-    if (authLoading || !user) return;
-    setDataLoading(true);
-    const params = new URLSearchParams();
-    if (filterWebsite !== '__all__') params.set('websiteId', filterWebsite);
-    fetch(`/api/dashboard?${params}`)
-      .then((r) => r.json() as Promise<DashboardData>)
-      .then(setData)
-      .catch(console.error)
-      .finally(() => setDataLoading(false));
-  }, [user, authLoading, filterWebsite]);
+  const { data, isLoading: dataLoading } = useDashboard(filterWebsite, !!user);
 
   useEffect(() => {
     if (authLoading) return;

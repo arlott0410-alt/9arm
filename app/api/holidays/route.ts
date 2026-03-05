@@ -5,6 +5,7 @@ import { users, holidayEntries, lateArrivals } from '@/db/schema';
 import { eq, and, like } from 'drizzle-orm';
 import { holidayEntrySchema } from '@/lib/validations';
 import { getSettingValueCached } from '@/lib/get-setting-cached';
+import { setEdgeCache60 } from '@/lib/cache-headers';
 
 const HOLIDAY_HEAD_KEY = 'HOLIDAY_HEAD_USER_ID';
 
@@ -65,12 +66,14 @@ export async function GET(request: Request) {
     const entries = entriesRows.map((r) => ({ userId: r.userId, date: r.holidayDate }));
     const lateArrivalsList = lateRows.map((r) => ({ userId: r.userId, date: r.lateDate, minutes: r.minutesLate }));
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       employees: employeeList,
       entries,
       lateArrivals: lateArrivalsList,
       holidayHeadUserId: headUserId,
     });
+    setEdgeCache60(res);
+    return res;
   } catch (e) {
     console.error(e);
     return NextResponse.json(

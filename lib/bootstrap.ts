@@ -42,41 +42,18 @@ export async function bootstrapSettings(db: Db): Promise<void> {
   const rows = await db.select({ key: settings.key }).from(settings);
   const keys = new Set(rows.map((r) => r.key));
 
-  if (!keys.has('DISPLAY_CURRENCY')) {
-    await db.insert(settings).values({
-      key: 'DISPLAY_CURRENCY',
-      value: JSON.stringify(DEFAULT_DISPLAY_CURRENCY),
-    });
-    keys.add('DISPLAY_CURRENCY');
-  }
-  if (!keys.has('EXCHANGE_RATES')) {
-    await db.insert(settings).values({
-      key: 'EXCHANGE_RATES',
-      value: JSON.stringify(DEFAULT_RATES),
-    });
-    keys.add('EXCHANGE_RATES');
-  }
-  if (!keys.has('SALARY_FREE_HOLIDAY_DAYS')) {
-    await db.insert(settings).values({
-      key: 'SALARY_FREE_HOLIDAY_DAYS',
-      value: JSON.stringify(4),
-    });
-    keys.add('SALARY_FREE_HOLIDAY_DAYS');
-  }
-  if (!keys.has('SALARY_DEDUCT_MULTIPLIER_PER_DAY')) {
-    await db.insert(settings).values({
-      key: 'SALARY_DEDUCT_MULTIPLIER_PER_DAY',
-      value: JSON.stringify(2),
-    });
-    keys.add('SALARY_DEDUCT_MULTIPLIER_PER_DAY');
-  }
+  const toInsert: { key: string; value: string }[] = [];
+  if (!keys.has('DISPLAY_CURRENCY')) toInsert.push({ key: 'DISPLAY_CURRENCY', value: JSON.stringify(DEFAULT_DISPLAY_CURRENCY) });
+  if (!keys.has('EXCHANGE_RATES')) toInsert.push({ key: 'EXCHANGE_RATES', value: JSON.stringify(DEFAULT_RATES) });
+  if (!keys.has('SALARY_FREE_HOLIDAY_DAYS')) toInsert.push({ key: 'SALARY_FREE_HOLIDAY_DAYS', value: JSON.stringify(4) });
+  if (!keys.has('SALARY_DEDUCT_MULTIPLIER_PER_DAY')) toInsert.push({ key: 'SALARY_DEDUCT_MULTIPLIER_PER_DAY', value: JSON.stringify(2) });
+  if (!keys.has('SALARY_LATE_PENALTY_PER_MINUTE')) toInsert.push({ key: 'SALARY_LATE_PENALTY_PER_MINUTE', value: JSON.stringify(1000) });
 
-  if (!keys.has('SALARY_LATE_PENALTY_PER_MINUTE')) {
-    await db.insert(settings).values({
-      key: 'SALARY_LATE_PENALTY_PER_MINUTE',
-      value: JSON.stringify(1000),
-    });
-    keys.add('SALARY_LATE_PENALTY_PER_MINUTE');
+  if (toInsert.length > 0) {
+    await db.batch(
+      toInsert.map((row) => db.insert(settings).values({ key: row.key, value: row.value }))
+    );
+    toInsert.forEach((row) => keys.add(row.key));
   }
 
   setCachedBootstrapKeys(keys);

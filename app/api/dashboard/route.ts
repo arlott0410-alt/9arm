@@ -6,6 +6,7 @@ import { eq, and, gte, lte, sql, isNull } from 'drizzle-orm';
 import { getSettingValueCached } from '@/lib/get-setting-cached';
 import { convertToDisplay, type Currency, type RateSnapshot } from '@/lib/rates';
 import { todayStrThailand } from '@/lib/utils';
+import { setNoStore } from '@/lib/cache-headers';
 
 async function sumInDisplayCurrency(
   db: Db,
@@ -183,7 +184,7 @@ export async function GET(request: Request) {
       },
       wallets: balances,
     });
-    res.headers.set('Cache-Control', 'private, max-age=30');
+    setNoStore(res);
     return res;
   } catch (e) {
     console.error(e);

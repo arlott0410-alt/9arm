@@ -9,6 +9,6 @@ export async function GET() {
     ok: true,
     ts: new Date().toISOString(),
   });
-  res.headers.set('Cache-Control', 'public, max-age=60');
+  res.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
   return res;
 }

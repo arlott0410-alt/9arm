@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth } from '@/lib/api-helpers';
 import { settings } from '@/db/schema';
 import { createCache } from '@/lib/d1-cache';
+import { setEdgeCache60 } from '@/lib/cache-headers';
 
 const ALL_SETTINGS_CACHE_KEY = '__all_settings';
 const allSettingsCache = createCache<Record<string, unknown>>(30_000);
@@ -17,7 +18,7 @@ export async function GET(request: Request) {
     const cached = allSettingsCache.get(ALL_SETTINGS_CACHE_KEY);
     if (cached) {
       const res = NextResponse.json(cached);
-      res.headers.set('Cache-Control', 'private, max-age=30');
+      setEdgeCache60(res);
       return res;
     }
 
@@ -36,7 +37,7 @@ export async function GET(request: Request) {
     }
     allSettingsCache.set(ALL_SETTINGS_CACHE_KEY, obj);
     const res = NextResponse.json(obj);
-    res.headers.set('Cache-Control', 'private, max-age=30');
+    setEdgeCache60(res);
     return res;
   } catch (e) {
     console.error(e);
