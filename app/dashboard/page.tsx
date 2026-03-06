@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { formatMinorToDisplay } from '@/lib/utils';
+import { formatMinorToDisplay, safeArray } from '@/lib/utils';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useDashboard } from '@/hooks/use-dashboard';
 import {
@@ -240,7 +240,7 @@ export default function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data?.wallets.map((w) => (
+                  {safeArray(data?.wallets).map((w) => (
                     <tr
                       key={w.id}
                       className="border-b border-[#2D3748]/50 last:border-0 transition-colors hover:bg-[#1E293B]/50"

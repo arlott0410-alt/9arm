@@ -25,31 +25,13 @@ import { PaginationBar } from '@/components/PaginationBar';
 import { getDefaultPageSize } from '@/lib/pagination';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { mutate as globalMutate } from 'swr';
-import { useTransactionsList } from '@/hooks/use-transactions-list';
+import { useTransactionsList, type TransactionListItem } from '@/hooks/use-transactions-list';
 import { invalidateDashboard } from '@/lib/invalidate-dashboard';
 
 type Website = { id: number; name: string; prefix: string };
 type Wallet = { id: number; name: string; currency: string };
-type Txn = {
-  id: number;
-  txnDate: string;
-  type: string;
-  userFull: string;
-  websiteName: string;
-  walletName: string;
-  walletCurrency: string;
-  amountMinor: number;
-  withdrawFeeMinor?: number | null;
-  depositSlipTime: string | null;
-  depositSystemTime: string | null;
-  withdrawSlipTime: string | null;
-  withdrawSystemTime: string | null;
-  createdByUsername: string;
-  displayCurrency: string;
-  deletedAt?: string | null;
-  deletedByUsername?: string | null;
-  deleteReason?: string | null;
-};
+/** ใช้ type จาก hook เพื่อให้ mutate/filter ไม่ต้อง cast */
+type Txn = TransactionListItem;
 
 export default function TransactionsPage() {
   const router = useRouter();
@@ -1010,7 +992,7 @@ export default function TransactionsPage() {
                           prev && deleteModal
                             ? {
                                 ...prev,
-                                items: (prev.items as Txn[]).filter((x) => x.id !== deleteModal.id),
+                                items: prev.items.filter((x) => x.id !== deleteModal.id),
                                 totalCount: Math.max(0, prev.totalCount - 1),
                               }
                             : prev,

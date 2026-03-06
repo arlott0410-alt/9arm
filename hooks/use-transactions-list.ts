@@ -3,8 +3,30 @@
 import useSWR from 'swr';
 import { SWR_CONFIG } from '@/lib/swr-config';
 
+/** รูปแบบรายการธุรกรรมจาก GET /api/transactions (ใช้ type ชัดเจนเพื่อป้องกัน type error ตอน mutate/filter) */
+export type TransactionListItem = {
+  id: number;
+  txnDate: string;
+  type: string;
+  userFull: string;
+  websiteName: string;
+  walletName: string;
+  walletCurrency: string;
+  amountMinor: number;
+  withdrawFeeMinor?: number | null;
+  depositSlipTime: string | null;
+  depositSystemTime: string | null;
+  withdrawSlipTime: string | null;
+  withdrawSystemTime: string | null;
+  createdByUsername: string;
+  displayCurrency: string;
+  deletedAt?: string | null;
+  deletedByUsername?: string | null;
+  deleteReason?: string | null;
+};
+
 export type TransactionsListResponse = {
-  items: unknown[];
+  items: TransactionListItem[];
   page: number;
   pageSize: number;
   totalCount: number;

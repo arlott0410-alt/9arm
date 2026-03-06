@@ -70,3 +70,12 @@ export function formatSlipTimeHHMM(val: string | null | undefined): string {
   if (parts.length >= 2) return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
   return val;
 }
+
+/**
+ * คืน array ที่แน่นอน (ไม่เป็น null/undefined) — ใช้เมื่อนำค่าจาก API ที่อาจเป็น undefined ไป .map()/.filter()
+ * เพื่อป้องกัน runtime error จาก undefined.map()
+ * ตัวอย่าง: safeArray(data?.wallets).map((w) => ...) แทน data?.wallets.map(...)
+ */
+export function safeArray<T>(arr: T[] | undefined | null): T[] {
+  return arr ?? [];
+}
