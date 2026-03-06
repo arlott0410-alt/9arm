@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   try {
     const result = await getDbAndUser(request);
     if (result instanceof NextResponse) return result;
-    const { db, user } = result;
+    const { db, user, env } = result;
     const err = requireAuth(user);
     if (err) return err;
 
@@ -27,7 +27,7 @@ export async function GET(request: Request) {
     }
 
     const dedupeKey = `wallets:${url.searchParams.toString()}`;
-    const currentVer = result.env.KV ? await getDataCacheVersion(result.env) : 0;
+    const currentVer = env.KV ? await getDataCacheVersion(env) : 0;
     const raw = walletsBalanceResponseCache.get(dedupeKey);
     const cached = unwrapDataCacheValue<unknown>(raw, currentVer);
     if (cached !== undefined) return NextResponse.json(cached);
@@ -87,7 +87,7 @@ export async function GET(request: Request) {
       if (r.walletId != null) toByWallet.set(r.walletId, Number(r.sum ?? 0));
     }
 
-    const result = list.map((w) => {
+    const data = list.map((w) => {
       const dep = depByWallet.get(w.id) ?? 0;
       const wth = withByWallet.get(w.id) ?? 0;
       const from = fromByWallet.get(w.id) ?? 0;
@@ -95,13 +95,13 @@ export async function GET(request: Request) {
       const balance = w.openingBalanceMinor + dep - wth - from + to;
       return { ...w, balance };
     });
-    if (result.env.KV) {
-      const ver = await getDataCacheVersion(result.env);
-      walletsBalanceResponseCache.set(dedupeKey, { _v: ver, data: result });
+    if (env.KV) {
+      const ver = await getDataCacheVersion(env);
+      walletsBalanceResponseCache.set(dedupeKey, { _v: ver, data });
     } else {
-      walletsBalanceResponseCache.set(dedupeKey, result);
+      walletsBalanceResponseCache.set(dedupeKey, data);
     }
-    return result;
+    return data;
     });
     return NextResponse.json(withBalances);
   } catch (e) {

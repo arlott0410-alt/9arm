@@ -12,13 +12,13 @@ export async function GET(request: Request) {
   try {
     const result = await getDbAndUser(request);
     if (result instanceof NextResponse) return result;
-    const { db, user } = result;
+    const { db, user, env } = result;
     const err = requireAuth(user);
     if (err) return err;
 
     const url = new URL(request.url);
     const dedupeKey = `reports:${url.searchParams.toString()}`;
-    const currentVer = result.env.KV ? await getDataCacheVersion(result.env) : 0;
+    const currentVer = env.KV ? await getDataCacheVersion(env) : 0;
     const raw = reportsResponseCache.get(dedupeKey);
     const cached = unwrapDataCacheValue<unknown>(raw, currentVer);
     if (cached !== undefined) return NextResponse.json(cached);
@@ -190,7 +190,7 @@ export async function GET(request: Request) {
       if (fee > 0) withdrawFeesByCurrency[cur] = (withdrawFeesByCurrency[cur] ?? 0) + fee;
     }
 
-    const result = {
+    const data = {
       displayCurrency,
       period,
       dateFrom,
@@ -207,13 +207,13 @@ export async function GET(request: Request) {
       },
       withdrawFeesByCurrency,
     };
-    if (result.env.KV) {
-      const ver = await getDataCacheVersion(result.env);
-      reportsResponseCache.set(dedupeKey, { _v: ver, data: result });
+    if (env.KV) {
+      const ver = await getDataCacheVersion(env);
+      reportsResponseCache.set(dedupeKey, { _v: ver, data });
     } else {
-      reportsResponseCache.set(dedupeKey, result);
+      reportsResponseCache.set(dedupeKey, data);
     }
-    return result;
+    return data;
     });
 
     return NextResponse.json(payload);
