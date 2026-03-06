@@ -13,6 +13,12 @@
 
 ส่ง **`result.env`** จาก `getDbAndUser(request)` เพื่อให้เมื่อมี KV ระบบจะ broadcast invalidation ไป isolate อื่นด้วย
 
+นอกจากนี้ ถ้า mutation **กระทบยอด/รายละเอียดของ wallet เฉพาะ** ต้องเรียก **`invalidateWalletDetails([...walletIds])`** ด้วย (ล้าง cache GET /api/wallets/[id] เฉพาะ wallet ที่เปลี่ยน — ไม่ล้างทุก wallet เพื่อลด D1 หลัง mutation):
+
+- **transactions POST** (deposit/withdraw) → `invalidateWalletDetails([parsed.data.walletId])`
+- **transfers POST** → `invalidateWalletDetails([fromWalletId, toWalletId])` (ไม่ซ้ำ)
+- **wallets [id] DELETE** → `invalidateWalletDetails([id])`
+
 ---
 
 ## รายการ route ที่ต้องเรียก invalidateDataCaches(result.env) (ปัจจุบัน)
@@ -53,6 +59,6 @@
 
 ## อ้างอิง
 
-- ฟังก์ชัน: `lib/d1-cache.ts` → `invalidateDataCaches(env?: Env)`
+- ฟังก์ชัน: `lib/d1-cache.ts` → `invalidateDataCaches(env?: Env)`, `invalidateWalletDetails(walletIds: number[])`
 - JSDoc ในไฟล์เดียวกันมีรายการ route อยู่แล้ว
 - Helper: `lib/utils.ts` → `safeArray(arr)`

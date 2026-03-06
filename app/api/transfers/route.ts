@@ -18,7 +18,7 @@ import {
   parseCursorParams,
   getDefaultPageSize,
 } from '@/lib/pagination';
-import { listCountCache, invalidateDataCaches, getDataCacheVersion, unwrapDataCacheValue } from '@/lib/d1-cache';
+import { listCountCache, invalidateDataCaches, invalidateWalletDetails, getDataCacheVersion, unwrapDataCacheValue } from '@/lib/d1-cache';
 import { listCountCacheKey } from '@/lib/list-count-cache';
 
 export async function GET(request: Request) {
@@ -374,7 +374,12 @@ export async function POST(request: Request) {
         createdAt: now,
       })
       .returning();
+    const walletIds = [
+      ...(parsed.data.fromWalletId ? [parsed.data.fromWalletId] : []),
+      ...(parsed.data.toWalletId ? [parsed.data.toWalletId] : []),
+    ].filter((v, i, a) => a.indexOf(v) === i);
     invalidateDataCaches(result.env);
+    invalidateWalletDetails(walletIds);
     return NextResponse.json(inserted);
   } catch (e) {
     console.error(e);

@@ -95,15 +95,17 @@
 
 ### Response + count caches (lib/d1-cache.ts)
 - **dashboardResponseCache**, **reportsResponseCache**, **walletsBalanceResponseCache** (45s TTL); **listCountCache** (25s TTL).
-- **walletDetailCache** (45s): GET /api/wallets/[id] — แต่ละ request เดิมทำ 5 query (1 wallet + 4 aggregate); cache ลด row read เมื่อเปิดดู wallet เดิมซ้ำ; ล้างเมื่อ invalidateDataCaches()
-- **invalidateDataCaches(env?)**: Clears all four; ต้องส่ง **env** จาก getDbAndUser เพื่อให้เมื่อมี KV ระบบจะเขียน `data-cache:version` ลง KV ทำให้ isolate อื่นเห็นว่ามีการ invalidate และไม่ใช้ cache เก่า (ลดผลเสียแบบ cache ต่อ isolate).
+- **walletDetailCache** (45s): GET /api/wallets/[id] — แต่ละ request เดิมทำ 5 query (1 wallet + 4 aggregate); cache ลด row read เมื่อเปิดดู wallet เดิมซ้ำ; ล้างเฉพาะ wallet ที่เกี่ยวข้องผ่าน **invalidateWalletDetails([...])** (ไม่ล้างทั้งหมดใน invalidateDataCaches เพื่อลด D1 หลัง mutation)
+- **invalidateWalletDetails(walletIds)**: ล้าง cache รายละเอียด wallet เฉพาะ id ที่ส่ง; เรียกจาก transactions POST (walletId), transfers POST (fromWalletId, toWalletId), wallets [id] DELETE (id)
+- **invalidateDataCaches(env?)**: Clears dashboard, reports, wallets list, list count (ไม่ล้าง walletDetailCache); ต้องส่ง **env** จาก getDbAndUser เพื่อให้เมื่อมี KV ระบบจะเขียน `data-cache:version` ลง KV ทำให้ isolate อื่นเห็นว่ามีการ invalidate และไม่ใช้ cache เก่า (ลดผลเสียแบบ cache ต่อ isolate).
 
 ### KV สัญญาณ invalidate ข้าม isolate (ลดผลเสีย)
 - เมื่อมี **KV binding**: หลัง mutation เรียก **invalidateDataCaches(result.env)** → เขียน timestamp ลง KV key `data-cache:version` → GET dashboard/reports/wallets/list จะเช็ก version นี้ (cache ใน memory 5s ต่อ isolate เพื่อไม่ให้ยิง KV ทุก request) ถ้า version ใหม่กว่า cache ที่เก็บไว้ จะไม่ใช้ cache และ query ใหม่
 - เมื่อ**ไม่มี KV**: ทำงานเหมือนเดิม (ล้างแค่ in-memory ใน isolate เดียว); ไม่มีผลกระทบ
 
 ### Cache invalidation on mutations (Phase 11) — รายการที่ต้องเรียก
-- **invalidateDataCaches(result.env)** เรียกหลัง: transactions POST (deposit/withdraw), transactions [id] DELETE; transfers POST, transfers [id] DELETE (soft-delete); wallets POST, wallets [id] DELETE; bonuses POST, bonuses [id] DELETE; credit-cuts POST, credit-cuts [id] DELETE.  
+- **invalidateDataCaches(result.env)** เรียกหลัง: transactions POST (deposit/withdraw), transactions [id] DELETE; transfers POST, transfers [id] DELETE (soft-delete); wallets POST, wallets [id] DELETE; bonuses POST, bonuses [id] DELETE; credit-cuts POST, credit-cuts [id] DELETE.
+- **invalidateWalletDetails([...])** เรียกหลัง: transactions POST → [walletId]; transfers POST → [fromWalletId, toWalletId] (ไม่ซ้ำ); wallets [id] DELETE → [id]. ไม่เรียกใน transaction/transfer DELETE (cache หมดอายุ 45s)
 - **ถ้าเพิ่ม mutation route ใหม่ที่กระทบ dashboard/reports/wallets/lists ต้องไม่ลืมเรียก invalidateDataCaches(env)** — ดู JSDoc ใน lib/d1-cache.ts ฟังก์ชัน invalidateDataCaches
 - **invalidateSettingsCaches()** เรียกหลัง: settings display-currency PUT, exchange-rates PUT, holiday-head PUT (และ delete), allowance-types PUT.
 - **invalidateWebsitesListCache()** เรียกหลัง: settings/websites POST, settings/websites [id] PATCH.

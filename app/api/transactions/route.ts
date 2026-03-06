@@ -28,7 +28,7 @@ import {
   getDefaultPageSize,
 } from '@/lib/pagination';
 import { setNoStore } from '@/lib/cache-headers';
-import { listCountCache, invalidateDataCaches, getDataCacheVersion, unwrapDataCacheValue } from '@/lib/d1-cache';
+import { listCountCache, invalidateDataCaches, invalidateWalletDetails, getDataCacheVersion, unwrapDataCacheValue } from '@/lib/d1-cache';
 import { listCountCacheKey } from '@/lib/list-count-cache';
 
 export async function GET(request: Request) {
@@ -297,6 +297,7 @@ export async function POST(request: Request) {
         })
         .returning();
       invalidateDataCaches(result.env);
+      invalidateWalletDetails([parsed.data.walletId]);
       return NextResponse.json(inserted);
     }
 
@@ -359,6 +360,7 @@ export async function POST(request: Request) {
         })
         .returning();
       invalidateDataCaches(result.env);
+      invalidateWalletDetails([parsed.data.walletId]);
       return NextResponse.json(inserted);
     }
 

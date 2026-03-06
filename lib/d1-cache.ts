@@ -143,16 +143,27 @@ export function unwrapDataCacheValue<T>(raw: unknown, currentVersion: number): T
 }
 
 /**
+ * Invalidate cached GET /api/wallets/[id] for specific wallet(s) only.
+ * Call this from routes that change balance for given wallet(s) so we don't clear every wallet's cache.
+ */
+export function invalidateWalletDetails(walletIds: number[]): void {
+  for (const id of walletIds) {
+    walletDetailCache.invalidate(walletDetailCacheKey(id));
+  }
+}
+
+/**
  * Call from mutation routes so next GET sees fresh data (same isolate + other isolates when KV is bound).
  * Pass env when available so KV can broadcast invalidation; if env omitted or KV not bound, only in-memory caches are cleared.
+ * Does NOT clear walletDetailCache — use invalidateWalletDetails([...]) for the specific wallet(s) that changed.
  *
  * Routes that MUST call this after successful mutation:
- * - app/api/transactions/route.ts (POST)
+ * - app/api/transactions/route.ts (POST) + invalidateWalletDetails([walletId])
  * - app/api/transactions/[id]/route.ts (DELETE)
- * - app/api/transfers/route.ts (POST)
+ * - app/api/transfers/route.ts (POST) + invalidateWalletDetails([fromWalletId, toWalletId])
  * - app/api/transfers/[id]/route.ts (DELETE)
  * - app/api/wallets/route.ts (POST)
- * - app/api/wallets/[id]/route.ts (DELETE)
+ * - app/api/wallets/[id]/route.ts (DELETE) + invalidateWalletDetails([id])
  * - app/api/bonuses/route.ts (POST)
  * - app/api/bonuses/[id]/route.ts (DELETE)
  * - app/api/credit-cuts/route.ts (POST)
@@ -167,5 +178,5 @@ export function invalidateDataCaches(env?: Env): void {
   reportsResponseCache.invalidateAll();
   walletsBalanceResponseCache.invalidateAll();
   listCountCache.invalidateAll();
-  walletDetailCache.invalidateAll();
+  // walletDetailCache: clear only affected wallets via invalidateWalletDetails() in the route
 }
