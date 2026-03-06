@@ -1006,11 +1006,11 @@ export default function TransactionsPage() {
                       setDeleteReason('');
                       const mutateList = txnListTab === 'deposits' ? mutateDeposits : mutateWithdraws;
                       mutateList(
-                        (prev) =>
+                        (prev: { items: Txn[]; totalCount: number } | undefined) =>
                           prev && deleteModal
                             ? {
                                 ...prev,
-                                items: prev.items.filter((x: Txn) => x.id !== deleteModal.id),
+                                items: prev.items.filter((x) => x.id !== deleteModal.id),
                                 totalCount: Math.max(0, prev.totalCount - 1),
                               }
                             : prev,
