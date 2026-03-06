@@ -219,7 +219,7 @@ export async function POST(request: Request) {
 
     const displayCurrencyRaw = await getSettingValueCached(db, 'DISPLAY_CURRENCY');
     const displayCurrency: Currency =
-      (typeof displayCurrencyRaw === 'string' ? displayCurrencyRaw : null) || 'THB';
+      ((typeof displayCurrencyRaw === 'string' ? displayCurrencyRaw : null) || 'THB') as Currency;
 
     const ratesRaw = await getSettingValueCached(db, 'EXCHANGE_RATES');
     const rateSnapshot: RateSnapshot =
