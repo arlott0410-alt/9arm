@@ -6,10 +6,18 @@ import {
   websites,
   users,
 } from '@/db/schema';
-import { eq, and, gte, lte, isNull, isNotNull, inArray, sql } from 'drizzle-orm';
+import { eq, and, gte, lte, lt, isNull, isNotNull, inArray, sql, desc } from 'drizzle-orm';
 import { bonusSchema } from '@/lib/validations';
 import { settings } from '@/db/schema';
-import { parsePageParams, buildPaginatedResponse, getDefaultPageSize } from '@/lib/pagination';
+import {
+  parsePageParams,
+  buildPaginatedResponse,
+  buildCursorResponse,
+  parseCursorParams,
+  getDefaultPageSize,
+} from '@/lib/pagination';
+import { listCountCache, invalidateDataCaches, getDataCacheVersion, unwrapDataCacheValue } from '@/lib/d1-cache';
+import { listCountCacheKey } from '@/lib/list-count-cache';
 
 export async function GET(request: Request) {
   try {
@@ -27,10 +35,9 @@ export async function GET(request: Request) {
     const userFull = url.searchParams.get('userFull');
     const deletedOnly = url.searchParams.get('deletedOnly') === 'true';
 
-    const { page, pageSize, offset } = parsePageParams(
-      url.searchParams,
-      getDefaultPageSize('bonuses')
-    );
+    const defaultPageSize = getDefaultPageSize('bonuses');
+    const cursorParams = parseCursorParams(url.searchParams, defaultPageSize);
+    const useCursor = cursorParams != null && cursorParams.cursorId != null;
 
     const conditions: Parameters<typeof and>[0][] = [];
     if (dateFrom) conditions.push(gte(bonuses.bonusTime, dateFrom + 'T00:00'));
@@ -39,14 +46,76 @@ export async function GET(request: Request) {
     if (categoryId) conditions.push(eq(bonuses.categoryId, parseInt(categoryId)));
     if (userFull) conditions.push(eq(bonuses.userFull, userFull));
     conditions.push(deletedOnly ? isNotNull(bonuses.deletedAt) : isNull(bonuses.deletedAt));
+    if (useCursor) conditions.push(lt(bonuses.id, cursorParams!.cursorId!));
 
     const whereClause = and(...conditions);
 
-    const [countRow] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(bonuses)
-      .where(whereClause);
-    const totalCount = Number(countRow?.count ?? 0);
+    if (useCursor) {
+      const limit = cursorParams!.limit;
+      const list = await db
+        .select({
+          id: bonuses.id,
+          websiteId: bonuses.websiteId,
+          userIdInput: bonuses.userIdInput,
+          userFull: bonuses.userFull,
+          categoryId: bonuses.categoryId,
+          displayCurrency: bonuses.displayCurrency,
+          amountMinor: bonuses.amountMinor,
+          bonusTime: bonuses.bonusTime,
+          createdBy: bonuses.createdBy,
+          createdAt: bonuses.createdAt,
+          deletedAt: bonuses.deletedAt,
+          deletedBy: bonuses.deletedBy,
+          deleteReason: bonuses.deleteReason,
+          websiteName: websites.name,
+          websitePrefix: websites.prefix,
+          categoryName: bonusCategories.name,
+          createdByUsername: users.username,
+        })
+        .from(bonuses)
+        .leftJoin(websites, eq(bonuses.websiteId, websites.id))
+        .leftJoin(bonusCategories, eq(bonuses.categoryId, bonusCategories.id))
+        .leftJoin(users, eq(bonuses.createdBy, users.id))
+        .where(whereClause)
+        .orderBy(desc(bonuses.id))
+        .limit(limit);
+
+      const deletedByIds = [...new Set(list.filter((r) => r.deletedBy != null).map((r) => r.deletedBy!))];
+      const deletedByUsers =
+        deletedByIds.length > 0
+          ? await db.select({ id: users.id, username: users.username }).from(users).where(inArray(users.id, deletedByIds))
+          : [];
+      const deletedByMap = new Map(deletedByUsers.map((u) => [u.id, u.username]));
+      const listWithDeletedBy = list.map((r) => ({
+        ...r,
+        deletedByUsername: r.deletedBy ? (deletedByMap.get(r.deletedBy) ?? '?') : null,
+      }));
+      return NextResponse.json(buildCursorResponse(listWithDeletedBy, limit));
+    }
+
+    const { page, pageSize, offset } = parsePageParams(
+      url.searchParams,
+      defaultPageSize
+    );
+
+    const countKey = listCountCacheKey('bonuses', url.searchParams);
+    const currentVer = result.env.KV ? await getDataCacheVersion(result.env) : 0;
+    const rawCount = listCountCache.get(countKey);
+    let totalCount = unwrapDataCacheValue<number>(rawCount, currentVer);
+    if (rawCount !== undefined && currentVer > 0 && totalCount === undefined) listCountCache.invalidate(countKey);
+    if (totalCount === undefined) {
+      const [countRow] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(bonuses)
+        .where(whereClause);
+      totalCount = Number(countRow?.count ?? 0);
+      if (result.env.KV) {
+        const ver = await getDataCacheVersion(result.env);
+        listCountCache.set(countKey, { _v: ver, data: totalCount });
+      } else {
+        listCountCache.set(countKey, totalCount);
+      }
+    }
 
     const list = await db
       .select({
@@ -147,6 +216,7 @@ export async function POST(request: Request) {
         createdAt: now,
       })
       .returning();
+    invalidateDataCaches(result.env);
     return NextResponse.json(inserted);
   } catch (e) {
     console.error(e);

@@ -4,6 +4,7 @@ import { settings } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { exchangeRatesSchema } from '@/lib/validations';
 import { getAllRateKeys } from '@/lib/rates';
+import { invalidateSettingsCaches } from '@/lib/d1-cache';
 
 export async function GET(request: Request) {
   try {
@@ -60,6 +61,7 @@ export async function PUT(request: Request) {
       .update(settings)
       .set({ value: JSON.stringify(rates) })
       .where(eq(settings.key, 'EXCHANGE_RATES'));
+    invalidateSettingsCaches();
     return NextResponse.json({ rates });
   } catch (e) {
     console.error(e);

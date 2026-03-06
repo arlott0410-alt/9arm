@@ -22,6 +22,7 @@ import { Copy } from 'lucide-react';
 import { PaginationBar } from '@/components/PaginationBar';
 import { getDefaultPageSize } from '@/lib/pagination';
 import { useAuth } from '@/components/providers/AuthProvider';
+import { useBonusesList } from '@/hooks/use-bonuses-list';
 
 type Website = { id: number; name: string; prefix: string };
 type BonusCategory = { id: number; name: string; sortOrder: number };
@@ -49,12 +50,9 @@ export default function BonusesPage() {
   const { user, loading: authLoading } = useAuth();
   const [websites, setWebsites] = useState<Website[]>([]);
   const [categories, setCategories] = useState<BonusCategory[]>([]);
-  const [bonuses, setBonuses] = useState<Bonus[]>([]);
   const [settings, setSettings] = useState<{ displayCurrency: string } | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(getDefaultPageSize('bonuses'));
-  const [totalCount, setTotalCount] = useState(0);
-  const [listLoading, setListLoading] = useState(false);
   const fetchAbortRef = useRef<AbortController | null>(null);
   const [dateFrom, setDateFrom] = useState(todayStr());
   const [dateTo, setDateTo] = useState(todayStr());
@@ -93,29 +91,21 @@ export default function BonusesPage() {
     });
   }, [user]);
 
-  useEffect(() => {
-    if (!user) return;
-    if (fetchAbortRef.current) fetchAbortRef.current.abort();
-    fetchAbortRef.current = new AbortController();
-    setListLoading(true);
-    const params = new URLSearchParams({
-      dateFrom,
-      dateTo,
-      page: String(page),
-      pageSize: String(pageSize),
-      ...(filterWebsite !== '__all__' && { websiteId: filterWebsite }),
-      ...(filterCategory !== '__all__' && { categoryId: filterCategory }),
-      ...(filterDeleted && { deletedOnly: 'true' }),
-    });
-    fetch(`/api/bonuses?${params}`, { signal: fetchAbortRef.current.signal })
-      .then((r) => r.json() as Promise<{ items: Bonus[]; page: number; pageSize: number; totalCount: number }>)
-      .then((data) => {
-        setBonuses(data.items);
-        setTotalCount(data.totalCount);
-      })
-      .catch((err) => { if (err.name !== 'AbortError') console.error(err); })
-      .finally(() => { setListLoading(false); fetchAbortRef.current = null; });
-  }, [user, dateFrom, dateTo, filterWebsite, filterCategory, filterDeleted, page, pageSize]);
+  const listKey =
+    user
+      ? `/api/bonuses?${new URLSearchParams({
+          dateFrom,
+          dateTo,
+          page: String(page),
+          pageSize: String(pageSize),
+          ...(filterWebsite !== '__all__' && { websiteId: filterWebsite }),
+          ...(filterCategory !== '__all__' && { categoryId: filterCategory }),
+          ...(filterDeleted && { deletedOnly: 'true' }),
+        })}`
+      : null;
+  const { data: listData, mutate: mutateBonuses, isLoading: listLoading } = useBonusesList(listKey);
+  const bonuses = (listData?.items ?? []) as Bonus[];
+  const totalCount = listData?.totalCount ?? 0;
 
   function getSelectedWebsite() {
     return websites.find((w) => w.id === form.websiteId);
@@ -156,18 +146,7 @@ export default function BonusesPage() {
       if (res.ok) {
         setForm({ ...form, amountMinor: 0, userIdInput: '' });
         setPage(1);
-        const params = new URLSearchParams({
-          dateFrom,
-          dateTo,
-          page: '1',
-          pageSize: String(pageSize),
-          ...(filterWebsite !== '__all__' && { websiteId: filterWebsite }),
-          ...(filterCategory !== '__all__' && { categoryId: filterCategory }),
-          ...(filterDeleted && { deletedOnly: 'true' }),
-        });
-        const data = (await fetch(`/api/bonuses?${params}`).then((r) => r.json())) as { items: Bonus[]; totalCount: number };
-        setBonuses(data.items);
-        setTotalCount(data.totalCount);
+        void mutateBonuses();
       } else {
         alert(typeof data.error === 'string' ? data.error : 'เกิดข้อผิดพลาด');
       }
@@ -461,18 +440,7 @@ export default function BonusesPage() {
                     if (res.ok) {
                       setDeleteModal(null);
                       setDeleteReason('');
-                      const params = new URLSearchParams({
-                        dateFrom,
-                        dateTo,
-                        page: String(page),
-                        pageSize: String(pageSize),
-                        ...(filterWebsite !== '__all__' && { websiteId: filterWebsite }),
-                        ...(filterCategory !== '__all__' && { categoryId: filterCategory }),
-                        ...(filterDeleted && { deletedOnly: 'true' }),
-                      });
-                      const data = (await fetch(`/api/bonuses?${params}`).then((r) => r.json())) as { items: Bonus[]; totalCount: number };
-                      setBonuses(data.items);
-                      setTotalCount(data.totalCount);
+                      void mutateBonuses();
                     } else {
                       alert(typeof data.error === 'string' ? data.error : 'ลบไม่ได้');
                     }

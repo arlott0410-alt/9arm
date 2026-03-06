@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth, requireWallets } from '@/lib/api-helpers';
 import { wallets, transactions, transfers } from '@/db/schema';
 import { eq, and, or, sql, isNull } from 'drizzle-orm';
+import { invalidateDataCaches } from '@/lib/d1-cache';
 
 export async function GET(
   request: Request,
@@ -154,6 +155,7 @@ export async function DELETE(
     }
 
     await db.delete(wallets).where(eq(wallets.id, idNum));
+    invalidateDataCaches(result.env);
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error(e);

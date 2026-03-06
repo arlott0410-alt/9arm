@@ -3,6 +3,7 @@ import { getDbAndUser, requireAuth, requireSettings } from '@/lib/api-helpers';
 import { bonusCategories } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { bonusCategorySchema } from '@/lib/validations';
+import { bonusCategoriesListCache, BONUS_CATEGORIES_LIST_CACHE_KEY, invalidateBonusCategoriesListCache } from '@/lib/d1-cache';
 
 export async function GET(request: Request) {
   try {
@@ -12,10 +13,13 @@ export async function GET(request: Request) {
     const err = requireAuth(result.user);
     if (err) return err;
 
+    const cached = bonusCategoriesListCache.get(BONUS_CATEGORIES_LIST_CACHE_KEY);
+    if (cached) return NextResponse.json(cached);
     const list = await db
       .select()
       .from(bonusCategories)
       .orderBy(bonusCategories.sortOrder, bonusCategories.name);
+    bonusCategoriesListCache.set(BONUS_CATEGORIES_LIST_CACHE_KEY, list);
     return NextResponse.json(list);
   } catch (e) {
     console.error(e);
@@ -57,6 +61,7 @@ export async function POST(request: Request) {
         createdAt: now,
       })
       .returning();
+    invalidateBonusCategoriesListCache();
     return NextResponse.json(inserted);
   } catch (e) {
     console.error(e);

@@ -9,6 +9,7 @@ import {
 } from '@/db/schema';
 import { eq, and, isNull, inArray } from 'drizzle-orm';
 import { editBonusSchema } from '@/lib/validations';
+import { invalidateDataCaches } from '@/lib/d1-cache';
 
 export async function GET(
   request: Request,
@@ -149,6 +150,7 @@ export async function DELETE(
       })
       .where(eq(bonuses.id, idNum));
 
+    invalidateDataCaches(result.env);
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error(e);

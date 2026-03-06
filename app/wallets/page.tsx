@@ -23,14 +23,19 @@ import {
 import { formatMinorToDisplay, parseDisplayToMinor } from '@/lib/utils';
 import { Trash2 } from 'lucide-react';
 import { useAuth } from '@/components/providers/AuthProvider';
+import { useWallets, type WalletWithBalance } from '@/hooks/use-wallets';
+import { invalidateDashboard } from '@/lib/invalidate-dashboard';
 
 type Wallet = { id: number; name: string; currency: string; balance?: number };
 
 export default function WalletsPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  const [wallets, setWallets] = useState<Wallet[]>([]);
-  const [balances, setBalances] = useState<Map<number, number>>(new Map());
+  const { data: walletsList = [], mutate: mutateWallets } = useWallets(!!user);
+  const wallets = walletsList as Wallet[];
+  const balances = new Map<number, number>(
+    wallets.map((w) => [w.id, typeof w.balance === 'number' ? w.balance : 0])
+  );
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     name: '',
@@ -53,21 +58,6 @@ export default function WalletsPage() {
     }
   }, [authLoading, user, router]);
 
-  useEffect(() => {
-    if (!user) return;
-    fetch('/api/wallets?withBalance=1')
-      .then((r) => r.json() as Promise<Array<Wallet & { balance?: number }>>)
-      .then((list) => {
-        const arr = Array.isArray(list) ? list : [];
-        setWallets(arr);
-        const m = new Map<number, number>();
-        arr.forEach((w) =>
-          m.set(w.id, typeof w.balance === 'number' ? w.balance : 0)
-        );
-        setBalances(m);
-      });
-  }, [user]);
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canMutate) return;
@@ -82,19 +72,13 @@ export default function WalletsPage() {
           openingBalanceMinor: form.openingBalanceMinor,
         }),
       });
-      if (res.ok) {
-        await res.json();
-        const fullList = (await fetch('/api/wallets?withBalance=1').then(
-          (r) => r.json()
-        )) as Array<Wallet & { balance?: number }>;
-        setWallets(fullList);
-        const m = new Map<number, number>();
-        fullList.forEach((w) =>
-          m.set(w.id, typeof w.balance === 'number' ? w.balance : 0)
-        );
-        setBalances(m);
+      const created = res.ok ? (await res.json()) as WalletWithBalance : null;
+      if (created) {
+        mutateWallets((prev) => [...(prev ?? []), { ...created, balance: created.openingBalanceMinor ?? 0 }], false);
+        invalidateDashboard();
         setForm({ name: '', currency: 'THB', openingBalanceMinor: 0 });
         setOpen(false);
+        await mutateWallets();
       }
     } finally {
       setLoading(false);
@@ -109,12 +93,9 @@ export default function WalletsPage() {
       const res = await fetch(`/api/wallets/${w.id}`, { method: 'DELETE' });
       const data = (await res.json()) as { error?: string };
       if (res.ok) {
-        setWallets((prev) => prev.filter((x) => x.id !== w.id));
-        setBalances((prev) => {
-          const m = new Map(prev);
-          m.delete(w.id);
-          return m;
-        });
+        mutateWallets((prev) => (prev ?? []).filter((x) => x.id !== w.id), false);
+        invalidateDashboard();
+        await mutateWallets();
       } else {
         alert(data.error || 'ลบไม่ได้');
       }

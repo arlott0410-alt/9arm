@@ -7,13 +7,16 @@ import { getSettingValueCached } from '@/lib/get-setting-cached';
 import { convertToDisplay, type Currency, type RateSnapshot } from '@/lib/rates';
 import { todayStrThailand } from '@/lib/utils';
 import { setNoStore } from '@/lib/cache-headers';
+import { dedupeRequest } from '@/lib/request-dedup';
+import { dashboardResponseCache, getDataCacheVersion, unwrapDataCacheValue } from '@/lib/d1-cache';
 
+/** Aggregate in D1 by currency (GROUP BY), then convert each bucket in Worker. Reduces CPU vs per-row JS loop. */
 async function sumInDisplayCurrency(
   db: Db,
   displayCurrency: Currency,
   rates: RateSnapshot,
   filters: { type: 'DEPOSIT' | 'WITHDRAW'; dateFrom: string; dateTo: string; websiteId?: number }
-) {
+): Promise<number> {
   const conditions: Parameters<typeof and>[0][] = [
     eq(transactions.type, filters.type),
     gte(transactions.txnDate, filters.dateFrom),
@@ -22,24 +25,21 @@ async function sumInDisplayCurrency(
   ];
   if (filters.websiteId) conditions.push(eq(transactions.websiteId, filters.websiteId));
 
-  // Select wallet.currency via join to avoid N+1 per-row wallet lookups
+  // D1 aggregates by currency (max 3 rows: LAK, THB, USD); null currency treated as THB
   const rows = await db
     .select({
-      amountMinor: transactions.amountMinor,
-      walletCurrency: wallets.currency,
+      currency: wallets.currency,
+      sumMinor: sql<number>`coalesce(sum(${transactions.amountMinor}), 0)`,
     })
     .from(transactions)
     .leftJoin(wallets, eq(transactions.walletId, wallets.id))
-    .where(and(...conditions));
+    .where(and(...conditions))
+    .groupBy(wallets.currency);
+
   let total = 0;
   for (const r of rows) {
-    const walletCurrency = (r.walletCurrency ?? 'THB') as Currency;
-    total += convertToDisplay(
-      r.amountMinor,
-      walletCurrency,
-      displayCurrency,
-      rates
-    );
+    const currency = (r.currency ?? 'THB') as Currency;
+    total += convertToDisplay(Number(r.sumMinor ?? 0), currency, displayCurrency, rates);
   }
   return Math.round(total);
 }
@@ -52,6 +52,21 @@ export async function GET(request: Request) {
     const err = requireAuth(user);
     if (err) return err;
 
+    const url = new URL(request.url);
+    const websiteIdParam = url.searchParams.get('websiteId');
+    const dedupeKey = `dashboard:${websiteIdParam ?? 'all'}`;
+
+    const currentVer = result.env.KV ? await getDataCacheVersion(result.env) : 0;
+    const raw = dashboardResponseCache.get(dedupeKey);
+    const cached = unwrapDataCacheValue<unknown>(raw, currentVer);
+    if (cached !== undefined) {
+      const res = NextResponse.json(cached);
+      setNoStore(res);
+      return res;
+    }
+    if (raw !== undefined && currentVer > 0) dashboardResponseCache.invalidate(dedupeKey);
+
+    const payload = await dedupeRequest(dedupeKey, async () => {
     const [displayCurrency, rates] = await Promise.all([
       getSettingValueCached(db, 'DISPLAY_CURRENCY').then(
         (v) => (typeof v === 'string' ? v : 'THB') as Currency
@@ -61,8 +76,6 @@ export async function GET(request: Request) {
       ),
     ]);
 
-    const url = new URL(request.url);
-    const websiteIdParam = url.searchParams.get('websiteId');
     const websiteId = websiteIdParam ? parseInt(websiteIdParam) : undefined;
 
     const today = todayStrThailand();
@@ -98,8 +111,8 @@ export async function GET(request: Request) {
       ]);
 
     const [walletList, websiteList] = await Promise.all([
-      db.select().from(wallets).orderBy(wallets.name),
-      db.select().from(websites).orderBy(websites.name),
+      db.select({ id: wallets.id, name: wallets.name, currency: wallets.currency, openingBalanceMinor: wallets.openingBalanceMinor }).from(wallets).orderBy(wallets.name),
+      db.select({ id: websites.id, name: websites.name, prefix: websites.prefix }).from(websites).orderBy(websites.name),
     ]);
 
     // Grouped aggregations: 4 queries total instead of 4 per wallet
@@ -169,7 +182,7 @@ export async function GET(request: Request) {
       };
     });
 
-    const res = NextResponse.json({
+    const result = {
       displayCurrency,
       websites: websiteList,
       today: {
@@ -183,7 +196,17 @@ export async function GET(request: Request) {
         net: monthDepTotal - monthWithTotal,
       },
       wallets: balances,
+    };
+    if (result.env.KV) {
+      const ver = await getDataCacheVersion(result.env);
+      dashboardResponseCache.set(dedupeKey, { _v: ver, data: result });
+    } else {
+      dashboardResponseCache.set(dedupeKey, result);
+    }
+    return result;
     });
+
+    const res = NextResponse.json(payload);
     setNoStore(res);
     return res;
   } catch (e) {

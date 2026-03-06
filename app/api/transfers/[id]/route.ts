@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getDbAndUser, requireMutate } from '@/lib/api-helpers';
 import { transfers } from '@/db/schema';
 import { eq, and, isNull } from 'drizzle-orm';
+import { invalidateDataCaches } from '@/lib/d1-cache';
 
 export async function DELETE(
   request: Request,
@@ -49,6 +50,7 @@ export async function DELETE(
       })
       .where(eq(transfers.id, idNum));
 
+    invalidateDataCaches(result.env);
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error(e);

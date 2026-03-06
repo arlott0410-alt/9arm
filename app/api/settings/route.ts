@@ -1,11 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth } from '@/lib/api-helpers';
 import { settings } from '@/db/schema';
-import { createCache } from '@/lib/d1-cache';
+import { allSettingsCache, ALL_SETTINGS_CACHE_KEY } from '@/lib/d1-cache';
 import { setEdgeCache60 } from '@/lib/cache-headers';
-
-const ALL_SETTINGS_CACHE_KEY = '__all_settings';
-const allSettingsCache = createCache<Record<string, unknown>>(30_000);
 
 export async function GET(request: Request) {
   try {

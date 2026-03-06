@@ -3,6 +3,7 @@ import { getDbAndUser, requireSettings } from '@/lib/api-helpers';
 import { settings } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { displayCurrencySchema } from '@/lib/validations';
+import { invalidateSettingsCaches } from '@/lib/d1-cache';
 
 export async function PUT(request: Request) {
   try {
@@ -26,6 +27,7 @@ export async function PUT(request: Request) {
       .update(settings)
       .set({ value })
       .where(eq(settings.key, 'DISPLAY_CURRENCY'));
+    invalidateSettingsCaches();
     return NextResponse.json({ displayCurrency: parsed.data.displayCurrency });
   } catch (e) {
     console.error(e);

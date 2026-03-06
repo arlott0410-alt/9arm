@@ -37,6 +37,7 @@ import {
 import { PaginationBar } from '@/components/PaginationBar';
 import { getDefaultPageSize } from '@/lib/pagination';
 import { useAuth } from '@/components/providers/AuthProvider';
+import { useTransfersList } from '@/hooks/use-transfers-list';
 
 type Wallet = { id: number; name: string; currency: string };
 type Transfer = {
@@ -62,11 +63,8 @@ type Transfer = {
 export default function TransfersPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(getDefaultPageSize('transfers'));
-  const [totalCount, setTotalCount] = useState(0);
-  const [listLoading, setListLoading] = useState(false);
   const fetchAbortRef = useRef<AbortController | null>(null);
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [settings, setSettings] = useState<{
@@ -130,27 +128,19 @@ export default function TransfersPage() {
     });
   }, [user]);
 
-  useEffect(() => {
-    if (!user) return;
-    if (fetchAbortRef.current) fetchAbortRef.current.abort();
-    fetchAbortRef.current = new AbortController();
-    setListLoading(true);
-    const params = new URLSearchParams({
-      dateFrom,
-      dateTo,
-      page: String(page),
-      pageSize: String(pageSize),
-      ...(tab === 'deleted' && { deletedOnly: 'true' }),
-    });
-    fetch(`/api/transfers?${params}`, { signal: fetchAbortRef.current.signal })
-      .then((r) => r.json() as Promise<{ items: Transfer[]; page: number; pageSize: number; totalCount: number }>)
-      .then((data) => {
-        setTransfers(data.items);
-        setTotalCount(data.totalCount);
-      })
-      .catch((err) => { if (err.name !== 'AbortError') console.error(err); })
-      .finally(() => { setListLoading(false); fetchAbortRef.current = null; });
-  }, [user, dateFrom, dateTo, tab, page, pageSize]);
+  const listKey =
+    user
+      ? `/api/transfers?${new URLSearchParams({
+          dateFrom,
+          dateTo,
+          page: String(page),
+          pageSize: String(pageSize),
+          ...(tab === 'deleted' && { deletedOnly: 'true' }),
+        })}`
+      : null;
+  const { data: listData, mutate: mutateTransfers, isLoading: listLoading } = useTransfersList(listKey);
+  const transfers = (listData?.items ?? []) as Transfer[];
+  const totalCount = listData?.totalCount ?? 0;
 
   const sameWallet =
     form.type === 'INTERNAL' &&
@@ -210,16 +200,7 @@ export default function TransfersPage() {
         });
         setOpen(false);
         setPage(1);
-        const params = new URLSearchParams({
-          dateFrom,
-          dateTo,
-          page: '1',
-          pageSize: String(pageSize),
-          ...(tab === 'deleted' && { deletedOnly: 'true' }),
-        });
-        const data = (await fetch(`/api/transfers?${params}`).then((r) => r.json())) as { items: Transfer[]; totalCount: number };
-        setTransfers(data.items);
-        setTotalCount(data.totalCount);
+        void mutateTransfers();
         setError(null);
       } else {
         setError(typeof data.error === 'string' ? data.error : 'เกิดข้อผิดพลาด');
@@ -514,16 +495,7 @@ export default function TransfersPage() {
                     if (res.ok) {
                       setDeleteModal(null);
                       setDeleteReason('');
-                      const params = new URLSearchParams({
-                        dateFrom,
-                        dateTo,
-                        page: String(page),
-                        pageSize: String(pageSize),
-                        ...(tab === 'deleted' && { deletedOnly: 'true' }),
-                      });
-                      const data = (await fetch(`/api/transfers?${params}`).then((r) => r.json())) as { items: Transfer[]; totalCount: number };
-                      setTransfers(data.items);
-                      setTotalCount(data.totalCount);
+                      void mutateTransfers();
                     } else {
                       alert(typeof data.error === 'string' ? data.error : 'ลบไม่ได้');
                     }

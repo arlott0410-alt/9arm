@@ -3,6 +3,7 @@ import { getDbAndUser, requireAuth, requireSettings } from '@/lib/api-helpers';
 import { websites } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { websiteSchema } from '@/lib/validations';
+import { websitesListCache, WEBSITES_LIST_CACHE_KEY, invalidateWebsitesListCache } from '@/lib/d1-cache';
 
 export async function GET(request: Request) {
   try {
@@ -12,7 +13,14 @@ export async function GET(request: Request) {
     const err = requireAuth(user);
     if (err) return err;
 
+    const cached = websitesListCache.get(WEBSITES_LIST_CACHE_KEY);
+    if (cached) {
+      const res = NextResponse.json(cached);
+      res.headers.set('Cache-Control', 'private, max-age=30');
+      return res;
+    }
     const list = await db.select().from(websites).orderBy(websites.name);
+    websitesListCache.set(WEBSITES_LIST_CACHE_KEY, list);
     const res = NextResponse.json(list);
     res.headers.set('Cache-Control', 'private, max-age=30');
     return res;
@@ -51,6 +59,7 @@ export async function POST(request: Request) {
         createdAt: now,
       })
       .returning();
+    invalidateWebsitesListCache();
     return NextResponse.json(inserted);
   } catch (e) {
     console.error(e);

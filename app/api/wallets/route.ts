@@ -3,6 +3,8 @@ import { getDbAndUser, requireAuth, requireWallets } from '@/lib/api-helpers';
 import { wallets, transactions, transfers } from '@/db/schema';
 import { walletSchema } from '@/lib/validations';
 import { eq, and, sql, isNull } from 'drizzle-orm';
+import { dedupeRequest } from '@/lib/request-dedup';
+import { walletsBalanceResponseCache, invalidateDataCaches, getDataCacheVersion, unwrapDataCacheValue } from '@/lib/d1-cache';
 
 export async function GET(request: Request) {
   try {
@@ -15,12 +17,23 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const withBalance = url.searchParams.get('withBalance') === '1';
 
-    const list = await db.select().from(wallets).orderBy(wallets.name);
+    const list = await db
+      .select({ id: wallets.id, name: wallets.name, currency: wallets.currency, openingBalanceMinor: wallets.openingBalanceMinor, createdAt: wallets.createdAt })
+      .from(wallets)
+      .orderBy(wallets.name);
 
     if (!withBalance) {
       return NextResponse.json(list);
     }
 
+    const dedupeKey = `wallets:${url.searchParams.toString()}`;
+    const currentVer = result.env.KV ? await getDataCacheVersion(result.env) : 0;
+    const raw = walletsBalanceResponseCache.get(dedupeKey);
+    const cached = unwrapDataCacheValue<unknown>(raw, currentVer);
+    if (cached !== undefined) return NextResponse.json(cached);
+    if (raw !== undefined && currentVer > 0) walletsBalanceResponseCache.invalidate(dedupeKey);
+
+    const withBalances = await dedupeRequest(dedupeKey, async () => {
     // Grouped aggregations: 4 queries total instead of 4 per wallet
     const [depRows, withRows, fromRows, toRows] = await Promise.all([
       db
@@ -74,13 +87,21 @@ export async function GET(request: Request) {
       if (r.walletId != null) toByWallet.set(r.walletId, Number(r.sum ?? 0));
     }
 
-    const withBalances = list.map((w) => {
+    const result = list.map((w) => {
       const dep = depByWallet.get(w.id) ?? 0;
       const wth = withByWallet.get(w.id) ?? 0;
       const from = fromByWallet.get(w.id) ?? 0;
       const to = toByWallet.get(w.id) ?? 0;
       const balance = w.openingBalanceMinor + dep - wth - from + to;
       return { ...w, balance };
+    });
+    if (result.env.KV) {
+      const ver = await getDataCacheVersion(result.env);
+      walletsBalanceResponseCache.set(dedupeKey, { _v: ver, data: result });
+    } else {
+      walletsBalanceResponseCache.set(dedupeKey, result);
+    }
+    return result;
     });
     return NextResponse.json(withBalances);
   } catch (e) {
@@ -119,6 +140,7 @@ export async function POST(request: Request) {
         createdAt: now,
       })
       .returning();
+    invalidateDataCaches(result.env);
     return NextResponse.json(inserted);
   } catch (e) {
     console.error(e);

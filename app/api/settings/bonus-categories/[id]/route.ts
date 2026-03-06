@@ -3,6 +3,7 @@ import { getDbAndUser, requireSettings } from '@/lib/api-helpers';
 import { bonuses, bonusCategories } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { bonusCategorySchema } from '@/lib/validations';
+import { invalidateBonusCategoriesListCache } from '@/lib/d1-cache';
 
 export async function PUT(
   request: Request,
@@ -39,6 +40,7 @@ export async function PUT(
       .update(bonusCategories)
       .set({ name: parsed.data.name })
       .where(eq(bonusCategories.id, idNum));
+    invalidateBonusCategoriesListCache();
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error(e);
@@ -80,6 +82,7 @@ export async function DELETE(
     }
 
     await db.delete(bonusCategories).where(eq(bonusCategories.id, idNum));
+    invalidateBonusCategoriesListCache();
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error(e);

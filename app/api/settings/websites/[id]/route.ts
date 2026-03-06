@@ -3,6 +3,7 @@ import { getDbAndUser, requireSettings } from '@/lib/api-helpers';
 import { websites } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { websiteSchema } from '@/lib/validations';
+import { invalidateWebsitesListCache } from '@/lib/d1-cache';
 
 export async function PATCH(
   request: Request,
@@ -51,6 +52,7 @@ export async function PATCH(
     if (!updated) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
+    invalidateWebsitesListCache();
     return NextResponse.json(updated);
   } catch (e) {
     console.error(e);

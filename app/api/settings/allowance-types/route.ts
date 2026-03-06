@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getDbAndUser, requireSettings } from '@/lib/api-helpers';
 import { settings } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import { invalidateSettingsCaches } from '@/lib/d1-cache';
 
 const KEY = 'SALARY_ALLOWANCE_TYPES';
 
@@ -76,7 +77,7 @@ export async function PUT(request: Request) {
     } else {
       await db.insert(settings).values({ key: KEY, value });
     }
-
+    invalidateSettingsCaches();
     return NextResponse.json({ items });
   } catch (e) {
     console.error(e);

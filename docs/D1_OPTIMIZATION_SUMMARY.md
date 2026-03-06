@@ -85,3 +85,40 @@
 - Business logic และ permission เหมือนเดิม
 - Route paths ไม่เปลี่ยน
 - ถ้าไม่ login ยัง redirect/deny เหมือนเดิม (behavior จาก getSessionUser + requireAuth ไม่เปลี่ยน)
+
+---
+
+## รอบปรับปรุงล่าสุด (D1 row reads + cache invalidation)
+
+### Indexes (migration 0013)
+- **db/migrations/0013_add_performance_indexes.sql**: Indexes for transactions (type, deleted_at, txn_date), (website_id, deleted_at, txn_date), (wallet_id, deleted_at); transfers (type, deleted_at, txn_date), (from_wallet_id, deleted_at), (to_wallet_id, deleted_at), (deleted_at, txn_date); bonuses (website_id, deleted_at, bonus_time), (deleted_at, bonus_time); credit_cuts (website_id, deleted_at, cut_time), (deleted_at, cut_time); late_arrivals (user_id, late_date); holiday_entries (user_id, holiday_date); employee_salaries (user_id, effective_from). All `CREATE INDEX IF NOT EXISTS` — safe on existing DB.
+
+### Response + count caches (lib/d1-cache.ts)
+- **dashboardResponseCache**, **reportsResponseCache**, **walletsBalanceResponseCache** (45s TTL); **listCountCache** (25s TTL).
+- **invalidateDataCaches(env?)**: Clears all four; ต้องส่ง **env** จาก getDbAndUser เพื่อให้เมื่อมี KV ระบบจะเขียน `data-cache:version` ลง KV ทำให้ isolate อื่นเห็นว่ามีการ invalidate และไม่ใช้ cache เก่า (ลดผลเสียแบบ cache ต่อ isolate).
+
+### KV สัญญาณ invalidate ข้าม isolate (ลดผลเสีย)
+- เมื่อมี **KV binding**: หลัง mutation เรียก **invalidateDataCaches(result.env)** → เขียน timestamp ลง KV key `data-cache:version` → GET dashboard/reports/wallets/list จะเช็ก version นี้ (cache ใน memory 5s ต่อ isolate เพื่อไม่ให้ยิง KV ทุก request) ถ้า version ใหม่กว่า cache ที่เก็บไว้ จะไม่ใช้ cache และ query ใหม่
+- เมื่อ**ไม่มี KV**: ทำงานเหมือนเดิม (ล้างแค่ in-memory ใน isolate เดียว); ไม่มีผลกระทบ
+
+### Cache invalidation on mutations (Phase 11) — รายการที่ต้องเรียก
+- **invalidateDataCaches(result.env)** เรียกหลัง: transactions POST (deposit/withdraw), transactions [id] DELETE; transfers POST, transfers [id] DELETE (soft-delete); wallets POST, wallets [id] DELETE; bonuses POST, bonuses [id] DELETE; credit-cuts POST, credit-cuts [id] DELETE.  
+- **ถ้าเพิ่ม mutation route ใหม่ที่กระทบ dashboard/reports/wallets/lists ต้องไม่ลืมเรียก invalidateDataCaches(env)** — ดู JSDoc ใน lib/d1-cache.ts ฟังก์ชัน invalidateDataCaches
+- **invalidateSettingsCaches()** เรียกหลัง: settings display-currency PUT, exchange-rates PUT, holiday-head PUT (และ delete), allowance-types PUT.
+- **invalidateWebsitesListCache()** เรียกหลัง: settings/websites POST, settings/websites [id] PATCH.
+- **invalidateBonusCategoriesListCache()** เรียกหลัง: settings/bonus-categories POST, PUT [id], DELETE [id].
+
+### Semi-static list caches (Phase 7)
+- **allSettingsCache** (GET /api/settings) — ใช้จาก d1-cache; invalidate ผ่าน invalidateSettingsCaches() เมื่ออัปเดต settings ใดๆ
+- **websitesListCache**, **bonusCategoriesListCache** (30s) — GET /api/settings/websites, GET /api/settings/bonus-categories; invalidate เมื่อสร้าง/แก้/ลบ websites หรือ bonus-categories
+
+### Auth / bootstrap (Phase 8)
+- **KV**: เมื่อมี binding KV — session อ่านจาก KV ก่อน (ไม่เข้า D1); bootstrap เช็ก KV ก่อน (bootstrapped:v1) ไม่เข้า D1
+- **ไม่มี KV**: ใช้ in-memory authCache + getSessionUser และ bootstrapSettings + getCachedBootstrapKeys ตามเดิม — fallback ปลอดภัย
+
+### Summary layer (Phase 12)
+- **ไม่ได้เพิ่ม** daily_transaction_summary / wallet_balance_snapshot — เลือกใช้ index + cache + tight selects แทน เพื่อไม่ให้ซับซ้อนและรักษา semantics เดิม; ถ้าอนาคตต้องการลด scan อีกสามารถพิจารณา summary table แยก
+
+### Environment / bindings
+- **DB**, **APP_SECRET** ตามเดิม
+- **KV** (optional): สำหรับ bootstrap + session cache; ไม่มีก็ยังทำงานได้ (fallback ไป D1 + in-memory cache)

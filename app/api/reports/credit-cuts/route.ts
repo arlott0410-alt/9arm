@@ -3,6 +3,7 @@ import { getDbAndUser, requireAuth } from '@/lib/api-helpers';
 import { creditCuts, settings } from '@/db/schema';
 import { eq, gte, lte, and, isNull } from 'drizzle-orm';
 import { todayStrThailand } from '@/lib/utils';
+import { dedupeRequest } from '@/lib/request-dedup';
 
 export async function GET(request: Request) {
   try {
@@ -13,6 +14,8 @@ export async function GET(request: Request) {
     if (err) return err;
 
     const url = new URL(request.url);
+    const dedupeKey = `reports-credit-cuts:${url.searchParams.toString()}`;
+    const payload = await dedupeRequest(dedupeKey, async () => {
     const period = url.searchParams.get('period') || 'daily';
     const year = url.searchParams.get('year');
     const month = url.searchParams.get('month');
@@ -70,13 +73,15 @@ export async function GET(request: Request) {
       total += r.amountMinor;
     }
 
-    return NextResponse.json({
+    return {
       displayCurrency,
       period,
       dateFrom,
       dateTo,
       total: Math.round(total),
+    };
     });
+    return NextResponse.json(payload);
   } catch (e) {
     console.error(e);
     return NextResponse.json(

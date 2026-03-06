@@ -5,6 +5,8 @@ import { eq, sql, gte, lte, and, isNull } from 'drizzle-orm';
 import { convertToDisplay, type Currency, type RateSnapshot } from '@/lib/rates';
 import { todayStrThailand } from '@/lib/utils';
 import { getSettingValueCached } from '@/lib/get-setting-cached';
+import { dedupeRequest } from '@/lib/request-dedup';
+import { reportsResponseCache, getDataCacheVersion, unwrapDataCacheValue } from '@/lib/d1-cache';
 
 export async function GET(request: Request) {
   try {
@@ -15,6 +17,14 @@ export async function GET(request: Request) {
     if (err) return err;
 
     const url = new URL(request.url);
+    const dedupeKey = `reports:${url.searchParams.toString()}`;
+    const currentVer = result.env.KV ? await getDataCacheVersion(result.env) : 0;
+    const raw = reportsResponseCache.get(dedupeKey);
+    const cached = unwrapDataCacheValue<unknown>(raw, currentVer);
+    if (cached !== undefined) return NextResponse.json(cached);
+    if (raw !== undefined && currentVer > 0) reportsResponseCache.invalidate(dedupeKey);
+
+    const payload = await dedupeRequest(dedupeKey, async () => {
     const period = url.searchParams.get('period') || 'daily'; // daily | monthly | yearly | custom
     const websiteId = url.searchParams.get('websiteId');
     const year = url.searchParams.get('year');
@@ -77,42 +87,34 @@ export async function GET(request: Request) {
       ),
       db
         .select({
-          amountMinor: transactions.amountMinor,
-          walletCurrency: wallets.currency,
+          currency: wallets.currency,
+          sumMinor: sql<number>`coalesce(sum(${transactions.amountMinor}), 0)`,
         })
         .from(transactions)
         .leftJoin(wallets, eq(transactions.walletId, wallets.id))
-        .where(and(...txnConditionsDep)),
+        .where(and(...txnConditionsDep))
+        .groupBy(wallets.currency),
       db
         .select({
-          amountMinor: transactions.amountMinor,
-          walletCurrency: wallets.currency,
+          currency: wallets.currency,
+          sumMinor: sql<number>`coalesce(sum(${transactions.amountMinor} + coalesce(${transactions.withdrawFeeMinor}, 0)), 0)`,
         })
         .from(transactions)
         .leftJoin(wallets, eq(transactions.walletId, wallets.id))
-        .where(and(...txnConditionsWith)),
+        .where(and(...txnConditionsWith))
+        .groupBy(wallets.currency),
     ]);
 
-
+    // D1 returns one row per currency (GROUP BY); null currency treated as THB
     let depositsTotal = 0;
     for (const r of depRows) {
-      const walletCurrency = (r.walletCurrency ?? 'THB') as Currency;
-      depositsTotal += convertToDisplay(
-        r.amountMinor,
-        walletCurrency,
-        displayCurrency,
-        rates
-      );
+      const currency = (r.currency ?? 'THB') as Currency;
+      depositsTotal += convertToDisplay(Number(r.sumMinor ?? 0), currency, displayCurrency, rates);
     }
     let withdrawsTotal = 0;
     for (const r of withRows) {
-      const walletCurrency = (r.walletCurrency ?? 'THB') as Currency;
-      withdrawsTotal += convertToDisplay(
-        r.amountMinor,
-        walletCurrency,
-        displayCurrency,
-        rates
-      );
+      const currency = (r.currency ?? 'THB') as Currency;
+      withdrawsTotal += convertToDisplay(Number(r.sumMinor ?? 0), currency, displayCurrency, rates);
     }
     depositsTotal = Math.round(depositsTotal);
     withdrawsTotal = Math.round(withdrawsTotal);
@@ -124,84 +126,71 @@ export async function GET(request: Request) {
       isNull(transfers.deletedAt),
     ];
 
-    const intRows = await db
-      .select({
-        amount: transfers.fromWalletAmountMinor,
-        currency: wallets.currency,
-      })
-      .from(transfers)
-      .innerJoin(wallets, eq(transfers.fromWalletId, wallets.id))
-      .where(
-        and(
-          eq(transfers.type, 'INTERNAL'),
-          ...transferConditions
-        )
-      );
-    const extInRows = await db
-      .select({
-        amount: transfers.toWalletAmountMinor,
-        currency: wallets.currency,
-      })
-      .from(transfers)
-      .innerJoin(wallets, eq(transfers.toWalletId, wallets.id))
-      .where(
-        and(
-          eq(transfers.type, 'EXTERNAL_IN'),
-          ...transferConditions
-        )
-      );
-    const extOutRows = await db
-      .select({
-        amount: transfers.fromWalletAmountMinor,
-        currency: wallets.currency,
-      })
-      .from(transfers)
-      .innerJoin(wallets, eq(transfers.fromWalletId, wallets.id))
-      .where(
-        and(
-          eq(transfers.type, 'EXTERNAL_OUT'),
-          ...transferConditions
-        )
-      );
-
-    const externalInByCurrency: Record<string, number> = {};
-    for (const r of extInRows) {
-      const cur = r.currency ?? 'THB';
-      externalInByCurrency[cur] = (externalInByCurrency[cur] ?? 0) + Number(r.amount ?? 0);
-    }
-    const externalOutByCurrency: Record<string, number> = {};
-    for (const r of extOutRows) {
-      const cur = r.currency ?? 'THB';
-      externalOutByCurrency[cur] = (externalOutByCurrency[cur] ?? 0) + Number(r.amount ?? 0);
-    }
+    const [intRows, extInRows, extOutRows, feeRows] = await Promise.all([
+      db
+        .select({
+          currency: wallets.currency,
+          sumMinor: sql<number>`coalesce(sum(${transfers.fromWalletAmountMinor}), 0)`,
+        })
+        .from(transfers)
+        .innerJoin(wallets, eq(transfers.fromWalletId, wallets.id))
+        .where(and(eq(transfers.type, 'INTERNAL'), ...transferConditions))
+        .groupBy(wallets.currency),
+      db
+        .select({
+          currency: wallets.currency,
+          sumMinor: sql<number>`coalesce(sum(${transfers.toWalletAmountMinor}), 0)`,
+        })
+        .from(transfers)
+        .innerJoin(wallets, eq(transfers.toWalletId, wallets.id))
+        .where(and(eq(transfers.type, 'EXTERNAL_IN'), ...transferConditions))
+        .groupBy(wallets.currency),
+      db
+        .select({
+          currency: wallets.currency,
+          sumMinor: sql<number>`coalesce(sum(${transfers.fromWalletAmountMinor}), 0)`,
+        })
+        .from(transfers)
+        .innerJoin(wallets, eq(transfers.fromWalletId, wallets.id))
+        .where(and(eq(transfers.type, 'EXTERNAL_OUT'), ...transferConditions))
+        .groupBy(wallets.currency),
+      db
+        .select({
+          currency: wallets.currency,
+          sumMinor: sql<number>`coalesce(sum(${transactions.withdrawFeeMinor}), 0)`,
+        })
+        .from(transactions)
+        .innerJoin(wallets, eq(transactions.walletId, wallets.id))
+        .where(and(eq(transactions.type, 'WITHDRAW'), ...txnConditionsWith))
+        .groupBy(wallets.currency),
+    ]);
 
     const internalByCurrency: Record<string, number> = {};
     for (const r of intRows) {
       const cur = r.currency ?? 'THB';
-      internalByCurrency[cur] = (internalByCurrency[cur] ?? 0) + Number(r.amount ?? 0);
+      const v = Number(r.sumMinor ?? 0);
+      if (v !== 0) internalByCurrency[cur] = (internalByCurrency[cur] ?? 0) + v;
     }
-
-    const feeRows = await db
-      .select({
-        fee: transactions.withdrawFeeMinor,
-        currency: wallets.currency,
-      })
-      .from(transactions)
-      .innerJoin(wallets, eq(transactions.walletId, wallets.id))
-      .where(and(
-        eq(transactions.type, 'WITHDRAW'),
-        ...txnConditionsWith
-      ));
+    const externalInByCurrency: Record<string, number> = {};
+    for (const r of extInRows) {
+      const cur = r.currency ?? 'THB';
+      const v = Number(r.sumMinor ?? 0);
+      if (v !== 0) externalInByCurrency[cur] = (externalInByCurrency[cur] ?? 0) + v;
+    }
+    const externalOutByCurrency: Record<string, number> = {};
+    for (const r of extOutRows) {
+      const cur = r.currency ?? 'THB';
+      const v = Number(r.sumMinor ?? 0);
+      if (v !== 0) externalOutByCurrency[cur] = (externalOutByCurrency[cur] ?? 0) + v;
+    }
     const withdrawFeesByCurrency: Record<string, number> = {};
     for (const r of feeRows) {
       const cur = r.currency ?? 'THB';
-      const fee = Number(r.fee ?? 0);
-      if (fee > 0) {
-        withdrawFeesByCurrency[cur] = (withdrawFeesByCurrency[cur] ?? 0) + fee;
-      }
+      const fee = Number(r.sumMinor ?? 0);
+      if (fee > 0) withdrawFeesByCurrency[cur] = (withdrawFeesByCurrency[cur] ?? 0) + fee;
     }
 
-    return NextResponse.json({
+    const result = {
       displayCurrency,
       period,
       dateFrom,
@@ -217,7 +206,17 @@ export async function GET(request: Request) {
         externalOutByCurrency,
       },
       withdrawFeesByCurrency,
+    };
+    if (result.env.KV) {
+      const ver = await getDataCacheVersion(result.env);
+      reportsResponseCache.set(dedupeKey, { _v: ver, data: result });
+    } else {
+      reportsResponseCache.set(dedupeKey, result);
+    }
+    return result;
     });
+
+    return NextResponse.json(payload);
   } catch (e) {
     console.error(e);
     return NextResponse.json(

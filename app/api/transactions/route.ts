@@ -7,7 +7,7 @@ import {
   users,
   transactionEdits,
 } from '@/db/schema';
-import { eq, and, gte, lte, sql, asc, desc, isNull, isNotNull, inArray } from 'drizzle-orm';
+import { eq, and, gte, lte, lt, sql, asc, desc, isNull, isNotNull, inArray } from 'drizzle-orm';
 import {
   depositTransactionSchema,
   withdrawTransactionSchema,
@@ -20,8 +20,16 @@ import {
   type RateSnapshot,
 } from '@/lib/rates';
 import { getWalletBalance } from '@/lib/wallet-balance';
-import { parsePageParams, buildPaginatedResponse, getDefaultPageSize } from '@/lib/pagination';
+import {
+  parsePageParams,
+  buildPaginatedResponse,
+  buildCursorResponse,
+  parseCursorParams,
+  getDefaultPageSize,
+} from '@/lib/pagination';
 import { setNoStore } from '@/lib/cache-headers';
+import { listCountCache, invalidateDataCaches, getDataCacheVersion, unwrapDataCacheValue } from '@/lib/d1-cache';
+import { listCountCacheKey } from '@/lib/list-count-cache';
 
 export async function GET(request: Request) {
   try {
@@ -43,10 +51,9 @@ export async function GET(request: Request) {
     const orderBy = url.searchParams.get('orderBy') as 'depositSlipTime' | 'withdrawSlipTime' | null;
     const order = (url.searchParams.get('order') === 'desc' ? 'desc' : 'asc') as 'asc' | 'desc';
 
-    const { page, pageSize, offset } = parsePageParams(
-      url.searchParams,
-      getDefaultPageSize('transactions')
-    );
+    const defaultPageSize = getDefaultPageSize('transactions');
+    const cursorParams = parseCursorParams(url.searchParams, defaultPageSize);
+    const useCursor = cursorParams != null && cursorParams.cursorId != null;
 
     const conditions: Parameters<typeof and>[0][] = [];
     if (dateFrom) conditions.push(gte(transactions.txnDate, dateFrom));
@@ -61,14 +68,88 @@ export async function GET(request: Request) {
         sql`EXISTS (SELECT 1 FROM transaction_edits WHERE transaction_edits.transaction_id = ${transactions.id})`
       );
     }
+    if (useCursor) conditions.push(lt(transactions.id, cursorParams!.cursorId!));
 
     const whereClause = conditions.length > 0 ? and(...conditions) : sql`1=1`;
 
-    const [countRow] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(transactions)
-      .where(whereClause);
-    const totalCount = Number(countRow?.count ?? 0);
+    if (useCursor) {
+      const limit = cursorParams!.limit;
+      const list = await db
+        .select({
+          id: transactions.id,
+          txnDate: transactions.txnDate,
+          type: transactions.type,
+          websiteId: transactions.websiteId,
+          userIdInput: transactions.userIdInput,
+          userFull: transactions.userFull,
+          walletId: transactions.walletId,
+          displayCurrency: transactions.displayCurrency,
+          rateSnapshot: transactions.rateSnapshot,
+          amountMinor: transactions.amountMinor,
+          depositSlipTime: transactions.depositSlipTime,
+          depositSystemTime: transactions.depositSystemTime,
+          withdrawInputAmountMinor: transactions.withdrawInputAmountMinor,
+          withdrawFeeMinor: transactions.withdrawFeeMinor,
+          withdrawSystemTime: transactions.withdrawSystemTime,
+          withdrawSlipTime: transactions.withdrawSlipTime,
+          createdAt: transactions.createdAt,
+          updatedAt: transactions.updatedAt,
+          createdBy: transactions.createdBy,
+          deletedAt: transactions.deletedAt,
+          deletedBy: transactions.deletedBy,
+          deleteReason: transactions.deleteReason,
+          websiteName: websites.name,
+          websitePrefix: websites.prefix,
+          walletName: wallets.name,
+          walletCurrency: wallets.currency,
+          createdByUsername: users.username,
+        })
+        .from(transactions)
+        .leftJoin(websites, eq(transactions.websiteId, websites.id))
+        .leftJoin(wallets, eq(transactions.walletId, wallets.id))
+        .leftJoin(users, eq(transactions.createdBy, users.id))
+        .where(whereClause)
+        .orderBy(desc(transactions.id))
+        .limit(limit);
+
+      const deletedByIds = [...new Set(list.filter((r) => r.deletedBy != null).map((r) => r.deletedBy!))];
+      const deletedByUsers =
+        deletedByIds.length > 0
+          ? await db.select({ id: users.id, username: users.username }).from(users).where(inArray(users.id, deletedByIds))
+          : [];
+      const deletedByMap = new Map(deletedByUsers.map((u) => [u.id, u.username]));
+      const listWithDeletedBy = list.map((r) => ({
+        ...r,
+        deletedByUsername: r.deletedBy ? (deletedByMap.get(r.deletedBy) ?? '?') : null,
+      }));
+      const res = NextResponse.json(buildCursorResponse(listWithDeletedBy, limit));
+      setNoStore(res);
+      return res;
+    }
+
+    const { page, pageSize, offset } = parsePageParams(
+      url.searchParams,
+      defaultPageSize
+    );
+
+    const countKey = listCountCacheKey('transactions', url.searchParams);
+    const currentVer = result.env.KV ? await getDataCacheVersion(result.env) : 0;
+    const rawCount = listCountCache.get(countKey);
+    let totalCount = unwrapDataCacheValue<number>(rawCount, currentVer);
+    if (rawCount !== undefined && currentVer > 0 && totalCount === undefined) listCountCache.invalidate(countKey);
+    if (totalCount === undefined) {
+      const [countRow] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(transactions)
+        .where(whereClause);
+      totalCount = Number(countRow?.count ?? 0);
+      if (result.env.KV) {
+        const ver = await getDataCacheVersion(result.env);
+        listCountCache.set(countKey, { _v: ver, data: totalCount });
+      } else {
+        listCountCache.set(countKey, totalCount);
+      }
+    }
 
     const orderByClause =
       orderBy === 'depositSlipTime'
@@ -215,6 +296,7 @@ export async function POST(request: Request) {
           createdBy: user!.id,
         })
         .returning();
+      invalidateDataCaches(result.env);
       return NextResponse.json(inserted);
     }
 
@@ -276,6 +358,7 @@ export async function POST(request: Request) {
           createdBy: user!.id,
         })
         .returning();
+      invalidateDataCaches(result.env);
       return NextResponse.json(inserted);
     }
 

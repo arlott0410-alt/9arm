@@ -24,6 +24,9 @@ import { Copy, ChevronUp, ChevronDown } from 'lucide-react';
 import { PaginationBar } from '@/components/PaginationBar';
 import { getDefaultPageSize } from '@/lib/pagination';
 import { useAuth } from '@/components/providers/AuthProvider';
+import { mutate as globalMutate } from 'swr';
+import { useTransactionsList } from '@/hooks/use-transactions-list';
+import { invalidateDashboard } from '@/lib/invalidate-dashboard';
 
 type Website = { id: number; name: string; prefix: string };
 type Wallet = { id: number; name: string; currency: string };
@@ -57,13 +60,9 @@ export default function TransactionsPage() {
     displayCurrency: string;
     rates: Record<string, number>;
   } | null>(null);
-  const [deposits, setDeposits] = useState<Txn[]>([]);
-  const [withdraws, setWithdraws] = useState<Txn[]>([]);
   const [txnListTab, setTxnListTab] = useState<'deposits' | 'withdraws'>('deposits');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(getDefaultPageSize('transactions'));
-  const [totalCount, setTotalCount] = useState(0);
-  const [listLoading, setListLoading] = useState(false);
   const fetchAbortRef = useRef<AbortController | null>(null);
   const [dateFrom, setDateFrom] = useState(todayStr());
   const [dateTo, setDateTo] = useState(todayStr());
@@ -151,51 +150,35 @@ export default function TransactionsPage() {
     return params;
   }
 
-  const fetchTxnList = useCallback(
-    (tab: 'deposits' | 'withdraws', pageNum: number, size: number) => {
-      if (!user) return;
-      if (fetchAbortRef.current) fetchAbortRef.current.abort();
-      fetchAbortRef.current = new AbortController();
-      setListLoading(true);
-      const type = tab === 'deposits' ? 'DEPOSIT' : 'WITHDRAW';
-      const orderBy = tab === 'deposits' ? 'depositSlipTime' : 'withdrawSlipTime';
-      const order = tab === 'deposits' ? depositSlipSortOrder : withdrawSlipSortOrder;
-      const params = buildTxnListParams({ type, page: pageNum, pageSize: size, orderBy, order });
-      fetch(`/api/transactions?${params}`, { signal: fetchAbortRef.current.signal })
-        .then((r) => r.json() as Promise<{ items: Txn[]; page: number; pageSize: number; totalCount: number }>)
-        .then((data) => {
-          if (tab === 'deposits') {
-            setDeposits(data.items);
-          } else {
-            setWithdraws(data.items);
-          }
-          setTotalCount(data.totalCount);
-        })
-        .catch((err) => {
-          if (err.name !== 'AbortError') console.error(err);
-        })
-        .finally(() => {
-          setListLoading(false);
-          fetchAbortRef.current = null;
-        });
-    },
-    [
-      user,
-      dateFrom,
-      dateTo,
-      filterWebsite,
-      filterUserFull,
-      filterEdited,
-      filterDeleted,
-      depositSlipSortOrder,
-      withdrawSlipSortOrder,
-    ]
-  );
+  const depositsKey = user
+    ? `/api/transactions?${buildTxnListParams({
+        type: 'DEPOSIT',
+        page,
+        pageSize,
+        orderBy: 'depositSlipTime',
+        order: depositSlipSortOrder,
+      })}`
+    : null;
+  const withdrawsKey = user
+    ? `/api/transactions?${buildTxnListParams({
+        type: 'WITHDRAW',
+        page,
+        pageSize,
+        orderBy: 'withdrawSlipTime',
+        order: withdrawSlipSortOrder,
+      })}`
+    : null;
 
-  useEffect(() => {
-    if (!user) return;
-    fetchTxnList(txnListTab, page, pageSize);
-  }, [user, txnListTab, page, pageSize, fetchTxnList]);
+  const { data: depositsData, mutate: mutateDeposits, isLoading: depositsLoading } = useTransactionsList(depositsKey);
+  const { data: withdrawsData, mutate: mutateWithdraws, isLoading: withdrawsLoading } = useTransactionsList(withdrawsKey);
+
+  const deposits = (depositsData?.items ?? []) as Txn[];
+  const withdraws = (withdrawsData?.items ?? []) as Txn[];
+  const totalCount =
+    txnListTab === 'deposits'
+      ? (depositsData?.totalCount ?? 0)
+      : (withdrawsData?.totalCount ?? 0);
+  const listLoading = txnListTab === 'deposits' ? depositsLoading : withdrawsLoading;
 
   function getSelectedWebsite() {
     const id = depositForm.websiteId || withdrawForm.websiteId;
@@ -260,15 +243,26 @@ export default function TransactionsPage() {
         body: JSON.stringify(body),
       });
       if (res.ok) {
+        const inserted = (await res.json()) as Txn;
         setDepositForm({ ...depositForm, amountMinor: 0, userIdInput: '' });
+        const keyPage1 = `/api/transactions?${buildTxnListParams({
+          type: 'DEPOSIT',
+          page: 1,
+          pageSize,
+          orderBy: 'depositSlipTime',
+          order: depositSlipSortOrder,
+        })}`;
+        globalMutate(
+          keyPage1,
+          (prev: { items: Txn[]; totalCount: number } | undefined) =>
+            prev
+              ? { ...prev, items: [inserted, ...prev.items], totalCount: prev.totalCount + 1 }
+              : undefined,
+          false
+        );
         setPage(1);
-        const type = 'DEPOSIT';
-        const orderBy = 'depositSlipTime';
-        const order = depositSlipSortOrder;
-        const params = buildTxnListParams({ type, page: 1, pageSize, orderBy, order });
-        const data = (await fetch(`/api/transactions?${params}`).then((r) => r.json())) as { items: Txn[]; totalCount: number };
-        setDeposits(data.items);
-        setTotalCount(data.totalCount);
+        invalidateDashboard();
+        await mutateDeposits();
       }
     } finally {
       setLoading(false);
@@ -300,15 +294,26 @@ export default function TransactionsPage() {
         body: JSON.stringify(body),
       });
       if (res.ok) {
+        const inserted = (await res.json()) as Txn;
         setWithdrawForm({ ...withdrawForm, withdrawInputAmountMinor: 0, withdrawFeeMinor: 0, userIdInput: '' });
+        const keyPage1 = `/api/transactions?${buildTxnListParams({
+          type: 'WITHDRAW',
+          page: 1,
+          pageSize,
+          orderBy: 'withdrawSlipTime',
+          order: withdrawSlipSortOrder,
+        })}`;
+        globalMutate(
+          keyPage1,
+          (prev: { items: Txn[]; totalCount: number } | undefined) =>
+            prev
+              ? { ...prev, items: [inserted, ...prev.items], totalCount: prev.totalCount + 1 }
+              : undefined,
+          false
+        );
         setPage(1);
-        const type = 'WITHDRAW';
-        const orderBy = 'withdrawSlipTime';
-        const order = withdrawSlipSortOrder;
-        const params = buildTxnListParams({ type, page: 1, pageSize, orderBy, order });
-        const data = (await fetch(`/api/transactions?${params}`).then((r) => r.json())) as { items: Txn[]; totalCount: number };
-        setWithdraws(data.items);
-        setTotalCount(data.totalCount);
+        invalidateDashboard();
+        await mutateWithdraws();
       }
     } finally {
       setLoading(false);
@@ -995,21 +1000,26 @@ export default function TransactionsPage() {
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ deleteReason: deleteReason.trim() }),
                     });
-                    const data = (await res.json()) as { error?: string };
+                    const json = (await res.json()) as { error?: string };
                     if (res.ok) {
                       setDeleteModal(null);
                       setDeleteReason('');
-                      const tab = txnListTab;
-                      const type = tab === 'deposits' ? 'DEPOSIT' : 'WITHDRAW';
-                      const orderBy = tab === 'deposits' ? 'depositSlipTime' : 'withdrawSlipTime';
-                      const order = tab === 'deposits' ? depositSlipSortOrder : withdrawSlipSortOrder;
-                      const params = buildTxnListParams({ type, page, pageSize, orderBy, order });
-                      const data = (await fetch(`/api/transactions?${params}`).then((r) => r.json())) as { items: Txn[]; totalCount: number };
-                      if (tab === 'deposits') setDeposits(data.items);
-                      else setWithdraws(data.items);
-                      setTotalCount(data.totalCount);
+                      const mutateList = txnListTab === 'deposits' ? mutateDeposits : mutateWithdraws;
+                      mutateList(
+                        (prev) =>
+                          prev && deleteModal
+                            ? {
+                                ...prev,
+                                items: prev.items.filter((x: Txn) => x.id !== deleteModal.id),
+                                totalCount: Math.max(0, prev.totalCount - 1),
+                              }
+                            : prev,
+                        false
+                      );
+                      invalidateDashboard();
+                      await mutateList();
                     } else {
-                      alert(typeof data.error === 'string' ? data.error : 'ลบไม่ได้');
+                      alert(typeof json.error === 'string' ? json.error : 'ลบไม่ได้');
                     }
                   } finally {
                     setDeleteLoading(false);

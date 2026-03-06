@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth, requireMutate } from '@/lib/api-helpers';
 import { transfers, transactions, wallets, users } from '@/db/schema';
-import { eq, gte, lte, and, isNull, isNotNull, inArray, sql } from 'drizzle-orm';
+import { eq, gte, lte, lt, and, isNull, isNotNull, inArray, sql, desc } from 'drizzle-orm';
 import { transferSchema } from '@/lib/validations';
 import { settings } from '@/db/schema';
 import type { Currency } from '@/lib/rates';
@@ -11,7 +11,15 @@ import {
   type RateSnapshot,
 } from '@/lib/rates';
 import { getWalletBalance } from '@/lib/wallet-balance';
-import { parsePageParams, buildPaginatedResponse, getDefaultPageSize } from '@/lib/pagination';
+import {
+  parsePageParams,
+  buildPaginatedResponse,
+  buildCursorResponse,
+  parseCursorParams,
+  getDefaultPageSize,
+} from '@/lib/pagination';
+import { listCountCache, invalidateDataCaches, getDataCacheVersion, unwrapDataCacheValue } from '@/lib/d1-cache';
+import { listCountCacheKey } from '@/lib/list-count-cache';
 
 export async function GET(request: Request) {
   try {
@@ -27,24 +35,98 @@ export async function GET(request: Request) {
     const type = url.searchParams.get('type');
     const deletedOnly = url.searchParams.get('deletedOnly') === 'true';
 
-    const { page, pageSize, offset } = parsePageParams(
-      url.searchParams,
-      getDefaultPageSize('transfers')
-    );
+    const defaultPageSize = getDefaultPageSize('transfers');
+    const cursorParams = parseCursorParams(url.searchParams, defaultPageSize);
+    const useCursor = cursorParams != null && cursorParams.cursorId != null;
 
     const conditions: Parameters<typeof and>[0][] = [];
     if (dateFrom) conditions.push(gte(transfers.txnDate, dateFrom));
     if (dateTo) conditions.push(lte(transfers.txnDate, dateTo));
     if (type) conditions.push(eq(transfers.type, type as 'INTERNAL' | 'EXTERNAL_OUT' | 'EXTERNAL_IN'));
     conditions.push(deletedOnly ? isNotNull(transfers.deletedAt) : isNull(transfers.deletedAt));
+    if (useCursor) conditions.push(lt(transfers.id, cursorParams!.cursorId!));
 
     const whereClause = and(...conditions);
 
-    const [countRow] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(transfers)
-      .where(whereClause);
-    const totalCount = Number(countRow?.count ?? 0);
+    if (useCursor) {
+      const limit = cursorParams!.limit;
+      const list = await db
+        .select({
+          id: transfers.id,
+          txnDate: transfers.txnDate,
+          txnTime: transfers.txnTime,
+          type: transfers.type,
+          fromWalletId: transfers.fromWalletId,
+          toWalletId: transfers.toWalletId,
+          displayCurrency: transfers.displayCurrency,
+          inputAmountMinor: transfers.inputAmountMinor,
+          fromWalletAmountMinor: transfers.fromWalletAmountMinor,
+          toWalletAmountMinor: transfers.toWalletAmountMinor,
+          rateSnapshot: transfers.rateSnapshot,
+          note: transfers.note,
+          createdBy: transfers.createdBy,
+          createdAt: transfers.createdAt,
+          deletedAt: transfers.deletedAt,
+          deletedBy: transfers.deletedBy,
+          deleteReason: transfers.deleteReason,
+        })
+        .from(transfers)
+        .where(whereClause)
+        .orderBy(desc(transfers.id))
+        .limit(limit);
+
+      const walletIds = [...new Set(
+        list.flatMap((t) => [t.fromWalletId, t.toWalletId].filter((id): id is number => id != null))
+      )];
+      const userIds = [...new Set(
+        list.flatMap((t) => [t.createdBy, t.deletedBy].filter((id): id is number => id != null))
+      )];
+
+      const [walletRows, userRows] = await Promise.all([
+        walletIds.length > 0
+          ? db.select({ id: wallets.id, name: wallets.name, currency: wallets.currency }).from(wallets).where(inArray(wallets.id, walletIds))
+          : [],
+        userIds.length > 0
+          ? db.select({ id: users.id, username: users.username }).from(users).where(inArray(users.id, userIds))
+          : [],
+      ]);
+
+      const walletMap = new Map(walletRows.map((w) => [w.id, w]));
+      const userMap = new Map(userRows.map((u) => [u.id, u.username]));
+
+      const withNames = list.map((t) => ({
+        ...t,
+        fromWalletName: t.fromWalletId ? walletMap.get(t.fromWalletId)?.name : null,
+        toWalletName: t.toWalletId ? walletMap.get(t.toWalletId)?.name : null,
+        createdByUsername: userMap.get(t.createdBy) ?? '?',
+        deletedByUsername: t.deletedBy ? (userMap.get(t.deletedBy) ?? '?') : null,
+      }));
+      return NextResponse.json(buildCursorResponse(withNames, limit));
+    }
+
+    const { page, pageSize, offset } = parsePageParams(
+      url.searchParams,
+      defaultPageSize
+    );
+
+    const countKey = listCountCacheKey('transfers', url.searchParams);
+    const currentVer = result.env.KV ? await getDataCacheVersion(result.env) : 0;
+    const rawCount = listCountCache.get(countKey);
+    let totalCount = unwrapDataCacheValue<number>(rawCount, currentVer);
+    if (rawCount !== undefined && currentVer > 0 && totalCount === undefined) listCountCache.invalidate(countKey);
+    if (totalCount === undefined) {
+      const [countRow] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(transfers)
+        .where(whereClause);
+      totalCount = Number(countRow?.count ?? 0);
+      if (result.env.KV) {
+        const ver = await getDataCacheVersion(result.env);
+        listCountCache.set(countKey, { _v: ver, data: totalCount });
+      } else {
+        listCountCache.set(countKey, totalCount);
+      }
+    }
 
     const list = await db
       .select({
@@ -305,6 +387,7 @@ export async function POST(request: Request) {
         createdAt: now,
       })
       .returning();
+    invalidateDataCaches(result.env);
     return NextResponse.json(inserted);
   } catch (e) {
     console.error(e);

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth, requireMutate } from '@/lib/api-helpers';
 import { creditCuts, websites, users, creditCutEdits } from '@/db/schema';
 import { eq, and, isNull, inArray } from 'drizzle-orm';
+import { invalidateDataCaches } from '@/lib/d1-cache';
 
 export async function GET(
   request: Request,
@@ -140,6 +141,7 @@ export async function DELETE(
       })
       .where(eq(creditCuts.id, idNum));
 
+    invalidateDataCaches(result.env);
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error(e);

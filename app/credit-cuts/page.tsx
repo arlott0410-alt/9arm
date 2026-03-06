@@ -22,6 +22,7 @@ import { Copy } from 'lucide-react';
 import { PaginationBar } from '@/components/PaginationBar';
 import { getDefaultPageSize } from '@/lib/pagination';
 import { useAuth } from '@/components/providers/AuthProvider';
+import { useCreditCutsList } from '@/hooks/use-credit-cuts-list';
 
 type Website = { id: number; name: string; prefix: string };
 type CreditCut = {
@@ -46,12 +47,9 @@ export default function CreditCutsPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const [websites, setWebsites] = useState<Website[]>([]);
-  const [creditCuts, setCreditCuts] = useState<CreditCut[]>([]);
   const [settings, setSettings] = useState<{ displayCurrency: string } | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(getDefaultPageSize('credit-cuts'));
-  const [totalCount, setTotalCount] = useState(0);
-  const [listLoading, setListLoading] = useState(false);
   const fetchAbortRef = useRef<AbortController | null>(null);
   const [dateFrom, setDateFrom] = useState(todayStr());
   const [dateTo, setDateTo] = useState(todayStr());
@@ -87,28 +85,20 @@ export default function CreditCutsPage() {
     });
   }, [user]);
 
-  useEffect(() => {
-    if (!user) return;
-    if (fetchAbortRef.current) fetchAbortRef.current.abort();
-    fetchAbortRef.current = new AbortController();
-    setListLoading(true);
-    const params = new URLSearchParams({
-      dateFrom,
-      dateTo,
-      page: String(page),
-      pageSize: String(pageSize),
-      ...(filterWebsite !== '__all__' && { websiteId: filterWebsite }),
-      ...(filterDeleted && { deletedOnly: 'true' }),
-    });
-    fetch(`/api/credit-cuts?${params}`, { signal: fetchAbortRef.current.signal })
-      .then((r) => r.json() as Promise<{ items: CreditCut[]; page: number; pageSize: number; totalCount: number }>)
-      .then((data) => {
-        setCreditCuts(data.items);
-        setTotalCount(data.totalCount);
-      })
-      .catch((err) => { if (err.name !== 'AbortError') console.error(err); })
-      .finally(() => { setListLoading(false); fetchAbortRef.current = null; });
-  }, [user, dateFrom, dateTo, filterWebsite, filterDeleted, page, pageSize]);
+  const listKey =
+    user
+      ? `/api/credit-cuts?${new URLSearchParams({
+          dateFrom,
+          dateTo,
+          page: String(page),
+          pageSize: String(pageSize),
+          ...(filterWebsite !== '__all__' && { websiteId: filterWebsite }),
+          ...(filterDeleted && { deletedOnly: 'true' }),
+        })}`
+      : null;
+  const { data: listData, mutate: mutateCreditCuts, isLoading: listLoading } = useCreditCutsList(listKey);
+  const creditCuts = (listData?.items ?? []) as CreditCut[];
+  const totalCount = listData?.totalCount ?? 0;
 
   function getSelectedWebsite() {
     return websites.find((w) => w.id === form.websiteId);
@@ -150,17 +140,7 @@ export default function CreditCutsPage() {
       if (res.ok) {
         setForm({ ...form, amountMinor: 0, userIdInput: '', cutReason: '' });
         setPage(1);
-        const params = new URLSearchParams({
-          dateFrom,
-          dateTo,
-          page: '1',
-          pageSize: String(pageSize),
-          ...(filterWebsite !== '__all__' && { websiteId: filterWebsite }),
-          ...(filterDeleted && { deletedOnly: 'true' }),
-        });
-        const data = (await fetch(`/api/credit-cuts?${params}`).then((r) => r.json())) as { items: CreditCut[]; totalCount: number };
-        setCreditCuts(data.items);
-        setTotalCount(data.totalCount);
+        void mutateCreditCuts();
       } else {
         alert(typeof data.error === 'string' ? data.error : 'เกิดข้อผิดพลาด');
       }
@@ -428,17 +408,7 @@ export default function CreditCutsPage() {
                     if (res.ok) {
                       setDeleteModal(null);
                       setDeleteReason('');
-                      const params = new URLSearchParams({
-                        dateFrom,
-                        dateTo,
-                        page: String(page),
-                        pageSize: String(pageSize),
-                        ...(filterWebsite !== '__all__' && { websiteId: filterWebsite }),
-                        ...(filterDeleted && { deletedOnly: 'true' }),
-                      });
-                      const data = (await fetch(`/api/credit-cuts?${params}`).then((r) => r.json())) as { items: CreditCut[]; totalCount: number };
-                      setCreditCuts(data.items);
-                      setTotalCount(data.totalCount);
+                      void mutateCreditCuts();
                     } else {
                       alert(typeof data.error === 'string' ? data.error : 'ลบไม่ได้');
                     }

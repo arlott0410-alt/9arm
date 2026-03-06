@@ -4,6 +4,7 @@ import { settings, users } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { holidayHeadSchema } from '@/lib/validations';
 import { getSettingValueCached } from '@/lib/get-setting-cached';
+import { invalidateSettingsCaches } from '@/lib/d1-cache';
 
 const HOLIDAY_HEAD_KEY = 'HOLIDAY_HEAD_USER_ID';
 
@@ -52,6 +53,7 @@ export async function PUT(request: Request) {
 
     if (parsed.data.userId === null) {
       await db.delete(settings).where(eq(settings.key, HOLIDAY_HEAD_KEY));
+      invalidateSettingsCaches();
       return NextResponse.json({ userId: null });
     }
 
@@ -80,7 +82,7 @@ export async function PUT(request: Request) {
     } else {
       await db.insert(settings).values({ key: HOLIDAY_HEAD_KEY, value });
     }
-
+    invalidateSettingsCaches();
     return NextResponse.json({ userId: parsed.data.userId });
   } catch (e) {
     console.error(e);

@@ -201,8 +201,8 @@ export async function POST(request: Request) {
       );
     }
 
-    for (const d of itemsData) {
-      await db.insert(payrollItems).values({
+    const batchStatements = itemsData.map((d) =>
+      db.insert(payrollItems).values({
         payrollRunId: run.id,
         userId: d.userId,
         baseSalaryMinor: d.baseSalaryMinor,
@@ -219,7 +219,10 @@ export async function POST(request: Request) {
         lateDeductionMinor: d.lateDeductionMinor,
         netAmountMinor: d.netAmountMinor,
         createdAt: now,
-      });
+      })
+    );
+    if (batchStatements.length > 0) {
+      await db.batch(batchStatements as unknown as Parameters<import('@/db').Db['batch']>[0]);
     }
 
     return NextResponse.json({
