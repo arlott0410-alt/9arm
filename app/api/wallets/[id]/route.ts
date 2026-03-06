@@ -34,47 +34,28 @@ export async function GET(
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    const depositSum = await db
-      .select({
-        sum: sql<number>`coalesce(sum(${transactions.amountMinor}), 0)`,
-      })
-      .from(transactions)
-      .where(
-        and(
-          eq(transactions.walletId, idNum),
-          eq(transactions.type, 'DEPOSIT'),
-          isNull(transactions.deletedAt)
-        )
-      );
-    const withdrawSum = await db
-      .select({
-        sum: sql<number>`coalesce(sum(${transactions.amountMinor} + coalesce(${transactions.withdrawFeeMinor}, 0)), 0)`,
-      })
-      .from(transactions)
-      .where(
-        and(
-          eq(transactions.walletId, idNum),
-          eq(transactions.type, 'WITHDRAW'),
-          isNull(transactions.deletedAt)
-        )
-      );
-    const fromSum = await db
-      .select({
-        sum: sql<number>`coalesce(sum(${transfers.fromWalletAmountMinor}), 0)`,
-      })
-      .from(transfers)
-      .where(and(eq(transfers.fromWalletId, idNum), isNull(transfers.deletedAt)));
-    const toSum = await db
-      .select({
-        sum: sql<number>`coalesce(sum(${transfers.toWalletAmountMinor}), 0)`,
-      })
-      .from(transfers)
-      .where(and(eq(transfers.toWalletId, idNum), isNull(transfers.deletedAt)));
+    // Single query for transaction sums (2 aggregates) + single query for transfer sums (2 aggregates) — 3 D1 round-trips total to reduce CPU
+    const [txnSums, xferSums] = await Promise.all([
+      db
+        .select({
+          dep: sql<number>`coalesce(sum(case when ${transactions.type} = 'DEPOSIT' then ${transactions.amountMinor} else 0 end), 0)`,
+          withdraw: sql<number>`coalesce(sum(case when ${transactions.type} = 'WITHDRAW' then ${transactions.amountMinor} + coalesce(${transactions.withdrawFeeMinor}, 0) else 0 end), 0)`,
+        })
+        .from(transactions)
+        .where(and(eq(transactions.walletId, idNum), isNull(transactions.deletedAt))),
+      db
+        .select({
+          fromSum: sql<number>`coalesce(sum(case when ${transfers.fromWalletId} = ${idNum} then ${transfers.fromWalletAmountMinor} else 0 end), 0)`,
+          toSum: sql<number>`coalesce(sum(case when ${transfers.toWalletId} = ${idNum} then ${transfers.toWalletAmountMinor} else 0 end), 0)`,
+        })
+        .from(transfers)
+        .where(and(or(eq(transfers.fromWalletId, idNum), eq(transfers.toWalletId, idNum)), isNull(transfers.deletedAt))),
+    ]);
 
-    const depositTotal = Number((depositSum[0] as { sum: number })?.sum ?? 0);
-    const withdrawTotal = Number((withdrawSum[0] as { sum: number })?.sum ?? 0);
-    const fromTotal = Number((fromSum[0] as { sum: number })?.sum ?? 0);
-    const toTotal = Number((toSum[0] as { sum: number })?.sum ?? 0);
+    const depositTotal = Number((txnSums[0] as { dep: number; withdraw: number })?.dep ?? 0);
+    const withdrawTotal = Number((txnSums[0] as { dep: number; withdraw: number })?.withdraw ?? 0);
+    const fromTotal = Number((xferSums[0] as { fromSum: number; toSum: number })?.fromSum ?? 0);
+    const toTotal = Number((xferSums[0] as { fromSum: number; toSum: number })?.toSum ?? 0);
 
     const balance =
       wallet.openingBalanceMinor +

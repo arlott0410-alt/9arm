@@ -99,8 +99,7 @@ export async function GET(request: Request) {
         .where(whereClause);
       totalCount = Number(countRow?.count ?? 0);
       if (result.env.KV) {
-        const ver = await getDataCacheVersion(result.env);
-        listCountCache.set(countKey, { _v: ver, data: totalCount });
+        listCountCache.set(countKey, { _v: currentVer, data: totalCount });
       } else {
         listCountCache.set(countKey, totalCount);
       }

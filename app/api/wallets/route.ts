@@ -96,8 +96,7 @@ export async function GET(request: Request) {
       return { ...w, balance };
     });
     if (env.KV) {
-      const ver = await getDataCacheVersion(env);
-      walletsBalanceResponseCache.set(dedupeKey, { _v: ver, data });
+      walletsBalanceResponseCache.set(dedupeKey, { _v: currentVer, data });
     } else {
       walletsBalanceResponseCache.set(dedupeKey, data);
     }

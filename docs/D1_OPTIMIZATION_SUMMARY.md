@@ -126,6 +126,10 @@
 - **DB**, **APP_SECRET** ตามเดิม
 - **KV** (optional): สำหรับ bootstrap + session cache; ไม่มีก็ยังทำงานได้ (fallback ไป D1 + in-memory cache)
 
+### การลด CPU time (Worker)
+- **GET /api/wallets/[id]**: รวม aggregate จาก 5 query เป็น 3 (wallet + 1 query ยอด dep/withdraw + 1 query ยอด from/to) — ลด D1 round-trips และ CPU จากการประมวลผลผลลัพธ์
+- **Cache version**: เมื่อ set cache (dashboard, reports, wallets, list count) ใช้ **currentVer** ที่อ่านตอนต้น request แทนการเรียก getDataCacheVersion(env) อีกครั้ง — ลด KV read และ CPU ต่อ cache miss
+
 ### การตรวจสอบว่าไม่กระทบงานเดิม (Verification)
 - **API response shape**: Dashboard, reports, wallets (withBalance), list (transactions/transfers/bonuses/credit-cuts) คืน payload รูปแบบเดิม — ใช้แค่ cache เป็นตัวกลาง ไม่เปลี่ยนโครงสร้าง JSON
 - **Auth / bootstrap**: ไม่ได้แก้ flow; getDbAndUser ยังคืน { db, user, env } เหมือนเดิม

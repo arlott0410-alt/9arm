@@ -198,8 +198,7 @@ export async function GET(request: Request) {
       wallets: balances,
     };
     if (env.KV) {
-      const ver = await getDataCacheVersion(env);
-      dashboardResponseCache.set(dedupeKey, { _v: ver, data });
+      dashboardResponseCache.set(dedupeKey, { _v: currentVer, data });
     } else {
       dashboardResponseCache.set(dedupeKey, data);
     }

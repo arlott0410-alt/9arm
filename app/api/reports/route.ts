@@ -208,8 +208,7 @@ export async function GET(request: Request) {
       withdrawFeesByCurrency,
     };
     if (env.KV) {
-      const ver = await getDataCacheVersion(env);
-      reportsResponseCache.set(dedupeKey, { _v: ver, data });
+      reportsResponseCache.set(dedupeKey, { _v: currentVer, data });
     } else {
       reportsResponseCache.set(dedupeKey, data);
     }
