@@ -122,3 +122,12 @@
 ### Environment / bindings
 - **DB**, **APP_SECRET** ตามเดิม
 - **KV** (optional): สำหรับ bootstrap + session cache; ไม่มีก็ยังทำงานได้ (fallback ไป D1 + in-memory cache)
+
+### การตรวจสอบว่าไม่กระทบงานเดิม (Verification)
+- **API response shape**: Dashboard, reports, wallets (withBalance), list (transactions/transfers/bonuses/credit-cuts) คืน payload รูปแบบเดิม — ใช้แค่ cache เป็นตัวกลาง ไม่เปลี่ยนโครงสร้าง JSON
+- **Auth / bootstrap**: ไม่ได้แก้ flow; getDbAndUser ยังคืน { db, user, env } เหมือนเดิม
+- **Mutation routes**: ยัง return inserted / { ok: true } เหมือนเดิม; เพิ่มแค่ invalidateDataCaches(result.env) หลัง success
+- **เมื่อไม่มี KV**: getDataCacheVersion คืน 0, ไม่เขียน KV, ใช้แค่ in-memory cache + invalidation ใน isolate เดียว
+- **เมื่อ KV ล้มชั่วคราว**: getDataCacheVersion มี try/catch — ถ้า KV.get throw จะคืน 0 แทน ไม่ให้ request ล้ม (degrade เป็นไม่ใช้ version check ใน request นั้น)
+- **List count = 0**: unwrapDataCacheValue คืน 0 ได้; ใช้เช็กแค่ totalCount === undefined จึงไม่ไป re-query เมื่อ count จริงเป็น 0
+- **Cache เก่า (ไม่มี _v)**: unwrapDataCacheValue ถ้าไม่มี _v/data จะคืน raw ตามเดิม — backward compatible กับ cache ที่ set ไว้ก่อน deploy

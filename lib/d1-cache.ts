@@ -114,11 +114,15 @@ export async function getDataCacheVersion(env: Env): Promise<number> {
   if (!env.KV) return 0;
   const mem = dataCacheVersionCache.get(DATA_VERSION_CACHE_KEY);
   if (mem !== undefined) return mem;
-  const raw = await env.KV.get(DATA_CACHE_VERSION_KV_KEY);
-  const n = raw ? parseInt(raw, 10) : 0;
-  const version = Number.isNaN(n) ? 0 : n;
-  dataCacheVersionCache.set(DATA_VERSION_CACHE_KEY, version);
-  return version;
+  try {
+    const raw = await env.KV.get(DATA_CACHE_VERSION_KV_KEY);
+    const n = raw ? parseInt(raw, 10) : 0;
+    const version = Number.isNaN(n) ? 0 : n;
+    dataCacheVersionCache.set(DATA_VERSION_CACHE_KEY, version);
+    return version;
+  } catch {
+    return 0;
+  }
 }
 
 /** Cached value may be wrapped with _v (version at store time) when KV is used, so we can reject stale entries. */
