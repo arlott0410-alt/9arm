@@ -97,6 +97,12 @@ export const dashboardResponseCache = createCache<unknown>(DATA_RESPONSE_TTL_MS)
 export const reportsResponseCache = createCache<unknown>(DATA_RESPONSE_TTL_MS);
 export const walletsBalanceResponseCache = createCache<unknown>(DATA_RESPONSE_TTL_MS);
 
+// GET /api/wallets/[id] response cache (45s) — แต่ละ wallet ถูก aggregate 4 ครั้ง (dep/with/from/to); cache ลด D1 row read เมื่อเปิดดูซ้ำ
+export const walletDetailCache = createCache<unknown>(DATA_RESPONSE_TTL_MS);
+export function walletDetailCacheKey(id: number): string {
+  return `wallet:${id}`;
+}
+
 // List count cache (25s). Value may be number or { _v, data: number } when KV is used for cross-isolate invalidation.
 export const listCountCache = createCache<number | { _v: number; data: number }>(25_000);
 
@@ -161,4 +167,5 @@ export function invalidateDataCaches(env?: Env): void {
   reportsResponseCache.invalidateAll();
   walletsBalanceResponseCache.invalidateAll();
   listCountCache.invalidateAll();
+  walletDetailCache.invalidateAll();
 }

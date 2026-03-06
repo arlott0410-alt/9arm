@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth } from '@/lib/api-helpers';
-import { bonuses, bonusCategories, settings } from '@/db/schema';
+import { bonuses, bonusCategories } from '@/db/schema';
 import { eq, gte, lte, and, isNull } from 'drizzle-orm';
 import { todayStrThailand } from '@/lib/utils';
+import { getSettingValueCached } from '@/lib/get-setting-cached';
 import { dedupeRequest } from '@/lib/request-dedup';
 
 export async function GET(request: Request) {
@@ -48,13 +49,9 @@ export async function GET(request: Request) {
       dateTo = today;
     }
 
-    const [dcRow] = await db
-      .select()
-      .from(settings)
-      .where(eq(settings.key, 'DISPLAY_CURRENCY'))
-      .limit(1);
+    const displayCurrencyRaw = await getSettingValueCached(db, 'DISPLAY_CURRENCY');
     const displayCurrency: string =
-      (dcRow?.value && typeof dcRow.value === 'string' && JSON.parse(dcRow.value)) || 'THB';
+      typeof displayCurrencyRaw === 'string' ? displayCurrencyRaw : 'THB';
 
     const bonusConditions: Parameters<typeof and>[0][] = [
       gte(bonuses.bonusTime, dateFrom + 'T00:00'),

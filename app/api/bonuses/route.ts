@@ -8,7 +8,7 @@ import {
 } from '@/db/schema';
 import { eq, and, gte, lte, lt, isNull, isNotNull, inArray, sql, desc } from 'drizzle-orm';
 import { bonusSchema } from '@/lib/validations';
-import { settings } from '@/db/schema';
+import { getSettingValueCached } from '@/lib/get-setting-cached';
 import {
   parsePageParams,
   buildPaginatedResponse,
@@ -177,15 +177,9 @@ export async function POST(request: Request) {
     const err = requireMutate(user);
     if (err) return err;
 
-    const [settingsRow] = await db
-      .select()
-      .from(settings)
-      .where(eq(settings.key, 'DISPLAY_CURRENCY'))
-      .limit(1);
+    const displayCurrencyRaw = await getSettingValueCached(db, 'DISPLAY_CURRENCY');
     const displayCurrency: string =
-      settingsRow?.value && typeof settingsRow.value === 'string'
-        ? JSON.parse(settingsRow.value)
-        : 'THB';
+      typeof displayCurrencyRaw === 'string' ? displayCurrencyRaw : 'THB';
 
     const body = await request.json();
     const parsed = bonusSchema.safeParse(body);

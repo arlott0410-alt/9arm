@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth, requireWallets } from '@/lib/api-helpers';
 import { wallets, transactions, transfers } from '@/db/schema';
 import { eq, and, or, sql, isNull } from 'drizzle-orm';
-import { invalidateDataCaches } from '@/lib/d1-cache';
+import { invalidateDataCaches, walletDetailCache, walletDetailCacheKey } from '@/lib/d1-cache';
 
 export async function GET(
   request: Request,
@@ -20,6 +20,10 @@ export async function GET(
     if (isNaN(idNum)) {
       return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
     }
+
+    const cacheKey = walletDetailCacheKey(idNum);
+    const cached = walletDetailCache.get(cacheKey);
+    if (cached !== undefined) return NextResponse.json(cached);
 
     const [wallet] = await db
       .select()
@@ -79,7 +83,9 @@ export async function GET(
       fromTotal +
       toTotal;
 
-    return NextResponse.json({ ...wallet, balance });
+    const response = { ...wallet, balance };
+    walletDetailCache.set(cacheKey, response);
+    return NextResponse.json(response);
   } catch (e) {
     console.error(e);
     return NextResponse.json(

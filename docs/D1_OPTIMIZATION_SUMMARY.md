@@ -47,7 +47,7 @@
 
 2. **Settings / Config**
    - **ก่อน:** หลาย endpoint query settings โดยตรง (DISPLAY_CURRENCY, EXCHANGE_RATES, HOLIDAY_HEAD_USER_ID, SALARY_*)
-   - **หลัง:** ใช้ getSettingValueCached (30s TTL) → อ่าน D1 แค่ครั้งแรกต่อ key ต่อ worker; GET /api/settings ใช้ cache ทั้งก้อน 30s + select แค่ key, value
+   - **หลัง:** ใช้ getSettingValueCached (30s TTL) ใน dashboard, reports, transactions POST, **transfers POST**, **bonuses POST**, **credit-cuts POST**, **reports/bonuses**, **reports/credit-cuts** → ลด D1 read ต่อ key ต่อ worker; GET /api/settings ใช้ cache ทั้งก้อน 30s
 
 3. **Bootstrap**
    - **ก่อน:** ทุกครั้งที่เช็ก bootstrap → select จาก settings
@@ -95,6 +95,7 @@
 
 ### Response + count caches (lib/d1-cache.ts)
 - **dashboardResponseCache**, **reportsResponseCache**, **walletsBalanceResponseCache** (45s TTL); **listCountCache** (25s TTL).
+- **walletDetailCache** (45s): GET /api/wallets/[id] — แต่ละ request เดิมทำ 5 query (1 wallet + 4 aggregate); cache ลด row read เมื่อเปิดดู wallet เดิมซ้ำ; ล้างเมื่อ invalidateDataCaches()
 - **invalidateDataCaches(env?)**: Clears all four; ต้องส่ง **env** จาก getDbAndUser เพื่อให้เมื่อมี KV ระบบจะเขียน `data-cache:version` ลง KV ทำให้ isolate อื่นเห็นว่ามีการ invalidate และไม่ใช้ cache เก่า (ลดผลเสียแบบ cache ต่อ isolate).
 
 ### KV สัญญาณ invalidate ข้าม isolate (ลดผลเสีย)
