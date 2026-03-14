@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/select';
 import { Users, Calendar, Banknote, History, Plus } from 'lucide-react';
 import { useAuth } from '@/components/providers/AuthProvider';
+import { formatMinorToDisplay, parseDisplayToMinor } from '@/lib/utils';
 import { useEmployees, type Employee } from '@/hooks/use-employees';
 import { useEmployeeSalaries, type SalaryRow } from '@/hooks/use-employee-salaries';
 
@@ -324,13 +325,13 @@ export default function EmployeesPage() {
                             <td className="py-2 text-[#E5E7EB] font-medium">{row.username}</td>
                             <td className="py-2">
                               <Input
-                                type="number"
-                                min={0}
-                                step={1000}
-                                className="w-32 bg-[#1F2937] border-[#374151]"
-                                value={base ? base : ''}
+                                type="text"
+                                inputMode="numeric"
+                                placeholder="0"
+                                className="w-40 bg-[#1F2937] border-[#374151] text-right tabular-nums"
+                                value={base ? formatMinorToDisplay(base, 'LAK') : ''}
                                 onChange={(e) => {
-                                  const v = e.target.value === '' ? 0 : Math.round(parseFloat(e.target.value) || 0);
+                                  const v = parseDisplayToMinor(e.target.value, 'LAK');
                                   setPendingSalaries((p) => ({ ...p, [row.userId]: { baseSalaryMinor: v, currency: 'LAK' } }));
                                 }}
                               />
@@ -425,12 +426,16 @@ export default function EmployeesPage() {
                     <div>
                       <Label>เงินเดือนฐาน (กีบ)</Label>
                       <Input
-                        type="number"
-                        min={0}
-                        step={1}
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="0"
                         value={newSalaryAmount}
                         onChange={(e) => setNewSalaryAmount(e.target.value)}
-                        className="mt-1 w-32 bg-[#1F2937] border-[#374151]"
+                        onBlur={() => {
+                          const parsed = parseDisplayToMinor(newSalaryAmount, 'LAK');
+                          if (parsed > 0) setNewSalaryAmount(formatMinorToDisplay(parsed, 'LAK'));
+                        }}
+                        className="mt-1 w-40 bg-[#1F2937] border-[#374151] text-right tabular-nums"
                       />
                     </div>
                     <Button
@@ -439,7 +444,7 @@ export default function EmployeesPage() {
                         if (!salaryHistoryUserId || typeof salaryHistoryUserId !== 'number') return;
                         setAddingSalary(true);
                         try {
-                          const baseSalaryMinor = Math.round(parseFloat(newSalaryAmount) || 0); // LAK: 1 minor = 1 kip
+                          const baseSalaryMinor = parseDisplayToMinor(newSalaryAmount, 'LAK');
                           const res = await fetch('/api/employee-salaries', {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },

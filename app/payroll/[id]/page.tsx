@@ -146,7 +146,7 @@ export default function PayrollDetailPage() {
         : [{ label: '', amountMinor: 0 }]
     );
     const effectiveBase = item.overrideBaseSalaryMinor ?? item.baseSalaryMinor;
-    setOverrideBaseSalary(effectiveBase ? String(effectiveBase) : '');
+    setOverrideBaseSalary(effectiveBase ? formatPayroll(effectiveBase) : '');
   };
 
   const addAllowanceRow = () => {
@@ -165,7 +165,7 @@ export default function PayrollDetailPage() {
     const deductions = deductList
       .filter((d) => d.label.trim() && d.amountMinor >= 0)
       .map((d) => ({ label: d.label.trim(), amountMinor: Math.round(d.amountMinor) }));
-    const overrideVal = overrideBaseSalary.trim() ? Math.round(parseFloat(overrideBaseSalary) || 0) : null;
+    const overrideVal = overrideBaseSalary.trim() ? parseDisplayToMinor(overrideBaseSalary, PAYROLL_CURRENCY) : null;
     const shouldOverride = overrideVal !== null && overrideVal !== editOpen.baseSalaryMinor;
     const shouldClearOverride = overrideVal === null || overrideVal === editOpen.baseSalaryMinor;
     const overridePayload =
@@ -725,13 +725,16 @@ export default function PayrollDetailPage() {
                   ค่าเริ่มต้นจากประวัติเงินเดือน: {formatPayroll(editOpen?.baseSalaryMinor ?? 0)} กีบ. ว่าง = ใช้ค่าจากประวัติ
                 </p>
                 <Input
-                  type="number"
-                  min={0}
-                  step={1}
+                  type="text"
+                  inputMode="numeric"
                   placeholder="ว่าง = ใช้จากประวัติ"
-                  className="w-40 bg-[#1F2937] border-[#374151]"
+                  className="w-40 bg-[#1F2937] border-[#374151] text-right tabular-nums"
                   value={overrideBaseSalary}
                   onChange={(e) => setOverrideBaseSalary(e.target.value)}
+                  onBlur={() => {
+                    const parsed = parseDisplayToMinor(overrideBaseSalary, PAYROLL_CURRENCY);
+                    if (parsed > 0) setOverrideBaseSalary(formatPayroll(parsed));
+                  }}
                 />
                 <span className="ml-2 text-xs text-[#6B7280]">กีบ</span>
               </div>
@@ -757,16 +760,15 @@ export default function PayrollDetailPage() {
                       className="flex-1 bg-[#1F2937] border-[#374151]"
                     />
                     <Input
-                      type="number"
-                      min={0}
-                      step={1}
+                      type="text"
+                      inputMode="numeric"
                       placeholder="0"
-                      value={a.amountMinor ? String(a.amountMinor) : ''}
+                      value={a.amountMinor ? formatPayroll(a.amountMinor) : ''}
                       onChange={(e) => {
                         const minor = parseDisplayToMinor(e.target.value, PAYROLL_CURRENCY);
                         setAllowanceList((p) => p.map((x, j) => (j === i ? { ...x, amountMinor: minor } : x)));
                       }}
-                      className="w-28 bg-[#1F2937] border-[#374151] text-right"
+                      className="w-28 bg-[#1F2937] border-[#374151] text-right tabular-nums"
                     />
                     <span className="text-xs text-[#6B7280] w-8">กีบ</span>
                   </div>
@@ -794,16 +796,15 @@ export default function PayrollDetailPage() {
                       className="flex-1 bg-[#1F2937] border-[#374151]"
                     />
                     <Input
-                      type="number"
-                      min={0}
-                      step={1}
+                      type="text"
+                      inputMode="numeric"
                       placeholder="0"
-                      value={d.amountMinor ? String(d.amountMinor) : ''}
+                      value={d.amountMinor ? formatPayroll(d.amountMinor) : ''}
                       onChange={(e) => {
                         const minor = parseDisplayToMinor(e.target.value, PAYROLL_CURRENCY);
                         setDeductList((p) => p.map((x, j) => (j === i ? { ...x, amountMinor: minor } : x)));
                       }}
-                      className="w-28 bg-[#1F2937] border-[#374151] text-right"
+                      className="w-28 bg-[#1F2937] border-[#374151] text-right tabular-nums"
                     />
                     <span className="text-xs text-[#6B7280] w-8">กีบ</span>
                   </div>

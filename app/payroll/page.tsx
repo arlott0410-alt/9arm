@@ -18,6 +18,9 @@ import { Input } from '@/components/ui/input';
 import { Banknote, Trash2 } from 'lucide-react';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { deletePayroll } from '@/lib/actions/payroll';
+import { formatMinorToDisplay, parseDisplayToMinor } from '@/lib/utils';
+
+const PAYROLL_CURRENCY = 'LAK';
 
 type Run = {
   id: number;
@@ -73,7 +76,7 @@ export default function PayrollPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           yearMonth,
-          bonusPoolMinor: bonusPool === '' ? 0 : Math.round(parseFloat(bonusPool) || 0),
+          bonusPoolMinor: bonusPool === '' ? 0 : parseDisplayToMinor(bonusPool, PAYROLL_CURRENCY),
         }),
       });
       const data = (await res.json()) as { run?: { id: number }; error?: string };
@@ -82,7 +85,7 @@ export default function PayrollPage() {
         setYearMonth('');
         setBonusPool('');
         setRuns((prev) => [
-          { id: data.run!.id, yearMonth, status: 'DRAFT', bonusPoolMinor: bonusPool ? Math.round(parseFloat(bonusPool) || 0) : null, createdAt: new Date().toISOString(), createdBy: 0 },
+          { id: data.run!.id, yearMonth, status: 'DRAFT', bonusPoolMinor: bonusPool ? parseDisplayToMinor(bonusPool, PAYROLL_CURRENCY) : null, createdAt: new Date().toISOString(), createdBy: 0 },
           ...prev,
         ]);
         window.location.href = `/payroll/${data.run.id}`;
@@ -162,13 +165,16 @@ export default function PayrollPage() {
                     <div>
                       <Label>โบนัสก้อนรวม (กีบ) — แบ่งตามสัดส่วนวันทำงาน</Label>
                       <Input
-                        type="number"
-                        min={0}
-                        step={1}
+                        type="text"
+                        inputMode="numeric"
                         placeholder="0"
                         value={bonusPool}
                         onChange={(e) => setBonusPool(e.target.value)}
-                        className="mt-1 bg-[#1F2937] border-[#374151]"
+                        onBlur={() => {
+                          const parsed = parseDisplayToMinor(bonusPool, PAYROLL_CURRENCY);
+                          if (parsed > 0) setBonusPool(formatMinorToDisplay(parsed, PAYROLL_CURRENCY));
+                        }}
+                        className="mt-1 bg-[#1F2937] border-[#374151] text-right tabular-nums"
                       />
                     </div>
                     <Button
