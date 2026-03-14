@@ -55,6 +55,7 @@ export async function GET(
         lateDeductionMinor: payrollItems.lateDeductionMinor,
         netAmountMinor: payrollItems.netAmountMinor,
         note: payrollItems.note,
+        excludeFromBonus: payrollItems.excludeFromBonus,
       })
       .from(payrollItems)
       .innerJoin(users, eq(payrollItems.userId, users.id))
@@ -78,6 +79,7 @@ export async function GET(
       lateDeductionMinor: r.lateDeductionMinor ?? 0,
       netAmountMinor: r.netAmountMinor,
       note: r.note,
+      excludeFromBonus: !!r.excludeFromBonus,
     }));
 
     if (role === 'ADMIN') {

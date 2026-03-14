@@ -2,7 +2,12 @@ import { NextResponse } from 'next/server';
 import { getDbAndUser, requireSettings } from '@/lib/api-helpers';
 import { payrollRuns, payrollItems } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
-import { computeNetAmount, type PayrollDeduction, type PayrollAllowance } from '@/lib/payroll';
+import {
+  computeNetAmount,
+  recalcBonusPortions,
+  type PayrollDeduction,
+  type PayrollAllowance,
+} from '@/lib/payroll';
 
 /** PATCH: ตั้งค่ารายการเพิ่ม (ค่าไฟ/ค่าข้าว/ฯลฯ) และรายการหักเงินเดือน. SUPER_ADMIN เท่านั้น, รอบต้องเป็น DRAFT */
 export async function PATCH(
@@ -37,7 +42,11 @@ export async function PATCH(
       );
     }
 
-    const body = (await request.json()) as { allowances?: unknown; deductions?: unknown };
+    const body = (await request.json()) as {
+      allowances?: unknown;
+      deductions?: unknown;
+      excludeFromBonus?: boolean;
+    };
     const itemRowsForAllow = await db
       .select()
       .from(payrollItems)
@@ -83,6 +92,68 @@ export async function PATCH(
     }
 
     const item = existing;
+
+    // กรณีเปลี่ยน "ไม่ได้รับโบนัส" — อัปเดต exclude_from_bonus แล้วคำนวณโบนัสใหม่ทั้งรอบ
+    if (typeof body.excludeFromBonus === 'boolean') {
+      await db
+        .update(payrollItems)
+        .set({ excludeFromBonus: body.excludeFromBonus })
+        .where(
+          and(
+            eq(payrollItems.payrollRunId, runId),
+            eq(payrollItems.userId, userId)
+          )
+        );
+
+      const runRows = await db
+        .select({ bonusPoolMinor: payrollRuns.bonusPoolMinor })
+        .from(payrollRuns)
+        .where(eq(payrollRuns.id, runId))
+        .limit(1);
+      const bonusPoolMinor = runRows[0]?.bonusPoolMinor ?? 0;
+
+      const allItems = await db
+        .select()
+        .from(payrollItems)
+        .where(eq(payrollItems.payrollRunId, runId));
+
+      const itemsForRecalc = allItems.map((i) => ({
+        userId: i.userId,
+        workingDays: i.workingDays,
+        excludeFromBonus: i.userId === userId ? body.excludeFromBonus! : !!i.excludeFromBonus,
+        salaryAfterHolidayMinor: i.salaryAfterHolidayMinor,
+        allowances: (Array.isArray(i.allowances) ? i.allowances : []) as PayrollAllowance[],
+        deductions: (Array.isArray(i.deductions) ? i.deductions : []) as PayrollDeduction[],
+        lateDeductionMinor: i.lateDeductionMinor ?? 0,
+      }));
+
+      const recalc = recalcBonusPortions(itemsForRecalc, bonusPoolMinor);
+
+      for (const r of recalc) {
+        await db
+          .update(payrollItems)
+          .set({
+            bonusPortionMinor: r.bonusPortionMinor,
+            netAmountMinor: r.netAmountMinor,
+          })
+          .where(
+            and(
+              eq(payrollItems.payrollRunId, runId),
+              eq(payrollItems.userId, r.userId)
+            )
+          );
+      }
+
+      const updated = recalc.find((r) => r.userId === userId);
+      return NextResponse.json({
+        userId,
+        excludeFromBonus: body.excludeFromBonus,
+        bonusPortionMinor: updated?.bonusPortionMinor ?? 0,
+        netAmountMinor: updated?.netAmountMinor ?? item.netAmountMinor,
+        recalculated: true,
+      });
+    }
+
     const { totalAllowancesMinor: totAll, totalDeductionsMinor: totDed, netAmountMinor: net } = computeNetAmount(
       item.salaryAfterHolidayMinor,
       item.bonusPortionMinor,

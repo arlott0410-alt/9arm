@@ -271,6 +271,7 @@ export const payrollItems = sqliteTable('payroll_items', {
   lateDeductionMinor: integer('late_deduction_minor').notNull().default(0),
   netAmountMinor: integer('net_amount_minor').notNull(),
   note: text('note'),
+  excludeFromBonus: integer('exclude_from_bonus', { mode: 'boolean' }).notNull().default(false),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
 

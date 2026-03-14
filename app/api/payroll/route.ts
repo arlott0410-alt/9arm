@@ -218,6 +218,7 @@ export async function POST(request: Request) {
         lateMinutes: d.lateMinutes,
         lateDeductionMinor: d.lateDeductionMinor,
         netAmountMinor: d.netAmountMinor,
+        excludeFromBonus: false,
         createdAt: now,
       })
     );

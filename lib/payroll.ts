@@ -124,6 +124,7 @@ export function computeSalaryAfterHoliday(
 
 /**
  * โบนัสจากก้อนรวม แบ่งตามสัดส่วนวันทำงาน
+ * พนักงานที่ excludeFromBonus จะไม่นับวันทำงานเข้า totalWorkingDaysAll
  */
 export function computeBonusPortion(
   workingDays: number,
@@ -132,6 +133,45 @@ export function computeBonusPortion(
 ): number {
   if (totalWorkingDaysAll <= 0) return 0;
   return Math.round((workingDays / totalWorkingDaysAll) * bonusPoolMinor);
+}
+
+export type PayrollItemForRecalc = {
+  userId: number;
+  workingDays: number;
+  excludeFromBonus: boolean;
+  salaryAfterHolidayMinor: number;
+  allowances: PayrollAllowance[];
+  deductions: PayrollDeduction[];
+  lateDeductionMinor: number;
+};
+
+/**
+ * คำนวณโบนัสใหม่เมื่อมีการเปลี่ยน exclude_from_bonus
+ * รวมเฉพาะพนักงานที่ไม่ถูก exclude เข้า totalWorkingDaysAll
+ */
+export function recalcBonusPortions(
+  items: PayrollItemForRecalc[],
+  bonusPoolMinor: number
+): { userId: number; bonusPortionMinor: number; netAmountMinor: number }[] {
+  const totalWorkingDaysAll = items
+    .filter((i) => !i.excludeFromBonus)
+    .reduce((s, i) => s + i.workingDays, 0);
+  return items.map((item) => {
+    const bonusPortionMinor = item.excludeFromBonus
+      ? 0
+      : computeBonusPortion(item.workingDays, totalWorkingDaysAll, bonusPoolMinor);
+    const { netAmountMinor } = computeNetAmount(
+      item.salaryAfterHolidayMinor,
+      bonusPortionMinor,
+      item.allowances,
+      item.deductions
+    );
+    return {
+      userId: item.userId,
+      bonusPortionMinor,
+      netAmountMinor: Math.max(0, netAmountMinor - item.lateDeductionMinor),
+    };
+  });
 }
 
 /**

@@ -30,6 +30,7 @@ type PayrollItem = {
   workingDays: number;
   salaryAfterHolidayMinor: number;
   bonusPortionMinor: number;
+  excludeFromBonus?: boolean;
   allowances: PayrollAllowance[];
   totalAllowancesMinor: number;
   deductions: PayrollDeduction[];
@@ -73,6 +74,7 @@ export default function PayrollDetailPage() {
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [reopening, setReopening] = useState(false);
+  const [togglingBonus, setTogglingBonus] = useState<number | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -197,6 +199,28 @@ export default function PayrollDetailPage() {
     }
   };
 
+  const toggleExcludeFromBonus = async (item: PayrollItem) => {
+    if (!run || run.status !== 'DRAFT' || user?.role !== 'SUPER_ADMIN') return;
+    setTogglingBonus(item.userId);
+    try {
+      const res = await fetch(`/api/payroll/${id}/items/${item.userId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ excludeFromBonus: !item.excludeFromBonus }),
+      });
+      const data = (await res.json()) as { error?: string; recalculated?: boolean };
+      if (res.ok) {
+        const res2 = await fetch(`/api/payroll/${id}`);
+        const d = (await res2.json()) as { items?: PayrollItem[] };
+        if (d.items) setItems(d.items);
+      } else {
+        alert(data.error ?? 'เปลี่ยนไม่ได้');
+      }
+    } finally {
+      setTogglingBonus(null);
+    }
+  };
+
   const reopenForEdit = async () => {
     if (!run || run.status !== 'CONFIRMED') return;
     if (!confirm('เปิดแก้ไขรอบนี้? รอบจะกลับเป็นแบบร่าง แล้วสามารถกรอกรายการและยืนยันใหม่ได้')) return;
@@ -316,6 +340,8 @@ export default function PayrollDetailPage() {
                 {run.status === 'DRAFT' && user.role === 'SUPER_ADMIN' && (
                   <p className="text-sm text-[#D4AF37]/90">
                     → ใส่ค่าข้าว / รายการเพิ่มอื่น และหักเงินเดือนได้ที่ปุ่ม <strong>กรอกรายการ</strong> ในแถวของแต่ละคน
+                    <br />
+                    → เลือก <strong>ไม่รับโบนัส</strong> สำหรับพนักงานที่ไม่ได้รับโบนัส (จะไม่นับวันทำงานเข้าไปหารโบนัส)
                   </p>
                 )}
               </CardHeader>
@@ -325,6 +351,11 @@ export default function PayrollDetailPage() {
                     <thead>
                       <tr className="border-b border-[#1F2937] bg-[#111827]">
                         <th className="px-4 py-3 text-left font-medium text-[#9CA3AF]">ชื่อ</th>
+                        {run.status === 'DRAFT' && user.role === 'SUPER_ADMIN' && (
+                          <th className="px-4 py-3 text-center font-medium text-[#9CA3AF]" title="ไม่นับเข้าไปหารโบนัส">
+                            ไม่รับโบนัส
+                          </th>
+                        )}
                         <th className="px-4 py-3 text-right font-medium text-[#9CA3AF]">วันทำงาน</th>
                         <th className="px-4 py-3 text-right font-medium text-[#9CA3AF]">เงินหลังหักวันหยุด</th>
                         <th className="px-4 py-3 text-right font-medium text-[#9CA3AF]">โบนัส</th>
@@ -341,6 +372,22 @@ export default function PayrollDetailPage() {
                       {items.map((item) => (
                         <tr key={item.id} className="border-b border-[#1F2937] hover:bg-[#111827]/50 transition-colors">
                           <td className="px-4 py-3 font-medium text-[#E5E7EB]">{item.username}</td>
+                          {run.status === 'DRAFT' && user.role === 'SUPER_ADMIN' && (
+                            <td className="px-4 py-3 text-center">
+                              <label className="flex items-center justify-center gap-1.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={!!item.excludeFromBonus}
+                                  onChange={() => toggleExcludeFromBonus(item)}
+                                  disabled={togglingBonus !== null}
+                                  className="h-4 w-4 rounded border-[#374151] bg-[#1F2937] text-[#D4AF37] focus:ring-[#D4AF37]/50"
+                                />
+                                {togglingBonus === item.userId && (
+                                  <span className="text-xs text-[#9CA3AF]">...</span>
+                                )}
+                              </label>
+                            </td>
+                          )}
                           <td className="px-4 py-3 text-right text-[#9CA3AF]">{item.workingDays} วัน</td>
                           <td className="px-4 py-3 text-right text-[#E5E7EB]">{formatMinor(item.salaryAfterHolidayMinor)}</td>
                           <td className="px-4 py-3 text-right text-[#E5E7EB]">{formatMinor(item.bonusPortionMinor)}</td>
