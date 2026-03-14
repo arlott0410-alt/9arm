@@ -454,9 +454,9 @@ export default function EmployeesPage() {
                             setSalaryHistory(null);
                             setLoadingHistory(true);
                             fetch(`/api/employee-salaries/history?userId=${salaryHistoryUserId}`)
-                              .then((r) => r.json())
+                              .then((r) => r.json() as Promise<{ userId?: number; username?: string; history?: { id: number; effectiveFrom: string; effectiveTo: string | null; baseSalaryMinor: number; currency: string }[] }>)
                               .then((d) => {
-                                if (d.userId && d.username !== undefined) {
+                                if (d.userId != null && d.username !== undefined) {
                                   setSalaryHistory({
                                     userId: d.userId,
                                     username: d.username,
