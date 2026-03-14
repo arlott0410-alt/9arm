@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth, requireSettings } from '@/lib/api-helpers';
 import { users, payrollRuns, payrollItems } from '@/db/schema';
-import { eq, desc, isNull } from 'drizzle-orm';
+import { eq, desc, isNull, and } from 'drizzle-orm';
 import {
   getDaysInMonth,
   getHolidayCountByUser,
@@ -84,7 +84,7 @@ export async function POST(request: Request) {
     const existingRun = await db
       .select()
       .from(payrollRuns)
-      .where(eq(payrollRuns.yearMonth, yearMonth))
+      .where(and(eq(payrollRuns.yearMonth, yearMonth), isNull(payrollRuns.deletedAt)))
       .limit(1);
     if (existingRun.length > 0) {
       return NextResponse.json(
