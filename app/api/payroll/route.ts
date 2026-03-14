@@ -133,11 +133,11 @@ export async function POST(request: Request) {
 
     for (const u of adminList) {
       const sal = salaryMap.get(u.id);
-      if (!sal) continue;
+      const baseSalaryMinor = sal?.baseSalaryMinor ?? 0;
       const holidayDays = holidayByUser.get(u.id) ?? 0;
       const workingDays = totalDays - holidayDays;
       const salaryAfterHolidayMinor = computeSalaryAfterHoliday(
-        sal.baseSalaryMinor,
+        baseSalaryMinor,
         totalDays,
         holidayDays,
         policy.freeHolidayDays,
@@ -147,7 +147,7 @@ export async function POST(request: Request) {
       const lateDeductionMinor = lateMin * latePenalty;
       itemsData.push({
         userId: u.id,
-        baseSalaryMinor: sal.baseSalaryMinor,
+        baseSalaryMinor,
         totalDays,
         holidayDays,
         workingDays,

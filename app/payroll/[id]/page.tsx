@@ -26,6 +26,7 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  UserPlus,
 } from 'lucide-react';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { formatMinorToDisplay, parseDisplayToMinor } from '@/lib/utils';
@@ -104,6 +105,7 @@ export default function PayrollDetailPage() {
   const [sortBy, setSortBy] = useState<'name' | 'net'>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [deleting, setDeleting] = useState(false);
+  const [addingMissing, setAddingMissing] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -468,6 +470,36 @@ export default function PayrollDetailPage() {
                 </p>
                 {run.status === 'DRAFT' && user.role === 'SUPER_ADMIN' && (
                   <div className="flex flex-wrap items-center gap-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={addingMissing}
+                      onClick={async () => {
+                        setAddingMissing(true);
+                        try {
+                          const res = await fetch(`/api/payroll/${id}/add-missing-employees`, {
+                            method: 'POST',
+                          });
+                          const data = (await res.json()) as { added?: number; error?: string; message?: string };
+                          if (res.ok && (data.added ?? 0) > 0) {
+                            const payrollRes = await fetch(`/api/payroll/${id}`);
+                            const payrollData = (await payrollRes.json()) as { run: Run; items: PayrollItem[] };
+                            setRun(payrollData.run);
+                            setItems(payrollData.items ?? []);
+                          } else if (res.ok && data.message) {
+                            alert(data.message);
+                          } else if (data.error) {
+                            alert(data.error);
+                          }
+                        } finally {
+                          setAddingMissing(false);
+                        }
+                      }}
+                      className="border-[#374151] text-[#E5E7EB] hover:bg-[#1F2937]"
+                    >
+                      <UserPlus className="h-4 w-4 mr-1.5" />
+                      {addingMissing ? 'กำลังเพิ่ม...' : 'เพิ่มพนักงานที่ขาด'}
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
