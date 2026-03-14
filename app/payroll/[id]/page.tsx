@@ -27,6 +27,7 @@ import {
   ArrowUp,
   ArrowDown,
   UserPlus,
+  RefreshCw,
 } from 'lucide-react';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { formatMinorToDisplay, parseDisplayToMinor } from '@/lib/utils';
@@ -106,6 +107,7 @@ export default function PayrollDetailPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [deleting, setDeleting] = useState(false);
   const [addingMissing, setAddingMissing] = useState(false);
+  const [pullingSalaries, setPullingSalaries] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -470,6 +472,35 @@ export default function PayrollDetailPage() {
                 </p>
                 {run.status === 'DRAFT' && user.role === 'SUPER_ADMIN' && (
                   <div className="flex flex-wrap items-center gap-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={pullingSalaries}
+                      onClick={async () => {
+                        setPullingSalaries(true);
+                        try {
+                          const res = await fetch(`/api/payroll/${id}/pull-base-salaries`, {
+                            method: 'POST',
+                          });
+                          const data = (await res.json()) as { updated?: number; error?: string };
+                          if (res.ok && (data.updated ?? 0) > 0) {
+                            const payrollRes = await fetch(`/api/payroll/${id}`);
+                            const payrollData = (await payrollRes.json()) as { run: Run; items: PayrollItem[] };
+                            setRun(payrollData.run);
+                            setItems(payrollData.items ?? []);
+                          } else if (data.error) {
+                            alert(data.error);
+                          }
+                        } finally {
+                          setPullingSalaries(false);
+                        }
+                      }}
+                      className="border-[#374151] text-[#E5E7EB] hover:bg-[#1F2937]"
+                      title="ดึงฐานเงินเดือนล่าสุดจากหน้าจัดการพนักงาน"
+                    >
+                      <RefreshCw className="h-4 w-4 mr-1.5" />
+                      {pullingSalaries ? 'กำลังดึง...' : 'ดึงฐานเงินเดือนล่าสุด'}
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
