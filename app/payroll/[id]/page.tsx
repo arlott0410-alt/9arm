@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, Banknote, User, PlusCircle, MinusCircle } from 'lucide-react';
 import { useAuth } from '@/components/providers/AuthProvider';
+import { formatMinorToDisplay, parseDisplayToMinor } from '@/lib/utils';
 
 type PayrollAllowance = { name: string; amountMinor: number };
 type PayrollDeduction = { label: string; amountMinor: number };
@@ -52,11 +53,10 @@ type Run = {
 
 type AllowanceType = { id: string; name: string };
 
-function formatMinor(amount: number): string {
-  return (amount / 100).toLocaleString('th-TH', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+const PAYROLL_CURRENCY = 'LAK';
+
+function formatPayroll(amount: number): string {
+  return formatMinorToDisplay(amount, PAYROLL_CURRENCY);
 }
 
 export default function PayrollDetailPage() {
@@ -324,7 +324,7 @@ export default function PayrollDetailPage() {
                     </div>
                     <div>
                       <p className="text-sm text-[#9CA3AF]">ยอดรวมสุทธิ</p>
-                      <p className="text-xl font-semibold text-[#D4AF37]">{formatMinor(totalNet)} ฿</p>
+                      <p className="text-xl font-semibold text-[#D4AF37]">{formatPayroll(totalNet)} กีบ</p>
                     </div>
                   </div>
                 </CardContent>
@@ -389,11 +389,11 @@ export default function PayrollDetailPage() {
                             </td>
                           )}
                           <td className="px-4 py-3 text-right text-[#9CA3AF]">{item.workingDays} วัน</td>
-                          <td className="px-4 py-3 text-right text-[#E5E7EB]">{formatMinor(item.salaryAfterHolidayMinor)}</td>
-                          <td className="px-4 py-3 text-right text-[#E5E7EB]">{formatMinor(item.bonusPortionMinor)}</td>
+                          <td className="px-4 py-3 text-right text-[#E5E7EB]">{formatPayroll(item.salaryAfterHolidayMinor)}</td>
+                          <td className="px-4 py-3 text-right text-[#E5E7EB]">{formatPayroll(item.bonusPortionMinor)}</td>
                           <td className="px-4 py-3 text-right">
                             {(item.totalAllowancesMinor ?? 0) > 0 ? (
-                              <span className="text-green-400">+{formatMinor(item.totalAllowancesMinor ?? 0)}</span>
+                              <span className="text-green-400">+{formatPayroll(item.totalAllowancesMinor ?? 0)}</span>
                             ) : (
                               <span className="text-[#6B7280]">-</span>
                             )}
@@ -401,7 +401,7 @@ export default function PayrollDetailPage() {
                           <td className="px-4 py-3 text-right">
                             {(item.lateDeductionMinor ?? 0) > 0 ? (
                               <span className="text-orange-400" title={`${item.lateMinutes ?? 0} นาที`}>
-                                −{formatMinor(item.lateDeductionMinor ?? 0)}
+                                −{formatPayroll(item.lateDeductionMinor ?? 0)}
                               </span>
                             ) : (
                               <span className="text-[#6B7280]">-</span>
@@ -409,12 +409,12 @@ export default function PayrollDetailPage() {
                           </td>
                           <td className="px-4 py-3 text-right">
                             {(item.totalDeductionsMinor ?? 0) > 0 ? (
-                              <span className="text-red-400">−{formatMinor(item.totalDeductionsMinor ?? 0)}</span>
+                              <span className="text-red-400">−{formatPayroll(item.totalDeductionsMinor ?? 0)}</span>
                             ) : (
                               <span className="text-[#6B7280]">-</span>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-right font-semibold text-[#D4AF37]">{formatMinor(item.netAmountMinor)}</td>
+                          <td className="px-4 py-3 text-right font-semibold text-[#D4AF37]">{formatPayroll(item.netAmountMinor)} กีบ</td>
                           {run.status === 'DRAFT' && (
                             <td className="px-4 py-3">
                               <Button variant="outline" size="sm" onClick={() => openEdit(item)} className="border-[#374151] text-[#E5E7EB] hover:bg-[#1F2937]">
@@ -465,17 +465,16 @@ export default function PayrollDetailPage() {
                       <Input
                         type="number"
                         min={0}
-                        step={0.01}
+                        step={1}
                         placeholder="0"
                         className="w-32 bg-[#1F2937] border-[#374151] text-right"
-                        value={allowanceValues[t.name] ? (allowanceValues[t.name] / 100).toFixed(2) : ''}
+                        value={allowanceValues[t.name] ? String(allowanceValues[t.name]) : ''}
                         onChange={(e) => {
-                          const v = parseFloat(e.target.value);
-                          const minor = isNaN(v) ? 0 : Math.round(v * 100);
+                          const minor = parseDisplayToMinor(e.target.value, PAYROLL_CURRENCY);
                           setAllowanceValues((p) => ({ ...p, [t.name]: minor }));
                         }}
                       />
-                      <span className="text-xs text-[#6B7280]">บาท</span>
+                      <span className="text-xs text-[#6B7280]">กีบ</span>
                     </div>
                   ))
                 )}
@@ -501,17 +500,16 @@ export default function PayrollDetailPage() {
                     <Input
                       type="number"
                       min={0}
-                      step={0.01}
+                      step={1}
                       placeholder="0"
-                      value={d.amountMinor ? d.amountMinor / 100 : ''}
+                      value={d.amountMinor ? String(d.amountMinor) : ''}
                       onChange={(e) => {
-                        const v = parseFloat(e.target.value);
-                        const minor = isNaN(v) ? 0 : Math.round(v * 100);
+                        const minor = parseDisplayToMinor(e.target.value, PAYROLL_CURRENCY);
                         setDeductList((p) => p.map((x, j) => (j === i ? { ...x, amountMinor: minor } : x)));
                       }}
                       className="w-28 bg-[#1F2937] border-[#374151] text-right"
                     />
-                    <span className="text-xs text-[#6B7280] w-8">บาท</span>
+                    <span className="text-xs text-[#6B7280] w-8">กีบ</span>
                   </div>
                 ))}
                 <Button variant="outline" size="sm" onClick={addDeductRow} className="border-[#374151] text-[#9CA3AF]">

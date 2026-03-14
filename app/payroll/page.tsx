@@ -71,7 +71,7 @@ export default function PayrollPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           yearMonth,
-          bonusPoolMinor: bonusPool === '' ? 0 : Math.round(parseFloat(bonusPool) * 100),
+          bonusPoolMinor: bonusPool === '' ? 0 : Math.round(parseFloat(bonusPool) || 0),
         }),
       });
       const data = (await res.json()) as { run?: { id: number }; error?: string };
@@ -80,7 +80,7 @@ export default function PayrollPage() {
         setYearMonth('');
         setBonusPool('');
         setRuns((prev) => [
-          { id: data.run!.id, yearMonth, status: 'DRAFT', bonusPoolMinor: bonusPool ? Math.round(parseFloat(bonusPool) * 100) : null, createdAt: new Date().toISOString(), createdBy: 0 },
+          { id: data.run!.id, yearMonth, status: 'DRAFT', bonusPoolMinor: bonusPool ? Math.round(parseFloat(bonusPool) || 0) : null, createdAt: new Date().toISOString(), createdBy: 0 },
           ...prev,
         ]);
         window.location.href = `/payroll/${data.run.id}`;
@@ -140,11 +140,11 @@ export default function PayrollPage() {
                       />
                     </div>
                     <div>
-                      <Label>โบนัสก้อนรวม (บาท) — แบ่งตามสัดส่วนวันทำงาน</Label>
+                      <Label>โบนัสก้อนรวม (กีบ) — แบ่งตามสัดส่วนวันทำงาน</Label>
                       <Input
                         type="number"
                         min={0}
-                        step={0.01}
+                        step={1}
                         placeholder="0"
                         value={bonusPool}
                         onChange={(e) => setBonusPool(e.target.value)}
