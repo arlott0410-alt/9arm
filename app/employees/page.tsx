@@ -326,11 +326,11 @@ export default function EmployeesPage() {
                               <Input
                                 type="number"
                                 min={0}
-                                step={100}
+                                step={1000}
                                 className="w-32 bg-[#1F2937] border-[#374151]"
-                                value={base ? base / 100 : ''}
+                                value={base ? base : ''}
                                 onChange={(e) => {
-                                  const v = e.target.value === '' ? 0 : Math.round(parseFloat(e.target.value) * 100);
+                                  const v = e.target.value === '' ? 0 : Math.round(parseFloat(e.target.value) || 0);
                                   setPendingSalaries((p) => ({ ...p, [row.userId]: { baseSalaryMinor: v, currency: 'LAK' } }));
                                 }}
                               />
