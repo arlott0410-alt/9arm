@@ -54,9 +54,9 @@ export default function EmployeesPage() {
     if (salaryHistoryUserId && typeof salaryHistoryUserId === 'number') {
       setLoadingHistory(true);
       fetch(`/api/employee-salaries/history?userId=${salaryHistoryUserId}`)
-        .then((r) => r.json())
-        .then((d: { userId?: number; username?: string; history?: typeof salaryHistory }) => {
-          if (d.userId && d.username !== undefined) {
+        .then((r) => r.json() as Promise<{ userId?: number; username?: string; history?: { id: number; effectiveFrom: string; effectiveTo: string | null; baseSalaryMinor: number; currency: string }[] }>)
+        .then((d) => {
+          if (d.userId != null && d.username !== undefined) {
             setSalaryHistory({
               userId: d.userId,
               username: d.username,
