@@ -12,7 +12,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import {
   ArrowLeft,
@@ -75,8 +74,6 @@ type Run = {
   createdBy: number;
 };
 
-type AllowanceType = { id: string; name: string };
-
 const PAYROLL_CURRENCY = 'LAK';
 
 function formatPayroll(amount: number): string {
@@ -90,10 +87,9 @@ export default function PayrollDetailPage() {
   const { user, loading: authLoading } = useAuth();
   const [run, setRun] = useState<Run | null>(null);
   const [items, setItems] = useState<PayrollItem[]>([]);
-  const [allowanceTypes, setAllowanceTypes] = useState<AllowanceType[]>([]);
   const [loading, setLoading] = useState(false);
   const [editOpen, setEditOpen] = useState<PayrollItem | null>(null);
-  const [allowanceValues, setAllowanceValues] = useState<Record<string, number>>({});
+  const [allowanceList, setAllowanceList] = useState<{ name: string; amountMinor: number }[]>([]);
   const [deductList, setDeductList] = useState<{ label: string; amountMinor: number }[]>([]);
   const [overrideBaseSalary, setOverrideBaseSalary] = useState<string>('');
   const [saving, setSaving] = useState(false);
@@ -124,17 +120,14 @@ export default function PayrollDetailPage() {
   useEffect(() => {
     if (!user || !id) return;
     setLoading(true);
-    Promise.all([
-      fetch(`/api/payroll/${id}`).then((r) => {
+    fetch(`/api/payroll/${id}`)
+      .then((r) => {
         if (r.status === 404) throw new Error('Not found');
         return r.json() as Promise<{ run: Run; items: PayrollItem[] }>;
-      }),
-      fetch('/api/settings/allowance-types').then((r) => r.json() as Promise<{ items: AllowanceType[] }>),
-    ])
-      .then(([payrollData, allowanceData]) => {
-        setRun(payrollData.run);
-        setItems(payrollData.items ?? []);
-        setAllowanceTypes(allowanceData.items ?? []);
+      })
+      .then((data) => {
+        setRun(data.run);
+        setItems(data.items ?? []);
       })
       .catch(() => router.replace('/payroll'))
       .finally(() => setLoading(false));
@@ -142,14 +135,11 @@ export default function PayrollDetailPage() {
 
   const openEdit = (item: PayrollItem) => {
     setEditOpen(item);
-    const byName: Record<string, number> = {};
-    (item.allowances ?? []).forEach((a) => {
-      byName[a.name] = a.amountMinor;
-    });
-    allowanceTypes.forEach((t) => {
-      if (byName[t.name] == null) byName[t.name] = 0;
-    });
-    setAllowanceValues(byName);
+    setAllowanceList(
+      (item.allowances ?? []).length > 0
+        ? (item.allowances ?? []).map((a) => ({ name: a.name, amountMinor: a.amountMinor }))
+        : [{ name: '', amountMinor: 0 }]
+    );
     setDeductList(
       (item.deductions ?? []).length > 0
         ? (item.deductions ?? []).map((d) => ({ label: d.label, amountMinor: d.amountMinor }))
@@ -159,15 +149,19 @@ export default function PayrollDetailPage() {
     setOverrideBaseSalary(effectiveBase ? String(effectiveBase) : '');
   };
 
+  const addAllowanceRow = () => {
+    setAllowanceList((p) => [...p, { name: '', amountMinor: 0 }]);
+  };
+
   const addDeductRow = () => {
     setDeductList((p) => [...p, { label: '', amountMinor: 0 }]);
   };
 
   const saveEdit = async () => {
     if (!editOpen || !id) return;
-    const allowances: PayrollAllowance[] = allowanceTypes
-      .filter((t) => (allowanceValues[t.name] ?? 0) > 0)
-      .map((t) => ({ name: t.name, amountMinor: Math.round(allowanceValues[t.name] ?? 0) }));
+    const allowances: PayrollAllowance[] = allowanceList
+      .filter((a) => a.name.trim() && a.amountMinor >= 0)
+      .map((a) => ({ name: a.name.trim(), amountMinor: Math.round(a.amountMinor) }));
     const deductions = deductList
       .filter((d) => d.label.trim() && d.amountMinor >= 0)
       .map((d) => ({ label: d.label.trim(), amountMinor: Math.round(d.amountMinor) }));
@@ -746,31 +740,40 @@ export default function PayrollDetailPage() {
             <div>
               <h4 className="mb-3 flex items-center gap-2 text-sm font-medium text-[#E5E7EB]">
                 <PlusCircle className="h-4 w-4 text-green-400" />
-                รายการเพิ่ม (ค่าไฟ, ค่าข้าว, โบนัส ฯลฯ)
+                รายการเพิ่ม (ค่าไฟ, ค่าข้าว, โบนัสพิเศษ ฯลฯ)
               </h4>
-              <div className="space-y-2 rounded-lg border border-[#1F2937] bg-[#111827] p-3">
-                {allowanceTypes.length === 0 ? (
-                  <p className="text-sm text-[#6B7280]">ไม่มีรายการจากตั้งค่า — ไปที่ ตั้งค่า → รายการค่าตอบแทนเพิ่ม</p>
-                ) : (
-                  allowanceTypes.map((t) => (
-                    <div key={t.id} className="flex items-center justify-between gap-4">
-                      <Label className="min-w-[100px] text-[#9CA3AF]">{t.name}</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        step={1}
-                        placeholder="0"
-                        className="w-32 bg-[#1F2937] border-[#374151] text-right"
-                        value={allowanceValues[t.name] ? String(allowanceValues[t.name]) : ''}
-                        onChange={(e) => {
-                          const minor = parseDisplayToMinor(e.target.value, PAYROLL_CURRENCY);
-                          setAllowanceValues((p) => ({ ...p, [t.name]: minor }));
-                        }}
-                      />
-                      <span className="text-xs text-[#6B7280]">กีบ</span>
-                    </div>
-                  ))
-                )}
+              <p className="mb-2 text-xs text-[#9CA3AF]">
+                ใส่ชื่อรายการและจำนวน — เช่น ค่าไฟ, ค่าข้าว, โบนัสพิเศษ, ค่าล่วงเวลา
+              </p>
+              <div className="space-y-2">
+                {allowanceList.map((a, i) => (
+                  <div key={i} className="flex gap-2 items-center">
+                    <Input
+                      placeholder="เช่น ค่าไฟ, ค่าข้าว, โบนัสพิเศษ"
+                      value={a.name}
+                      onChange={(e) =>
+                        setAllowanceList((p) => p.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))
+                      }
+                      className="flex-1 bg-[#1F2937] border-[#374151]"
+                    />
+                    <Input
+                      type="number"
+                      min={0}
+                      step={1}
+                      placeholder="0"
+                      value={a.amountMinor ? String(a.amountMinor) : ''}
+                      onChange={(e) => {
+                        const minor = parseDisplayToMinor(e.target.value, PAYROLL_CURRENCY);
+                        setAllowanceList((p) => p.map((x, j) => (j === i ? { ...x, amountMinor: minor } : x)));
+                      }}
+                      className="w-28 bg-[#1F2937] border-[#374151] text-right"
+                    />
+                    <span className="text-xs text-[#6B7280] w-8">กีบ</span>
+                  </div>
+                ))}
+                <Button variant="outline" size="sm" onClick={addAllowanceRow} className="border-[#374151] text-green-400/90 hover:text-green-400 hover:bg-green-500/10">
+                  + เพิ่มรายการเพิ่ม
+                </Button>
               </div>
             </div>
 
