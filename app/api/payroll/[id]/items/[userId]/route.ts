@@ -4,7 +4,9 @@ import { payrollRuns, payrollItems } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import {
   computeNetAmount,
+  computeSalaryAfterHoliday,
   recalcBonusPortions,
+  getSalaryPolicySettings,
   type PayrollDeduction,
   type PayrollAllowance,
 } from '@/lib/payroll';
@@ -46,6 +48,7 @@ export async function PATCH(
       allowances?: unknown;
       deductions?: unknown;
       excludeFromBonus?: boolean;
+      overrideBaseSalaryMinor?: number | null;
     };
     const itemRowsForAllow = await db
       .select()
@@ -92,6 +95,60 @@ export async function PATCH(
     }
 
     const item = existing;
+
+    // กรณี override เงินเดือนฐาน — ใช้ override แทน base จาก history แล้วคำนวณใหม่ (null = ล้าง override)
+    if (body.overrideBaseSalaryMinor !== undefined) {
+      const overrideVal =
+        body.overrideBaseSalaryMinor === null
+          ? null
+          : typeof body.overrideBaseSalaryMinor === 'number' && body.overrideBaseSalaryMinor >= 0
+            ? Math.round(body.overrideBaseSalaryMinor)
+            : item.overrideBaseSalaryMinor ?? null;
+      const effectiveBase = overrideVal !== null ? overrideVal : item.baseSalaryMinor;
+      const policy = await getSalaryPolicySettings(db);
+      const salaryAfterHolidayMinor = computeSalaryAfterHoliday(
+        effectiveBase,
+        item.totalDays,
+        item.holidayDays,
+        policy.freeHolidayDays,
+        policy.deductMultiplierPerDay
+      );
+      const useAllowances = allowances.length > 0 ? allowances : ((Array.isArray(item.allowances) ? item.allowances : []) as PayrollAllowance[]);
+      const useDeductions = deductions.length > 0 ? deductions : ((Array.isArray(item.deductions) ? item.deductions : []) as PayrollDeduction[]);
+      const { totalAllowancesMinor: totAll, totalDeductionsMinor: totDed, netAmountMinor } = computeNetAmount(
+        salaryAfterHolidayMinor,
+        item.bonusPortionMinor,
+        useAllowances,
+        useDeductions
+      );
+      const finalNet = Math.max(0, netAmountMinor - (item.lateDeductionMinor ?? 0));
+      await db
+        .update(payrollItems)
+        .set({
+          overrideBaseSalaryMinor: overrideVal,
+          salaryAfterHolidayMinor,
+          netAmountMinor: finalNet,
+          ...(allowances.length > 0 || deductions.length > 0
+            ? { allowances: useAllowances, totalAllowancesMinor: totAll, deductions: useDeductions, totalDeductionsMinor: totDed }
+            : {}),
+        })
+        .where(
+          and(
+            eq(payrollItems.payrollRunId, runId),
+            eq(payrollItems.userId, userId)
+          )
+        );
+      return NextResponse.json({
+        userId,
+        overrideBaseSalaryMinor: overrideVal,
+        salaryAfterHolidayMinor,
+        netAmountMinor: finalNet,
+        allowances: useAllowances,
+        totalAllowancesMinor: totAll,
+        deductions: useDeductions,
+        totalDeductionsMinor: totDed,
+      });
+    }
 
     // กรณีเปลี่ยน "ไม่ได้รับโบนัส" — อัปเดต exclude_from_bonus แล้วคำนวณโบนัสใหม่ทั้งรอบ
     if (typeof body.excludeFromBonus === 'boolean') {

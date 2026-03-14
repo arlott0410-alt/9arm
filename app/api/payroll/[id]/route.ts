@@ -58,6 +58,7 @@ export async function GET(
         netAmountMinor: payrollItems.netAmountMinor,
         note: payrollItems.note,
         excludeFromBonus: payrollItems.excludeFromBonus,
+        overrideBaseSalaryMinor: payrollItems.overrideBaseSalaryMinor,
       })
       .from(payrollItems)
       .innerJoin(users, eq(payrollItems.userId, users.id))
@@ -82,6 +83,7 @@ export async function GET(
       netAmountMinor: r.netAmountMinor,
       note: r.note,
       excludeFromBonus: !!r.excludeFromBonus,
+      overrideBaseSalaryMinor: r.overrideBaseSalaryMinor ?? null,
     }));
 
     if (role === 'ADMIN') {

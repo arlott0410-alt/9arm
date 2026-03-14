@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireSettings } from '@/lib/api-helpers';
 import { users, employeeSalaries } from '@/db/schema';
-import { eq, and, lte, desc } from 'drizzle-orm';
+import { eq, and, lt, desc } from 'drizzle-orm';
 import type { Db } from '@/db';
 import { getBaseSalariesForUsers } from '@/lib/payroll';
 
@@ -48,6 +48,15 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
+}
+
+function getPrevDay(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() - 1);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function getCurrentYearMonth(): string {
@@ -121,6 +130,24 @@ export async function PUT(request: Request) {
           )
         );
     } else {
+      const prevDay = getPrevDay(effectiveFrom);
+      const prevRecords = await db
+        .select({ id: employeeSalaries.id })
+        .from(employeeSalaries)
+        .where(
+          and(
+            eq(employeeSalaries.userId, userId),
+            lt(employeeSalaries.effectiveFrom, effectiveFrom)
+          )
+        )
+        .orderBy(desc(employeeSalaries.effectiveFrom))
+        .limit(1);
+      if (prevRecords.length > 0) {
+        await db
+          .update(employeeSalaries)
+          .set({ effectiveTo: prevDay })
+          .where(eq(employeeSalaries.id, prevRecords[0].id));
+      }
       await db.insert(employeeSalaries).values({
         userId,
         effectiveFrom,

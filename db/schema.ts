@@ -230,6 +230,7 @@ export const employeeSalaries = sqliteTable('employee_salaries', {
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
   effectiveFrom: text('effective_from').notNull(),
+  effectiveTo: text('effective_to'),
   baseSalaryMinor: integer('base_salary_minor').notNull(),
   currency: text('currency').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
@@ -273,6 +274,7 @@ export const payrollItems = sqliteTable('payroll_items', {
   netAmountMinor: integer('net_amount_minor').notNull(),
   note: text('note'),
   excludeFromBonus: integer('exclude_from_bonus', { mode: 'boolean' }).notNull().default(false),
+  overrideBaseSalaryMinor: integer('override_base_salary_minor'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
 

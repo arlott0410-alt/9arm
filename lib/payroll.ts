@@ -1,6 +1,6 @@
 import type { Db } from '@/db';
 import { employeeSalaries, users, holidayEntries, lateArrivals } from '@/db/schema';
-import { eq, and, lte, sql, like, inArray, desc } from 'drizzle-orm';
+import { eq, and, lte, gte, or, isNull, sql, like, inArray, desc } from 'drizzle-orm';
 import { getSettingValueCached } from '@/lib/get-setting-cached';
 
 export type PayrollDeduction = { label: string; amountMinor: number };
@@ -30,23 +30,45 @@ export async function getHolidayCountByUser(
   return map;
 }
 
-/** เงินเดือนฐานของ user ณ เดือนที่กำหนด (ใช้ effective_from ล่าสุดที่ <= เดือนนั้น) */
-export async function getBaseSalaryForUser(
+/** คำนวณวันสุดท้ายของเดือน (YYYY-MM) */
+function getLastDayOfMonth(yearMonth: string): string {
+  const [y, m] = yearMonth.split('-').map(Number);
+  const lastDate = new Date(y, m, 0);
+  return `${y}-${String(m).padStart(2, '0')}-${String(lastDate.getDate()).padStart(2, '0')}`;
+}
+
+/** Helper: ดึงเงินเดือนฐานที่มีผลในช่วงวันที่กำหนด (ใช้สำหรับ payroll period) */
+export async function getEffectiveBaseSalary(
   db: Db,
   userId: number,
-  yearMonth: string
+  periodStart: string,
+  periodEnd: string
+): Promise<number | null> {
+  const result = await getBaseSalaryForUserByRange(db, userId, periodStart, periodEnd);
+  return result?.baseSalaryMinor ?? null;
+}
+
+/** เงินเดือนฐานของ user ณ ช่วงวันที่กำหนด (effective_from <= periodEnd AND (effective_to >= periodStart OR effective_to IS NULL)) */
+async function getBaseSalaryForUserByRange(
+  db: Db,
+  userId: number,
+  periodStart: string,
+  periodEnd: string
 ): Promise<{ baseSalaryMinor: number; currency: string } | null> {
-  const firstDay = `${yearMonth}-01`;
   const rows = await db
     .select()
     .from(employeeSalaries)
     .where(
       and(
         eq(employeeSalaries.userId, userId),
-        lte(employeeSalaries.effectiveFrom, firstDay)
+        lte(employeeSalaries.effectiveFrom, periodEnd),
+        or(
+          isNull(employeeSalaries.effectiveTo),
+          gte(employeeSalaries.effectiveTo, periodStart)
+        )
       )
     )
-    .orderBy(sql`${employeeSalaries.effectiveFrom} desc`)
+    .orderBy(desc(employeeSalaries.effectiveFrom))
     .limit(1);
   if (rows.length === 0) return null;
   return {
@@ -55,14 +77,25 @@ export async function getBaseSalaryForUser(
   };
 }
 
-/** เงินเดือนฐานของหลาย user ในครั้งเดียว (ลด D1 queries แทน N+1) */
+export async function getBaseSalaryForUser(
+  db: Db,
+  userId: number,
+  yearMonth: string
+): Promise<{ baseSalaryMinor: number; currency: string } | null> {
+  const periodStart = `${yearMonth}-01`;
+  const periodEnd = getLastDayOfMonth(yearMonth);
+  return getBaseSalaryForUserByRange(db, userId, periodStart, periodEnd);
+}
+
+/** เงินเดือนฐานของหลาย user ในครั้งเดียว — auto-selected จาก effective date range ตาม payroll period */
 export async function getBaseSalariesForUsers(
   db: Db,
   userIds: number[],
   yearMonth: string
 ): Promise<Map<number, { baseSalaryMinor: number; currency: string; effectiveFrom: string }>> {
   if (userIds.length === 0) return new Map();
-  const firstDay = `${yearMonth}-01`;
+  const periodStart = `${yearMonth}-01`;
+  const periodEnd = getLastDayOfMonth(yearMonth);
   const rows = await db
     .select({
       userId: employeeSalaries.userId,
@@ -74,7 +107,11 @@ export async function getBaseSalariesForUsers(
     .where(
       and(
         inArray(employeeSalaries.userId, userIds),
-        lte(employeeSalaries.effectiveFrom, firstDay)
+        lte(employeeSalaries.effectiveFrom, periodEnd),
+        or(
+          isNull(employeeSalaries.effectiveTo),
+          gte(employeeSalaries.effectiveTo, periodStart)
+        )
       )
     )
     .orderBy(employeeSalaries.userId, desc(employeeSalaries.effectiveFrom));

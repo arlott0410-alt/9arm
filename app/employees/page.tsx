@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Users, Calendar, Banknote } from 'lucide-react';
+import { Users, Calendar, Banknote, History, Plus } from 'lucide-react';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useEmployees, type Employee } from '@/hooks/use-employees';
 import { useEmployeeSalaries, type SalaryRow } from '@/hooks/use-employee-salaries';
@@ -33,12 +33,45 @@ export default function EmployeesPage() {
   const { data: salariesData, isLoading: salaryLoading, mutate: mutateSalaries } = useEmployeeSalaries(canLoad ? salaryYearMonth : '');
   const [savingSalary, setSavingSalary] = useState<number | null>(null);
   const [pendingSalaries, setPendingSalaries] = useState<Record<number, { baseSalaryMinor: number; currency: string }>>({});
+  const [salaryHistoryUserId, setSalaryHistoryUserId] = useState<number | ''>('');
+  const [salaryHistory, setSalaryHistory] = useState<{
+    userId: number;
+    username: string;
+    history: { id: number; effectiveFrom: string; effectiveTo: string | null; baseSalaryMinor: number; currency: string }[];
+  } | null>(null);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [newSalaryEffectiveFrom, setNewSalaryEffectiveFrom] = useState('');
+  const [newSalaryAmount, setNewSalaryAmount] = useState('');
+  const [addingSalary, setAddingSalary] = useState(false);
 
   const employees = employeesData?.employees ?? [];
   const holidayHeadUserId = employeesData?.holidayHeadUserId ?? null;
   const [holidayHeadInput, setHolidayHeadInput] = useState<number | null | undefined>(undefined);
   const salaryRows = salariesData?.items ?? [];
   const displayHolidayHead = holidayHeadInput !== undefined ? holidayHeadInput : holidayHeadUserId;
+
+  useEffect(() => {
+    if (salaryHistoryUserId && typeof salaryHistoryUserId === 'number') {
+      setLoadingHistory(true);
+      fetch(`/api/employee-salaries/history?userId=${salaryHistoryUserId}`)
+        .then((r) => r.json())
+        .then((d: { userId?: number; username?: string; history?: typeof salaryHistory }) => {
+          if (d.userId && d.username !== undefined) {
+            setSalaryHistory({
+              userId: d.userId,
+              username: d.username,
+              history: d.history ?? [],
+            });
+          } else {
+            setSalaryHistory(null);
+          }
+        })
+        .catch(() => setSalaryHistory(null))
+        .finally(() => setLoadingHistory(false));
+    } else {
+      setSalaryHistory(null);
+    }
+  }, [salaryHistoryUserId]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -311,6 +344,144 @@ export default function EmployeesPage() {
                   <p className="py-4 text-center text-[#9CA3AF]">ไม่มีข้อมูลเงินเดือนฐานในเดือนนี้</p>
                 )}
               </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-[#1F2937] bg-[#0F172A]">
+          <CardHeader>
+            <CardTitle className="text-[#E5E7EB] flex items-center gap-2">
+              <History className="h-5 w-5" />
+              ประวัติเงินเดือน
+            </CardTitle>
+            <p className="text-sm text-[#9CA3AF]">
+              ดูประวัติการเปลี่ยนเงินเดือนฐาน — เลือกพนักงานเพื่อดูและเพิ่มรายการใหม่ (effective-dated)
+            </p>
+            <div className="flex flex-wrap items-end gap-4 pt-2">
+              <div className="w-56">
+                <Label>พนักงาน</Label>
+                <Select
+                  value={salaryHistoryUserId === '' ? '__none__' : String(salaryHistoryUserId)}
+                  onValueChange={(v) => setSalaryHistoryUserId(v === '__none__' ? '' : parseInt(v, 10))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="เลือกพนักงาน" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">เลือกพนักงาน</SelectItem>
+                    {employees.map((e) => (
+                      <SelectItem key={e.id} value={String(e.id)}>
+                        {e.username}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {loadingHistory ? (
+              <p className="py-6 text-center text-[#9CA3AF]">กำลังโหลด...</p>
+            ) : salaryHistory ? (
+              <div className="space-y-4">
+                <div className="overflow-x-auto rounded-lg border border-[#1F2937]">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-[#1F2937] bg-[#111827]">
+                        <th className="px-4 py-3 text-left font-medium text-[#9CA3AF]">มีผลตั้งแต่</th>
+                        <th className="px-4 py-3 text-left font-medium text-[#9CA3AF]">ถึง</th>
+                        <th className="px-4 py-3 text-right font-medium text-[#9CA3AF]">เงินเดือนฐาน (กีบ)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {salaryHistory.history.map((h) => (
+                        <tr key={h.id} className="border-b border-[#1F2937]">
+                          <td className="px-4 py-3 text-[#E5E7EB]">{h.effectiveFrom}</td>
+                          <td className="px-4 py-3 text-[#9CA3AF]">{h.effectiveTo ?? '—'}</td>
+                          <td className="px-4 py-3 text-right text-[#E5E7EB]">
+                            {h.baseSalaryMinor.toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="rounded-lg border border-[#1F2937] bg-[#111827] p-4">
+                  <h4 className="mb-3 flex items-center gap-2 text-sm font-medium text-[#E5E7EB]">
+                    <Plus className="h-4 w-4" />
+                    เพิ่มการเปลี่ยนเงินเดือน
+                  </h4>
+                  <div className="flex flex-wrap items-end gap-4">
+                    <div>
+                      <Label>มีผลตั้งแต่ (YYYY-MM-DD)</Label>
+                      <Input
+                        type="date"
+                        value={newSalaryEffectiveFrom}
+                        onChange={(e) => setNewSalaryEffectiveFrom(e.target.value)}
+                        className="mt-1 w-40 bg-[#1F2937] border-[#374151]"
+                      />
+                    </div>
+                    <div>
+                      <Label>เงินเดือนฐาน (กีบ)</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={newSalaryAmount}
+                        onChange={(e) => setNewSalaryAmount(e.target.value)}
+                        className="mt-1 w-32 bg-[#1F2937] border-[#374151]"
+                      />
+                    </div>
+                    <Button
+                      disabled={addingSalary || !newSalaryEffectiveFrom || !newSalaryAmount}
+                      onClick={async () => {
+                        if (!salaryHistoryUserId || typeof salaryHistoryUserId !== 'number') return;
+                        setAddingSalary(true);
+                        try {
+                          const baseSalaryMinor = Math.round(parseFloat(newSalaryAmount) || 0); // LAK: 1 minor = 1 kip
+                          const res = await fetch('/api/employee-salaries', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              userId: salaryHistoryUserId,
+                              effectiveFrom: newSalaryEffectiveFrom,
+                              baseSalaryMinor,
+                            }),
+                          });
+                          if (res.ok) {
+                            setNewSalaryEffectiveFrom('');
+                            setNewSalaryAmount('');
+                            setSalaryHistory(null);
+                            setLoadingHistory(true);
+                            fetch(`/api/employee-salaries/history?userId=${salaryHistoryUserId}`)
+                              .then((r) => r.json())
+                              .then((d) => {
+                                if (d.userId && d.username !== undefined) {
+                                  setSalaryHistory({
+                                    userId: d.userId,
+                                    username: d.username,
+                                    history: d.history ?? [],
+                                  });
+                                }
+                              })
+                              .finally(() => setLoadingHistory(false));
+                            void mutateSalaries();
+                          } else {
+                            const d = (await res.json()) as { error?: string };
+                            alert(d.error ?? 'บันทึกไม่ได้');
+                          }
+                        } finally {
+                          setAddingSalary(false);
+                        }
+                      }}
+                    >
+                      {addingSalary ? 'กำลังบันทึก...' : 'เพิ่ม'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="py-6 text-center text-[#9CA3AF]">เลือกพนักงานเพื่อดูประวัติเงินเดือน</p>
             )}
           </CardContent>
         </Card>

@@ -62,6 +62,7 @@ type PayrollItem = {
   lateDeductionMinor: number;
   netAmountMinor: number;
   note: string | null;
+  overrideBaseSalaryMinor?: number | null;
 };
 
 type Run = {
@@ -93,6 +94,7 @@ export default function PayrollDetailPage() {
   const [editOpen, setEditOpen] = useState<PayrollItem | null>(null);
   const [allowanceValues, setAllowanceValues] = useState<Record<string, number>>({});
   const [deductList, setDeductList] = useState<{ label: string; amountMinor: number }[]>([]);
+  const [overrideBaseSalary, setOverrideBaseSalary] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [reopening, setReopening] = useState(false);
@@ -150,6 +152,8 @@ export default function PayrollDetailPage() {
         ? (item.deductions ?? []).map((d) => ({ label: d.label, amountMinor: d.amountMinor }))
         : [{ label: '', amountMinor: 0 }]
     );
+    const effectiveBase = item.overrideBaseSalaryMinor ?? item.baseSalaryMinor;
+    setOverrideBaseSalary(effectiveBase ? String(effectiveBase) : '');
   };
 
   const addDeductRow = () => {
@@ -164,6 +168,15 @@ export default function PayrollDetailPage() {
     const deductions = deductList
       .filter((d) => d.label.trim() && d.amountMinor >= 0)
       .map((d) => ({ label: d.label.trim(), amountMinor: Math.round(d.amountMinor) }));
+    const overrideVal = overrideBaseSalary.trim() ? Math.round(parseFloat(overrideBaseSalary) || 0) : null;
+    const shouldOverride = overrideVal !== null && overrideVal !== editOpen.baseSalaryMinor;
+    const shouldClearOverride = overrideVal === null || overrideVal === editOpen.baseSalaryMinor;
+    const overridePayload =
+      shouldOverride
+        ? { overrideBaseSalaryMinor: overrideVal }
+        : shouldClearOverride && editOpen.overrideBaseSalaryMinor != null
+          ? { overrideBaseSalaryMinor: null }
+          : {};
     setSaving(true);
     try {
       const res = await fetch(`/api/payroll/${id}/items/${editOpen.userId}`, {
@@ -172,6 +185,7 @@ export default function PayrollDetailPage() {
         body: JSON.stringify({
           allowances: allowances.map((a) => ({ name: a.name, amountMinor: a.amountMinor })),
           deductions: deductions.map((d) => ({ label: d.label, amountMinor: d.amountMinor })),
+          ...overridePayload,
         }),
       });
       const data = (await res.json()) as {
@@ -181,6 +195,8 @@ export default function PayrollDetailPage() {
         deductions?: PayrollDeduction[];
         totalDeductionsMinor?: number;
         netAmountMinor?: number;
+        overrideBaseSalaryMinor?: number | null;
+        salaryAfterHolidayMinor?: number;
       };
       if (res.ok) {
         setItems((prev) =>
@@ -188,11 +204,13 @@ export default function PayrollDetailPage() {
             i.userId === editOpen.userId
               ? {
                   ...i,
-                  allowances: data.allowances ?? [],
-                  totalAllowancesMinor: data.totalAllowancesMinor ?? 0,
-                  deductions: data.deductions ?? [],
-                  totalDeductionsMinor: data.totalDeductionsMinor ?? 0,
+                  allowances: data.allowances ?? i.allowances,
+                  totalAllowancesMinor: data.totalAllowancesMinor ?? i.totalAllowancesMinor,
+                  deductions: data.deductions ?? i.deductions,
+                  totalDeductionsMinor: data.totalDeductionsMinor ?? i.totalDeductionsMinor,
                   netAmountMinor: data.netAmountMinor ?? i.netAmountMinor,
+                  overrideBaseSalaryMinor: data.overrideBaseSalaryMinor !== undefined ? data.overrideBaseSalaryMinor : i.overrideBaseSalaryMinor,
+                  salaryAfterHolidayMinor: data.salaryAfterHolidayMinor ?? i.salaryAfterHolidayMinor,
                 }
               : i
           )
@@ -641,6 +659,28 @@ export default function PayrollDetailPage() {
           </DialogHeader>
 
           <div className="space-y-6 pt-2">
+            {run?.status === 'DRAFT' && user?.role === 'SUPER_ADMIN' && (
+              <div>
+                <h4 className="mb-3 flex items-center gap-2 text-sm font-medium text-[#E5E7EB]">
+                  <Banknote className="h-4 w-4 text-[#D4AF37]" />
+                  Override เงินเดือนฐาน (เฉพาะเดือนนี้)
+                </h4>
+                <p className="mb-2 text-xs text-[#9CA3AF]">
+                  ค่าเริ่มต้นจากประวัติเงินเดือน: {formatPayroll(editOpen?.baseSalaryMinor ?? 0)} กีบ. ว่าง = ใช้ค่าจากประวัติ
+                </p>
+                <Input
+                  type="number"
+                  min={0}
+                  step={1}
+                  placeholder="ว่าง = ใช้จากประวัติ"
+                  className="w-40 bg-[#1F2937] border-[#374151]"
+                  value={overrideBaseSalary}
+                  onChange={(e) => setOverrideBaseSalary(e.target.value)}
+                />
+                <span className="ml-2 text-xs text-[#6B7280]">กีบ</span>
+              </div>
+            )}
+
             <div>
               <h4 className="mb-3 flex items-center gap-2 text-sm font-medium text-[#E5E7EB]">
                 <PlusCircle className="h-4 w-4 text-green-400" />
