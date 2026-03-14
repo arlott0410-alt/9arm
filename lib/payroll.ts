@@ -122,6 +122,59 @@ export async function getBaseSalariesForUsers(
   return map;
 }
 
+/** เงินเดือนฐานล่าสุดต่อ user (effectiveFrom <= periodEnd, เรียง desc) — ใช้เป็น fallback เมื่อเดือนนั้นยังไม่มี record */
+async function getLatestBaseSalariesForUsers(
+  db: Db,
+  userIds: number[],
+  periodEnd: string
+): Promise<Map<number, { baseSalaryMinor: number; currency: string; effectiveFrom: string }>> {
+  if (userIds.length === 0) return new Map();
+  const rows = await db
+    .select({
+      userId: employeeSalaries.userId,
+      baseSalaryMinor: employeeSalaries.baseSalaryMinor,
+      currency: employeeSalaries.currency,
+      effectiveFrom: employeeSalaries.effectiveFrom,
+    })
+    .from(employeeSalaries)
+    .where(
+      and(
+        inArray(employeeSalaries.userId, userIds),
+        lte(employeeSalaries.effectiveFrom, periodEnd)
+      )
+    )
+    .orderBy(employeeSalaries.userId, desc(employeeSalaries.effectiveFrom));
+  const map = new Map<number, { baseSalaryMinor: number; currency: string; effectiveFrom: string }>();
+  for (const r of rows) {
+    if (!map.has(r.userId)) map.set(r.userId, { baseSalaryMinor: r.baseSalaryMinor, currency: r.currency, effectiveFrom: r.effectiveFrom });
+  }
+  return map;
+}
+
+/**
+ * เงินเดือนฐานของหลาย user — ใช้ค่าที่ effective ในเดือนนั้นก่อน
+ * ถ้าเดือนนั้นยังไม่มี record ให้ใช้ค่าล่าสุดจากประวัติ (ตั้งค่าล่าสุด) เป็น fallback
+ * ทำให้ไม่ต้องกรอกเงินเดือนทุกเดือน — แก้เฉพาะเดือนที่ต้องการเปลี่ยน
+ */
+export async function getBaseSalariesForUsersWithLatestFallback(
+  db: Db,
+  userIds: number[],
+  yearMonth: string
+): Promise<Map<number, { baseSalaryMinor: number; currency: string; effectiveFrom: string }>> {
+  const periodEnd = getLastDayOfMonth(yearMonth);
+  const [primaryMap, fallbackMap] = await Promise.all([
+    getBaseSalariesForUsers(db, userIds, yearMonth),
+    getLatestBaseSalariesForUsers(db, userIds, periodEnd),
+  ]);
+  const result = new Map(primaryMap);
+  for (const userId of userIds) {
+    if (!result.has(userId) && fallbackMap.has(userId)) {
+      result.set(userId, fallbackMap.get(userId)!);
+    }
+  }
+  return result;
+}
+
 export async function getSalaryPolicySettings(db: Db): Promise<{
   freeHolidayDays: number;
   deductMultiplierPerDay: number;

@@ -3,7 +3,7 @@ import { getDbAndUser, requireSettings } from '@/lib/api-helpers';
 import { users, employeeSalaries } from '@/db/schema';
 import { eq, and, lt, desc } from 'drizzle-orm';
 import type { Db } from '@/db';
-import { getBaseSalariesForUsers } from '@/lib/payroll';
+import { getBaseSalariesForUsersWithLatestFallback } from '@/lib/payroll';
 
 /** เงินเดือนใช้กีบ (LAK) เป็นค่าเดียว ไม่มีตั้งค่าสกุลเงินเดือน */
 const SALARY_CURRENCY_LAK = 'LAK';
@@ -27,7 +27,7 @@ export async function GET(request: Request) {
       .orderBy(users.username);
 
     const userIds = adminList.map((u) => u.id);
-    const salaryMap = await getBaseSalariesForUsers(db, userIds, yearMonth);
+    const salaryMap = await getBaseSalariesForUsersWithLatestFallback(db, userIds, yearMonth);
 
     const items = adminList.map((u) => {
       const sal = salaryMap.get(u.id);

@@ -5,7 +5,7 @@ import { eq, desc, isNull } from 'drizzle-orm';
 import {
   getDaysInMonth,
   getHolidayCountByUser,
-  getBaseSalariesForUsers,
+  getBaseSalariesForUsersWithLatestFallback,
   getSalaryPolicySettings,
   getLateMinutesByUser,
   getLatePenaltyPerMinute,
@@ -110,7 +110,7 @@ export async function POST(request: Request) {
     const [lateByUser, latePenalty, salaryMap] = await Promise.all([
       getLateMinutesByUser(db, yearMonth),
       getLatePenaltyPerMinute(db),
-      getBaseSalariesForUsers(db, adminList.map((u) => u.id), yearMonth),
+      getBaseSalariesForUsersWithLatestFallback(db, adminList.map((u) => u.id), yearMonth),
     ]);
 
     const itemsData: {
