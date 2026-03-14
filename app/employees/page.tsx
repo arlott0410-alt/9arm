@@ -31,7 +31,7 @@ export default function EmployeesPage() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
   const { data: salariesData, isLoading: salaryLoading, mutate: mutateSalaries } = useEmployeeSalaries(canLoad ? salaryYearMonth : '');
-  const [savingSalary, setSavingSalary] = useState<number | null>(null);
+  const [savingAllSalaries, setSavingAllSalaries] = useState(false);
   const [pendingSalaries, setPendingSalaries] = useState<Record<number, { baseSalaryMinor: number; currency: string }>>({});
   const [salaryHistoryUserId, setSalaryHistoryUserId] = useState<number | ''>('');
   const [salaryHistory, setSalaryHistory] = useState<{
@@ -253,95 +253,96 @@ export default function EmployeesPage() {
               เงินเดือนฐาน
             </CardTitle>
             <p className="text-sm text-[#9CA3AF]">
-              ใช้ค่าพื้นฐานจากตั้งค่าล่าสุดอัตโนมัติ — ไม่ต้องกรอกทุกเดือน. แก้เฉพาะเดือนที่ต้องการเปลี่ยนแล้วกดบันทึก (หน่วยเป็นกีบ LAK)
+              ใช้ค่าพื้นฐานจากตั้งค่าล่าสุดอัตโนมัติ — แก้ไขแล้วกดบันทึกทั้งหมด (หน่วยเป็นกีบ LAK)
             </p>
-            <div className="flex items-center gap-4 pt-2">
-              <div>
-                <Label>เดือนที่ใช้</Label>
-                <Input
-                  type="month"
-                  value={salaryYearMonth}
-                  onChange={(e) => setSalaryYearMonth(e.target.value)}
-                  className="mt-1 w-40 bg-[#1F2937] border-[#374151]"
-                />
-              </div>
-            </div>
           </CardHeader>
           <CardContent>
             {salaryLoading ? (
               <p className="py-4 text-center text-[#9CA3AF]">กำลังโหลด...</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-[#1F2937]">
-                      <th className="py-2 text-left text-[#9CA3AF]">ชื่อผู้ใช้</th>
-                      <th className="py-2 text-left text-[#9CA3AF]">เงินเดือนฐาน (กีบ)</th>
-                      <th className="py-2 text-left text-[#9CA3AF]">ดำเนินการ</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {salaryRows.map((row) => {
-                      const base = pendingSalaries[row.userId]?.baseSalaryMinor ?? row.baseSalaryMinor ?? 0;
-                      return (
-                        <tr key={row.userId} className="border-b border-[#1F2937]">
-                          <td className="py-2 text-[#E5E7EB] font-medium">{row.username}</td>
-                          <td className="py-2">
-                            <Input
-                              type="number"
-                              min={0}
-                              step={100}
-                              className="w-32 bg-[#1F2937] border-[#374151]"
-                              value={base ? base / 100 : ''}
-                              onChange={(e) => {
-                                const v = e.target.value === '' ? 0 : Math.round(parseFloat(e.target.value) * 100);
-                                setPendingSalaries((p) => ({ ...p, [row.userId]: { baseSalaryMinor: v, currency: 'LAK' } }));
-                              }}
-                            />
-                          </td>
-                          <td className="py-2">
-                            <Button
-                              size="sm"
-                              disabled={savingSalary === row.userId}
-                              onClick={async () => {
-                                setSavingSalary(row.userId);
-                                try {
-                                  const b = pendingSalaries[row.userId] ?? { baseSalaryMinor: row.baseSalaryMinor ?? 0, currency: 'LAK' };
-                                  const res = await fetch('/api/employee-salaries', {
-                                    method: 'PUT',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                      userId: row.userId,
-                                      effectiveFrom: `${salaryYearMonth}-01`,
-                                      baseSalaryMinor: b.baseSalaryMinor,
-                                    }),
-                                  });
-                                  if (res.ok) {
-                                    setPendingSalaries((p) => {
-                                      const next = { ...p };
-                                      delete next[row.userId];
-                                      return next;
-                                    });
-                                    void mutateSalaries();
-                                  } else {
-                                    const d = (await res.json()) as { error?: string };
-                                    alert(d.error ?? 'บันทึกไม่ได้');
-                                  }
-                                } finally {
-                                  setSavingSalary(null);
-                                }
-                              }}
-                            >
-                              {savingSalary === row.userId ? 'กำลังบันทึก...' : 'บันทึก'}
-                            </Button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                <div className="space-y-4">
+                  <div className="flex justify-end">
+                    <Button
+                      disabled={savingAllSalaries || Object.keys(pendingSalaries).length === 0}
+                      onClick={async () => {
+                        setSavingAllSalaries(true);
+                        try {
+                          const effectiveFrom = `${salaryYearMonth}-01`;
+                          const toSave = Object.entries(pendingSalaries);
+                          let okCount = 0;
+                          let errMsg = '';
+                          for (const [userIdStr, data] of toSave) {
+                            const res = await fetch('/api/employee-salaries', {
+                              method: 'PUT',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                userId: Number(userIdStr),
+                                effectiveFrom,
+                                baseSalaryMinor: data.baseSalaryMinor,
+                              }),
+                            });
+                            if (res.ok) {
+                              okCount++;
+                            } else {
+                              const d = (await res.json()) as { error?: string };
+                              errMsg = d.error ?? 'บันทึกไม่ได้';
+                              break;
+                            }
+                          }
+                          if (okCount > 0) {
+                            setPendingSalaries((p) => {
+                              const next = { ...p };
+                              for (const [uid] of toSave.slice(0, okCount)) {
+                                delete next[Number(uid)];
+                              }
+                              return next;
+                            });
+                            void mutateSalaries();
+                          }
+                          if (errMsg) alert(errMsg);
+                        } finally {
+                          setSavingAllSalaries(false);
+                        }
+                      }}
+                    >
+                      {savingAllSalaries ? 'กำลังบันทึก...' : 'บันทึกทั้งหมด'}
+                    </Button>
+                  </div>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-[#1F2937]">
+                        <th className="py-2 text-left text-[#9CA3AF]">ชื่อผู้ใช้</th>
+                        <th className="py-2 text-left text-[#9CA3AF]">เงินเดือนฐาน (กีบ)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {salaryRows.map((row) => {
+                        const base = pendingSalaries[row.userId]?.baseSalaryMinor ?? row.baseSalaryMinor ?? 0;
+                        return (
+                          <tr key={row.userId} className="border-b border-[#1F2937]">
+                            <td className="py-2 text-[#E5E7EB] font-medium">{row.username}</td>
+                            <td className="py-2">
+                              <Input
+                                type="number"
+                                min={0}
+                                step={100}
+                                className="w-32 bg-[#1F2937] border-[#374151]"
+                                value={base ? base / 100 : ''}
+                                onChange={(e) => {
+                                  const v = e.target.value === '' ? 0 : Math.round(parseFloat(e.target.value) * 100);
+                                  setPendingSalaries((p) => ({ ...p, [row.userId]: { baseSalaryMinor: v, currency: 'LAK' } }));
+                                }}
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
                 {salaryRows.length === 0 && (
-                  <p className="py-4 text-center text-[#9CA3AF]">ไม่มีข้อมูลเงินเดือนฐานในเดือนนี้</p>
+                  <p className="py-4 text-center text-[#9CA3AF]">ไม่มีข้อมูลเงินเดือนฐาน</p>
                 )}
               </div>
             )}
