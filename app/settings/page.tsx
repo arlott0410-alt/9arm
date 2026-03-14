@@ -57,8 +57,11 @@ export default function SettingsPage() {
     role: 'ADMIN' as 'ADMIN' | 'AUDIT',
   });
   type AllowanceType = { id: string; name: string };
+  type DeductionType = { id: string; name: string };
   const [allowanceTypes, setAllowanceTypes] = useState<AllowanceType[]>([]);
   const [newAllowanceName, setNewAllowanceName] = useState('');
+  const [deductionTypes, setDeductionTypes] = useState<DeductionType[]>([]);
+  const [newDeductionName, setNewDeductionName] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -82,13 +85,15 @@ export default function SettingsPage() {
       fetch('/api/settings').then((r) => r.json() as Promise<{ DISPLAY_CURRENCY?: string }>),
       fetch('/api/settings/exchange-rates').then((r) => r.json() as Promise<{ rates?: Record<string, number> }>),
       fetch('/api/settings/allowance-types').then((r) => r.json() as Promise<{ items: { id: string; name: string }[] }>),
-    ]).then(([w, bc, u, s, r, a]) => {
+      fetch('/api/settings/deduction-types').then((r) => r.json() as Promise<{ items: { id: string; name: string }[] }>),
+    ]).then(([w, bc, u, s, r, a, d]) => {
       setWebsites(Array.isArray(w) ? w : []);
       setBonusCategories(Array.isArray(bc) ? bc : []);
       setUsers(Array.isArray(u) ? u : []);
       setDisplayCurrency(s.DISPLAY_CURRENCY || 'THB');
       setRates(getBaseRatesFromFull(r.rates || {}));
       setAllowanceTypes(Array.isArray(a?.items) ? a.items : []);
+      setDeductionTypes(Array.isArray(d?.items) ? d.items : []);
     });
   }, [user]);
 
@@ -460,9 +465,9 @@ export default function SettingsPage() {
 
         <Card className="border-[#1F2937] bg-[#0F172A]">
           <CardHeader>
-            <CardTitle className="text-[#E5E7EB]">รายการค่าตอบแทนเพิ่ม (ค่าข้าว, ค่าไฟ, โบนัส ฯลฯ)</CardTitle>
+            <CardTitle className="text-[#E5E7EB]">หมวดหมู่รายการเพิ่ม (ค่าไฟ, ค่าข้าว, โบนัส ฯลฯ)</CardTitle>
             <p className="text-sm text-[#9CA3AF]">
-              กำหนดชื่อรายการที่ใช้ในเงินเดือน — เพิ่มชื่อเช่น ค่าข้าว ค่าไฟ ค่าโบนัส แล้วไปกรอกจำนวนเงินจริงที่ เงินเดือน → รอบนั้น → กดกรอกรายการในแถวของแต่ละคน
+              กำหนดหมวดหมู่รายการเพิ่มเงินเดือน — เพิ่มหมวดหมู่เช่น ค่าข้าว ค่าไฟ ค่าโบนัส แล้วไปกรอกจำนวนที่ เงินเดือน → รอบนั้น → กดกรอกรายการในแถวของแต่ละคน
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -533,7 +538,87 @@ export default function SettingsPage() {
                 }
               }}
             >
-              บันทึกรายการค่าตอบแทน
+              บันทึกหมวดหมู่รายการเพิ่ม
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-[#1F2937] bg-[#0F172A]">
+          <CardHeader>
+            <CardTitle className="text-[#E5E7EB]">หมวดหมู่รายการหัก (มาสาย, ค่าปรับ ฯลฯ)</CardTitle>
+            <p className="text-sm text-[#9CA3AF]">
+              กำหนดหมวดหมู่รายการหักเงินเดือน — เพิ่มหมวดหมู่เช่น มาสาย ค่าปรับ แล้วไปกรอกจำนวนที่ เงินเดือน → รอบนั้น → กดกรอกรายการในแถวของแต่ละคน
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="min-w-[200px]">
+                <Label>ชื่อหมวดหมู่</Label>
+                <Input
+                  value={newDeductionName}
+                  onChange={(e) => setNewDeductionName(e.target.value)}
+                  placeholder="เช่น มาสาย, ค่าปรับ, หักยืม"
+                />
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  const name = newDeductionName.trim();
+                  if (!name) return;
+                  setDeductionTypes((prev) => [...prev, { id: String(Date.now()), name }]);
+                  setNewDeductionName('');
+                }}
+                disabled={loading}
+              >
+                เพิ่ม
+              </Button>
+            </div>
+            <div className="space-y-2">
+              {deductionTypes.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between rounded border border-[#1F2937] px-4 py-2"
+                >
+                  <span className="text-[#E5E7EB]">{item.name}</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-red-400"
+                    onClick={() => setDeductionTypes((prev) => prev.filter((x) => x.id !== item.id))}
+                    disabled={loading}
+                  >
+                    ลบ
+                  </Button>
+                </div>
+              ))}
+              {deductionTypes.length === 0 && (
+                <p className="py-2 text-sm text-[#9CA3AF]">ยังไม่มีหมวดหมู่ (เพิ่มเช่น มาสาย, ค่าปรับ)</p>
+              )}
+            </div>
+            <Button
+              disabled={loading}
+              onClick={async () => {
+                setLoading(true);
+                try {
+                  const res = await fetch('/api/settings/deduction-types', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items: deductionTypes }),
+                  });
+                  if (res.ok) {
+                    const d = (await res.json()) as { items: DeductionType[] };
+                    setDeductionTypes(d.items);
+                  } else {
+                    const d = (await res.json()) as { error?: string };
+                    alert(d.error ?? 'บันทึกไม่ได้');
+                  }
+                } finally {
+                  setLoading(false);
+                }
+              }}
+            >
+              บันทึกหมวดหมู่รายการหัก
             </Button>
           </CardContent>
         </Card>

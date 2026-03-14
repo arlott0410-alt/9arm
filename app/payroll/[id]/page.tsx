@@ -42,6 +42,8 @@ import {
 
 type PayrollAllowance = { name: string; amountMinor: number };
 type PayrollDeduction = { label: string; amountMinor: number };
+type AllowanceType = { id: string; name: string };
+type DeductionType = { id: string; name: string };
 
 type PayrollItem = {
   id: number;
@@ -89,8 +91,10 @@ export default function PayrollDetailPage() {
   const [items, setItems] = useState<PayrollItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [editOpen, setEditOpen] = useState<PayrollItem | null>(null);
-  const [allowanceList, setAllowanceList] = useState<{ name: string; amountMinor: number }[]>([]);
-  const [deductList, setDeductList] = useState<{ label: string; amountMinor: number }[]>([]);
+  const [allowanceTypes, setAllowanceTypes] = useState<AllowanceType[]>([]);
+  const [deductionTypes, setDeductionTypes] = useState<DeductionType[]>([]);
+  const [allowanceAmounts, setAllowanceAmounts] = useState<Record<string, number>>({});
+  const [deductionAmounts, setDeductionAmounts] = useState<Record<string, number>>({});
   const [overrideBaseSalary, setOverrideBaseSalary] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -120,14 +124,19 @@ export default function PayrollDetailPage() {
   useEffect(() => {
     if (!user || !id) return;
     setLoading(true);
-    fetch(`/api/payroll/${id}`)
-      .then((r) => {
+    Promise.all([
+      fetch(`/api/payroll/${id}`).then((r) => {
         if (r.status === 404) throw new Error('Not found');
         return r.json() as Promise<{ run: Run; items: PayrollItem[] }>;
-      })
-      .then((data) => {
-        setRun(data.run);
-        setItems(data.items ?? []);
+      }),
+      fetch('/api/settings/allowance-types').then((r) => r.json() as Promise<{ items: AllowanceType[] }>),
+      fetch('/api/settings/deduction-types').then((r) => r.json() as Promise<{ items: DeductionType[] }>),
+    ])
+      .then(([payroll, a, d]) => {
+        setRun(payroll.run);
+        setItems(payroll.items ?? []);
+        setAllowanceTypes(Array.isArray(a?.items) ? a.items : []);
+        setDeductionTypes(Array.isArray(d?.items) ? d.items : []);
       })
       .catch(() => router.replace('/payroll'))
       .finally(() => setLoading(false));
@@ -135,36 +144,28 @@ export default function PayrollDetailPage() {
 
   const openEdit = (item: PayrollItem) => {
     setEditOpen(item);
-    setAllowanceList(
-      (item.allowances ?? []).length > 0
-        ? (item.allowances ?? []).map((a) => ({ name: a.name, amountMinor: a.amountMinor }))
-        : [{ name: '', amountMinor: 0 }]
-    );
-    setDeductList(
-      (item.deductions ?? []).length > 0
-        ? (item.deductions ?? []).map((d) => ({ label: d.label, amountMinor: d.amountMinor }))
-        : [{ label: '', amountMinor: 0 }]
-    );
+    const allowMap: Record<string, number> = {};
+    for (const a of item.allowances ?? []) {
+      if (a.name?.trim()) allowMap[a.name.trim()] = a.amountMinor ?? 0;
+    }
+    setAllowanceAmounts(allowMap);
+    const deductMap: Record<string, number> = {};
+    for (const d of item.deductions ?? []) {
+      if (d.label?.trim()) deductMap[d.label.trim()] = d.amountMinor ?? 0;
+    }
+    setDeductionAmounts(deductMap);
     const effectiveBase = item.overrideBaseSalaryMinor ?? item.baseSalaryMinor;
     setOverrideBaseSalary(effectiveBase ? formatPayroll(effectiveBase) : '');
   };
 
-  const addAllowanceRow = () => {
-    setAllowanceList((p) => [...p, { name: '', amountMinor: 0 }]);
-  };
-
-  const addDeductRow = () => {
-    setDeductList((p) => [...p, { label: '', amountMinor: 0 }]);
-  };
-
   const saveEdit = async () => {
     if (!editOpen || !id) return;
-    const allowances: PayrollAllowance[] = allowanceList
-      .filter((a) => a.name.trim() && a.amountMinor >= 0)
-      .map((a) => ({ name: a.name.trim(), amountMinor: Math.round(a.amountMinor) }));
-    const deductions = deductList
-      .filter((d) => d.label.trim() && d.amountMinor >= 0)
-      .map((d) => ({ label: d.label.trim(), amountMinor: Math.round(d.amountMinor) }));
+    const allowances: PayrollAllowance[] = allowanceTypes
+      .filter((t) => (allowanceAmounts[t.name] ?? 0) > 0)
+      .map((t) => ({ name: t.name, amountMinor: Math.round(allowanceAmounts[t.name] ?? 0) }));
+    const deductions: PayrollDeduction[] = deductionTypes
+      .filter((t) => (deductionAmounts[t.name] ?? 0) > 0)
+      .map((t) => ({ label: t.name, amountMinor: Math.round(deductionAmounts[t.name] ?? 0) }));
     const overrideVal = overrideBaseSalary.trim() ? parseDisplayToMinor(overrideBaseSalary, PAYROLL_CURRENCY) : null;
     const shouldOverride = overrideVal !== null && overrideVal !== editOpen.baseSalaryMinor;
     const shouldClearOverride = overrideVal === null || overrideVal === editOpen.baseSalaryMinor;
@@ -743,76 +744,71 @@ export default function PayrollDetailPage() {
             <div>
               <h4 className="mb-3 flex items-center gap-2 text-sm font-medium text-[#E5E7EB]">
                 <PlusCircle className="h-4 w-4 text-green-400" />
-                รายการเพิ่ม (ค่าไฟ, ค่าข้าว, โบนัสพิเศษ ฯลฯ)
+                รายการเพิ่ม (ตามหมวดหมู่ที่ตั้งค่า)
               </h4>
               <p className="mb-2 text-xs text-[#9CA3AF]">
-                ใส่ชื่อรายการและจำนวน — เช่น ค่าไฟ, ค่าข้าว, โบนัสพิเศษ, ค่าล่วงเวลา
+                กรอกจำนวนต่อหมวดหมู่ — 0 = ไม่ใช้รายการนี้. ไปเพิ่มหมวดหมู่ที่ ตั้งค่า → หมวดหมู่รายการเพิ่ม
               </p>
-              <div className="space-y-2">
-                {allowanceList.map((a, i) => (
-                  <div key={i} className="flex gap-2 items-center">
-                    <Input
-                      placeholder="เช่น ค่าไฟ, ค่าข้าว, โบนัสพิเศษ"
-                      value={a.name}
-                      onChange={(e) =>
-                        setAllowanceList((p) => p.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))
-                      }
-                      className="flex-1 bg-[#1F2937] border-[#374151]"
-                    />
-                    <Input
-                      type="text"
-                      inputMode="numeric"
-                      placeholder="0"
-                      value={a.amountMinor ? formatPayroll(a.amountMinor) : ''}
-                      onChange={(e) => {
-                        const minor = parseDisplayToMinor(e.target.value, PAYROLL_CURRENCY);
-                        setAllowanceList((p) => p.map((x, j) => (j === i ? { ...x, amountMinor: minor } : x)));
-                      }}
-                      className="w-28 bg-[#1F2937] border-[#374151] text-right tabular-nums"
-                    />
-                    <span className="text-xs text-[#6B7280] w-8">กีบ</span>
-                  </div>
-                ))}
-                <Button variant="outline" size="sm" onClick={addAllowanceRow} className="border-[#374151] text-green-400/90 hover:text-green-400 hover:bg-green-500/10">
-                  + เพิ่มรายการเพิ่ม
-                </Button>
-              </div>
+              {allowanceTypes.length === 0 ? (
+                <p className="rounded border border-[#1F2937] px-4 py-3 text-sm text-[#9CA3AF]">
+                  ยังไม่มีหมวดหมู่ — ไปที่ ตั้งค่า → หมวดหมู่รายการเพิ่ม เพื่อเพิ่มหมวดหมู่ (ค่าไฟ, ค่าข้าว ฯลฯ)
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {allowanceTypes.map((t) => (
+                    <div key={t.id} className="flex gap-2 items-center">
+                      <span className="min-w-[140px] text-[#E5E7EB]">{t.name}</span>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="0"
+                        value={(allowanceAmounts[t.name] ?? 0) > 0 ? formatPayroll(allowanceAmounts[t.name] ?? 0) : ''}
+                        onChange={(e) => {
+                          const minor = parseDisplayToMinor(e.target.value, PAYROLL_CURRENCY);
+                          setAllowanceAmounts((p) => ({ ...p, [t.name]: minor }));
+                        }}
+                        className="flex-1 max-w-[140px] bg-[#1F2937] border-[#374151] text-right tabular-nums"
+                      />
+                      <span className="text-xs text-[#6B7280] w-8">กีบ</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div>
               <h4 className="mb-3 flex items-center gap-2 text-sm font-medium text-[#E5E7EB]">
                 <MinusCircle className="h-4 w-4 text-red-400" />
-                รายการหักเงินเดือน (ตัดค่าอะไร จำนวนเท่าไหร่)
+                รายการหัก (ตามหมวดหมู่ที่ตั้งค่า)
               </h4>
-              <div className="space-y-2">
-                {deductList.map((d, i) => (
-                  <div key={i} className="flex gap-2 items-center">
-                    <Input
-                      placeholder="เช่น หักค่าอะไร"
-                      value={d.label}
-                      onChange={(e) =>
-                        setDeductList((p) => p.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))
-                      }
-                      className="flex-1 bg-[#1F2937] border-[#374151]"
-                    />
-                    <Input
-                      type="text"
-                      inputMode="numeric"
-                      placeholder="0"
-                      value={d.amountMinor ? formatPayroll(d.amountMinor) : ''}
-                      onChange={(e) => {
-                        const minor = parseDisplayToMinor(e.target.value, PAYROLL_CURRENCY);
-                        setDeductList((p) => p.map((x, j) => (j === i ? { ...x, amountMinor: minor } : x)));
-                      }}
-                      className="w-28 bg-[#1F2937] border-[#374151] text-right tabular-nums"
-                    />
-                    <span className="text-xs text-[#6B7280] w-8">กีบ</span>
-                  </div>
-                ))}
-                <Button variant="outline" size="sm" onClick={addDeductRow} className="border-[#374151] text-[#9CA3AF]">
-                  + เพิ่มรายการหัก
-                </Button>
-              </div>
+              <p className="mb-2 text-xs text-[#9CA3AF]">
+                กรอกจำนวนต่อหมวดหมู่ — 0 = ไม่ใช้รายการนี้. ไปเพิ่มหมวดหมู่ที่ ตั้งค่า → หมวดหมู่รายการหัก
+              </p>
+              {deductionTypes.length === 0 ? (
+                <p className="rounded border border-[#1F2937] px-4 py-3 text-sm text-[#9CA3AF]">
+                  ยังไม่มีหมวดหมู่ — ไปที่ ตั้งค่า → หมวดหมู่รายการหัก เพื่อเพิ่มหมวดหมู่ (มาสาย, ค่าปรับ ฯลฯ)
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {deductionTypes.map((t) => (
+                    <div key={t.id} className="flex gap-2 items-center">
+                      <span className="min-w-[140px] text-[#E5E7EB]">{t.name}</span>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="0"
+                        value={(deductionAmounts[t.name] ?? 0) > 0 ? formatPayroll(deductionAmounts[t.name] ?? 0) : ''}
+                        onChange={(e) => {
+                          const minor = parseDisplayToMinor(e.target.value, PAYROLL_CURRENCY);
+                          setDeductionAmounts((p) => ({ ...p, [t.name]: minor }));
+                        }}
+                        className="flex-1 max-w-[140px] bg-[#1F2937] border-[#374151] text-right tabular-nums"
+                      />
+                      <span className="text-xs text-[#6B7280] w-8">กีบ</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

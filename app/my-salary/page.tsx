@@ -110,10 +110,21 @@ export default function MySalaryPage() {
                         <span>โบนัส (จากก้อนรวม)</span>
                         <span>{formatPayroll(s.item.bonusPortionMinor)} กีบ</span>
                       </div>
-                      {(s.item.totalAllowancesMinor ?? 0) > 0 && (
-                        <div className="flex justify-between text-[#9CA3AF]">
-                          <span>รายการเพิ่ม (ค่าไฟ, ค่าข้าว ฯลฯ)</span>
-                          <span className="text-green-400">+{formatPayroll(s.item.totalAllowancesMinor ?? 0)} กีบ</span>
+                      {s.item.allowances.length > 0 && (
+                        <div className="pt-2 border-t border-[#1F2937]">
+                          <p className="text-[#9CA3AF] mb-1">รายการเพิ่ม</p>
+                          <ul className="space-y-1">
+                            {s.item.allowances.map((a, i) => (
+                              <li key={i} className="flex justify-between text-[#E5E7EB]">
+                                <span>{a.name}</span>
+                                <span className="text-green-400">+{formatPayroll(a.amountMinor)} กีบ</span>
+                              </li>
+                            ))}
+                          </ul>
+                          <div className="flex justify-between text-[#9CA3AF] mt-2">
+                            <span>รวมรายการเพิ่ม</span>
+                            <span className="text-green-400">+{formatPayroll(s.item.totalAllowancesMinor ?? 0)} กีบ</span>
+                          </div>
                         </div>
                       )}
                       {(s.item.lateDeductionMinor ?? 0) > 0 && (
