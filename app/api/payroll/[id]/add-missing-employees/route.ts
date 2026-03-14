@@ -71,7 +71,6 @@ export async function POST(
         getSalaryPolicySettings(db),
         getLateMinutesByUser(db, yearMonth),
         getLatePenaltyPerMinute(db),
-        getBaseSalariesForUsersWithLatestFallback(db, [], yearMonth),
       ]);
 
     const existingUserIds = new Set(existingItems.map((r) => r.userId));

@@ -88,6 +88,7 @@ export async function POST(
         .set({
           baseSalaryMinor: newBase,
           salaryAfterHolidayMinor,
+          overrideBaseSalaryMinor: null,
         })
         .where(
           and(

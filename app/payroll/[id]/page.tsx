@@ -565,9 +565,25 @@ export default function PayrollDetailPage() {
                         <TableHead className="px-4 py-3 text-right font-medium text-[#9CA3AF]">วันทำงาน</TableHead>
                         <TableHead className="px-4 py-3 text-right font-medium text-[#9CA3AF]">เงินหลังหักวันหยุด</TableHead>
                         <TableHead className="px-4 py-3 text-right font-medium text-[#9CA3AF]">โบนัส</TableHead>
-                        <TableHead className="px-4 py-3 text-right font-medium text-[#9CA3AF]">รายการเพิ่ม</TableHead>
+                        {allowanceTypes.length > 0 ? (
+                          allowanceTypes.map((t) => (
+                            <TableHead key={t.id} className="px-4 py-3 text-right font-medium text-[#9CA3AF]" title="รายการเพิ่ม">
+                              {t.name}
+                            </TableHead>
+                          ))
+                        ) : (
+                          <TableHead className="px-4 py-3 text-right font-medium text-[#9CA3AF]">รายการเพิ่ม</TableHead>
+                        )}
                         <TableHead className="px-4 py-3 text-right font-medium text-[#9CA3AF]">มาสาย</TableHead>
-                        <TableHead className="px-4 py-3 text-right font-medium text-[#9CA3AF]">รายการหัก</TableHead>
+                        {deductionTypes.length > 0 ? (
+                          deductionTypes.map((t) => (
+                            <TableHead key={t.id} className="px-4 py-3 text-right font-medium text-[#9CA3AF]" title="รายการหัก">
+                              {t.name}
+                            </TableHead>
+                          ))
+                        ) : (
+                          <TableHead className="px-4 py-3 text-right font-medium text-[#9CA3AF]">รายการหัก</TableHead>
+                        )}
                         <TableHead
                           className="px-4 py-3 text-right font-medium text-[#D4AF37] cursor-pointer select-none"
                           onClick={() => toggleSort('net')}
@@ -605,13 +621,28 @@ export default function PayrollDetailPage() {
                           <TableCell className="px-4 py-3 text-right text-[#9CA3AF]">{item.workingDays} วัน</TableCell>
                           <TableCell className="px-4 py-3 text-right text-[#E5E7EB]">{formatPayroll(item.salaryAfterHolidayMinor)}</TableCell>
                           <TableCell className="px-4 py-3 text-right text-[#E5E7EB]">{formatPayroll(item.bonusPortionMinor)}</TableCell>
-                          <TableCell className="px-4 py-3 text-right">
-                            {(item.totalAllowancesMinor ?? 0) > 0 ? (
-                              <span className="text-green-400">+{formatPayroll(item.totalAllowancesMinor ?? 0)}</span>
-                            ) : (
-                              <span className="text-[#6B7280]">-</span>
-                            )}
-                          </TableCell>
+                          {allowanceTypes.length > 0 ? (
+                            allowanceTypes.map((t) => {
+                              const amt = (item.allowances ?? []).find((a) => a.name === t.name)?.amountMinor ?? 0;
+                              return (
+                                <TableCell key={t.id} className="px-4 py-3 text-right">
+                                  {amt > 0 ? (
+                                    <span className="text-green-400">+{formatPayroll(amt)}</span>
+                                  ) : (
+                                    <span className="text-[#6B7280]">-</span>
+                                  )}
+                                </TableCell>
+                              );
+                            })
+                          ) : (
+                            <TableCell className="px-4 py-3 text-right">
+                              {(item.totalAllowancesMinor ?? 0) > 0 ? (
+                                <span className="text-green-400">+{formatPayroll(item.totalAllowancesMinor ?? 0)}</span>
+                              ) : (
+                                <span className="text-[#6B7280]">-</span>
+                              )}
+                            </TableCell>
+                          )}
                           <TableCell className="px-4 py-3 text-right">
                             {(item.lateDeductionMinor ?? 0) > 0 ? (
                               <span className="text-orange-400" title={`${item.lateMinutes ?? 0} นาที`}>
@@ -621,13 +652,28 @@ export default function PayrollDetailPage() {
                               <span className="text-[#6B7280]">-</span>
                             )}
                           </TableCell>
-                          <TableCell className="px-4 py-3 text-right">
-                            {(item.totalDeductionsMinor ?? 0) > 0 ? (
-                              <span className="text-red-400">−{formatPayroll(item.totalDeductionsMinor ?? 0)}</span>
-                            ) : (
-                              <span className="text-[#6B7280]">-</span>
-                            )}
-                          </TableCell>
+                          {deductionTypes.length > 0 ? (
+                            deductionTypes.map((t) => {
+                              const amt = (item.deductions ?? []).find((d) => d.label === t.name)?.amountMinor ?? 0;
+                              return (
+                                <TableCell key={t.id} className="px-4 py-3 text-right">
+                                  {amt > 0 ? (
+                                    <span className="text-red-400">−{formatPayroll(amt)}</span>
+                                  ) : (
+                                    <span className="text-[#6B7280]">-</span>
+                                  )}
+                                </TableCell>
+                              );
+                            })
+                          ) : (
+                            <TableCell className="px-4 py-3 text-right">
+                              {(item.totalDeductionsMinor ?? 0) > 0 ? (
+                                <span className="text-red-400">−{formatPayroll(item.totalDeductionsMinor ?? 0)}</span>
+                              ) : (
+                                <span className="text-[#6B7280]">-</span>
+                              )}
+                            </TableCell>
+                          )}
                           <TableCell className="px-4 py-3 text-right font-semibold text-[#D4AF37]">{formatPayroll(item.netAmountMinor)} กีบ</TableCell>
                           {run.status === 'DRAFT' && (
                             <TableCell className="px-4 py-3">

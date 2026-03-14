@@ -217,6 +217,8 @@ export async function PATCH(
       allowances,
       deductions
     );
+    const lateDed = item.lateDeductionMinor ?? 0;
+    const finalNet = Math.max(0, net - lateDed);
 
     await db
       .update(payrollItems)
@@ -225,7 +227,7 @@ export async function PATCH(
         totalAllowancesMinor: totAll,
         deductions,
         totalDeductionsMinor: totDed,
-        netAmountMinor: net,
+        netAmountMinor: finalNet,
       })
       .where(
         and(
@@ -240,7 +242,7 @@ export async function PATCH(
       totalAllowancesMinor: totAll,
       deductions,
       totalDeductionsMinor: totDed,
-      netAmountMinor: net,
+      netAmountMinor: finalNet,
     });
   } catch (e) {
     console.error(e);

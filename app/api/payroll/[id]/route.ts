@@ -2,7 +2,11 @@ import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth, requireSettings } from '@/lib/api-helpers';
 import { payrollRuns, payrollItems, users } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
-import type { PayrollDeduction, PayrollAllowance } from '@/lib/payroll';
+import {
+  recalcBonusPortions,
+  type PayrollDeduction,
+  type PayrollAllowance,
+} from '@/lib/payroll';
 
 export async function GET(
   request: Request,
@@ -166,12 +170,43 @@ export async function PATCH(
       runRows[0].status === 'DRAFT' &&
       body.bonusPoolMinor >= 0
     ) {
+      const newBonusPool = Math.round(body.bonusPoolMinor);
       await db
         .update(payrollRuns)
-        .set({ bonusPoolMinor: Math.round(body.bonusPoolMinor) })
+        .set({ bonusPoolMinor: newBonusPool })
         .where(eq(payrollRuns.id, id));
+
+      const allItems = await db
+        .select()
+        .from(payrollItems)
+        .where(eq(payrollItems.payrollRunId, id));
+      const itemsForRecalc = allItems.map((i) => ({
+        userId: i.userId,
+        workingDays: i.workingDays,
+        excludeFromBonus: !!i.excludeFromBonus,
+        salaryAfterHolidayMinor: i.salaryAfterHolidayMinor,
+        allowances: (Array.isArray(i.allowances) ? i.allowances : []) as PayrollAllowance[],
+        deductions: (Array.isArray(i.deductions) ? i.deductions : []) as PayrollDeduction[],
+        lateDeductionMinor: i.lateDeductionMinor ?? 0,
+      }));
+      const recalc = recalcBonusPortions(itemsForRecalc, newBonusPool);
+      for (const r of recalc) {
+        await db
+          .update(payrollItems)
+          .set({
+            bonusPortionMinor: r.bonusPortionMinor,
+            netAmountMinor: r.netAmountMinor,
+          })
+          .where(
+            and(
+              eq(payrollItems.payrollRunId, id),
+              eq(payrollItems.userId, r.userId)
+            )
+          );
+      }
+
       return NextResponse.json({
-        run: { id, bonusPoolMinor: Math.round(body.bonusPoolMinor) },
+        run: { id, bonusPoolMinor: newBonusPool },
       });
     }
 
