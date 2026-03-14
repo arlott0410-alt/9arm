@@ -28,8 +28,10 @@ export async function GET(
     if (runRows.length === 0) {
       return NextResponse.json({ error: 'ไม่พบรอบเงินเดือน' }, { status: 404 });
     }
-
     const run = runRows[0];
+    if (run.deletedAt) {
+      return NextResponse.json({ error: 'ไม่พบรอบเงินเดือน' }, { status: 404 });
+    }
     const role = user!.role as string;
 
     if (role !== 'SUPER_ADMIN' && run.status !== 'CONFIRMED') {
@@ -175,6 +177,58 @@ export async function PATCH(
       { error: 'ส่ง status: CONFIRMED หรือ DRAFT (เปิดแก้ไข) หรือ bonusPoolMinor (DRAFT)' },
       { status: 400 }
     );
+  } catch (e) {
+    console.error(e);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+/** DELETE: Soft delete draft payroll run. SUPER_ADMIN only. */
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const result = await getDbAndUser(request);
+    if (result instanceof NextResponse) return result;
+    const { db, user } = result;
+    const authErr = requireAuth(user);
+    if (authErr) return authErr;
+    if ((user!.role as string) !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์' }, { status: 403 });
+    }
+    const err = requireSettings(user);
+    if (err) return err;
+
+    const id = parseInt((await params).id, 10);
+    if (isNaN(id)) {
+      return NextResponse.json({ error: 'Invalid run id' }, { status: 400 });
+    }
+
+    const runRows = await db
+      .select({ status: payrollRuns.status })
+      .from(payrollRuns)
+      .where(eq(payrollRuns.id, id))
+      .limit(1);
+    if (runRows.length === 0) {
+      return NextResponse.json({ error: 'ไม่พบรอบเงินเดือน' }, { status: 404 });
+    }
+    if (runRows[0].status !== 'DRAFT') {
+      return NextResponse.json(
+        { error: 'ลบได้เฉพาะรอบแบบร่าง (DRAFT)' },
+        { status: 400 }
+      );
+    }
+
+    await db
+      .update(payrollRuns)
+      .set({ deletedAt: new Date() })
+      .where(eq(payrollRuns.id, id));
+
+    return NextResponse.json({ deleted: true, id });
   } catch (e) {
     console.error(e);
     return NextResponse.json(

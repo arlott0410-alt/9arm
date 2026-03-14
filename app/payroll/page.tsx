@@ -15,8 +15,9 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Banknote } from 'lucide-react';
+import { Banknote, Trash2 } from 'lucide-react';
 import { useAuth } from '@/components/providers/AuthProvider';
+import { deletePayroll } from '@/lib/actions/payroll';
 
 type Run = {
   id: number;
@@ -36,6 +37,7 @@ export default function PayrollPage() {
   const [yearMonth, setYearMonth] = useState('');
   const [bonusPool, setBonusPool] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -89,6 +91,24 @@ export default function PayrollPage() {
       }
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (run: Run, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (run.status !== 'DRAFT') return;
+    if (!confirm('ลบรอบเงินเดือนแบบร่างนี้? การดำเนินการนี้ไม่สามารถย้อนกลับได้')) return;
+    setDeletingId(run.id);
+    try {
+      const result = await deletePayroll(run.id);
+      if (result.ok) {
+        setRuns((prev) => prev.filter((r) => r.id !== run.id));
+      } else {
+        alert(result.error);
+      }
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -172,23 +192,39 @@ export default function PayrollPage() {
             ) : (
               <div className="space-y-2">
                 {runs.map((r) => (
-                  <Link
+                  <div
                     key={r.id}
-                    href={`/payroll/${r.id}`}
-                    prefetch={false}
-                    className="flex items-center justify-between rounded-lg border border-[#1F2937] px-4 py-3 text-[#E5E7EB] transition-colors hover:bg-[#111827] hover:border-[#374151]"
+                    className="flex items-center justify-between rounded-lg border border-[#1F2937] px-4 py-3 text-[#E5E7EB] transition-colors hover:bg-[#111827] hover:border-[#374151] group"
                   >
-                    <span className="font-medium">{r.yearMonth}</span>
-                    <span
-                      className={
-                        r.status === 'CONFIRMED'
-                          ? 'rounded-full bg-green-500/20 px-3 py-0.5 text-sm text-green-400'
-                          : 'rounded-full bg-amber-500/20 px-3 py-0.5 text-sm text-amber-400'
-                      }
+                    <Link
+                      href={`/payroll/${r.id}`}
+                      prefetch={false}
+                      className="flex-1 flex items-center justify-between min-w-0"
                     >
-                      {r.status === 'CONFIRMED' ? 'ยืนยันแล้ว' : 'แบบร่าง'}
-                    </span>
-                  </Link>
+                      <span className="font-medium">{r.yearMonth}</span>
+                      <span
+                        className={
+                          r.status === 'CONFIRMED'
+                            ? 'rounded-full bg-green-500/20 px-3 py-0.5 text-sm text-green-400'
+                            : 'rounded-full bg-amber-500/20 px-3 py-0.5 text-sm text-amber-400'
+                        }
+                      >
+                        {r.status === 'CONFIRMED' ? 'Finalized' : 'Draft'}
+                      </span>
+                    </Link>
+                    {user.role === 'SUPER_ADMIN' && r.status === 'DRAFT' && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => handleDelete(r, e)}
+                        disabled={deletingId !== null}
+                        className="ml-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="ลบแบบร่าง"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                 ))}
               </div>
             )}

@@ -241,12 +241,13 @@ export const employeeSalaries = sqliteTable('employee_salaries', {
 export const payrollRuns = sqliteTable('payroll_runs', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   yearMonth: text('year_month').notNull(),
-  status: text('status', { enum: ['DRAFT', 'CONFIRMED'] }).notNull(),
+  status: text('status', { enum: ['DRAFT', 'CONFIRMED'] }).notNull().default('DRAFT'),
   bonusPoolMinor: integer('bonus_pool_minor'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   createdBy: integer('created_by')
     .notNull()
     .references(() => users.id, { onDelete: 'restrict' }),
+  deletedAt: integer('deleted_at', { mode: 'timestamp' }),
 });
 
 export const payrollItems = sqliteTable('payroll_items', {

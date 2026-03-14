@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth, requireSettings } from '@/lib/api-helpers';
 import { users, payrollRuns, payrollItems } from '@/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, isNull } from 'drizzle-orm';
 import {
   getDaysInMonth,
   getHolidayCountByUser,
@@ -36,6 +36,7 @@ export async function GET(request: Request) {
         createdBy: payrollRuns.createdBy,
       })
       .from(payrollRuns)
+      .where(isNull(payrollRuns.deletedAt))
       .orderBy(desc(payrollRuns.yearMonth));
 
     const list =

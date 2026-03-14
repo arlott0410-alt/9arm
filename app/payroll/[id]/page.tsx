@@ -14,9 +14,31 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Banknote, User, PlusCircle, MinusCircle } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import {
+  ArrowLeft,
+  Banknote,
+  User,
+  PlusCircle,
+  MinusCircle,
+  Trash2,
+  FileText,
+  Users,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+} from 'lucide-react';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { formatMinorToDisplay, parseDisplayToMinor } from '@/lib/utils';
+import { deletePayroll, finalizePayroll } from '@/lib/actions/payroll';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 type PayrollAllowance = { name: string; amountMinor: number };
 type PayrollDeduction = { label: string; amountMinor: number };
@@ -75,6 +97,12 @@ export default function PayrollDetailPage() {
   const [confirming, setConfirming] = useState(false);
   const [reopening, setReopening] = useState(false);
   const [togglingBonus, setTogglingBonus] = useState<number | null>(null);
+  const [bulkExcludeOpen, setBulkExcludeOpen] = useState(false);
+  const [bulkExcludeSaving, setBulkExcludeSaving] = useState(false);
+  const [bulkExcludeSelected, setBulkExcludeSelected] = useState<Set<number>>(new Set());
+  const [sortBy, setSortBy] = useState<'name' | 'net'>('name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -179,20 +207,15 @@ export default function PayrollDetailPage() {
   };
 
   const confirmRun = async () => {
-    if (!run || run.status !== 'DRAFT') return;
+    if (!run || run.status !== 'DRAFT' || !id) return;
     if (!confirm('ยืนยันรอบเงินเดือนนี้? หลังยืนยันจะแก้ไขไม่ได้ (สามารถเปิดแก้ไขภายหลังได้)')) return;
     setConfirming(true);
     try {
-      const res = await fetch(`/api/payroll/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'CONFIRMED' }),
-      });
-      if (res.ok) {
+      const result = await finalizePayroll(parseInt(id, 10));
+      if (result.ok) {
         setRun((p) => (p ? { ...p, status: 'CONFIRMED' } : null));
       } else {
-        const d = (await res.json()) as { error?: string };
-        alert(d.error ?? 'ยืนยันไม่ได้');
+        alert(result.error);
       }
     } finally {
       setConfirming(false);
@@ -242,6 +265,71 @@ export default function PayrollDetailPage() {
     }
   };
 
+  const sortedItems = useMemo(() => {
+    const arr = [...items];
+    arr.sort((a, b) => {
+      if (sortBy === 'name') {
+        const cmp = a.username.localeCompare(b.username);
+        return sortDir === 'asc' ? cmp : -cmp;
+      }
+      const cmp = a.netAmountMinor - b.netAmountMinor;
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+    return arr;
+  }, [items, sortBy, sortDir]);
+
+  const toggleSort = (col: 'name' | 'net') => {
+    if (sortBy === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else {
+      setSortBy(col);
+      setSortDir('asc');
+    }
+  };
+
+  const handleBulkExclude = async (excludeUserIds: number[]) => {
+    if (!id) return;
+    setBulkExcludeSaving(true);
+    try {
+      const res = await fetch(`/api/payroll/${id}/bulk-exclude`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ excludeUserIds }),
+      });
+      if (res.ok) {
+        const res2 = await fetch(`/api/payroll/${id}`);
+        const d2 = (await res2.json()) as { items?: PayrollItem[] };
+        if (d2.items) setItems(d2.items);
+        setBulkExcludeOpen(false);
+      } else {
+        const err = (await res.json()) as { error?: string };
+        alert(err.error ?? 'บันทึกไม่สำเร็จ');
+      }
+    } finally {
+      setBulkExcludeSaving(false);
+    }
+  };
+
+  const openBulkExclude = () => {
+    setBulkExcludeSelected(new Set(items.filter((i) => i.excludeFromBonus).map((i) => i.userId)));
+    setBulkExcludeOpen(true);
+  };
+
+  const handleDeleteDraft = async () => {
+    if (!run || run.status !== 'DRAFT' || !id) return;
+    if (!confirm('ลบรอบเงินเดือนแบบร่างนี้? การดำเนินการนี้ไม่สามารถย้อนกลับได้')) return;
+    setDeleting(true);
+    try {
+      const result = await deletePayroll(parseInt(id, 10));
+      if (result.ok) {
+        window.location.href = '/payroll';
+      } else {
+        alert(result.error);
+      }
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (authLoading || !user) return null;
 
   const totalNet = items.reduce((s, i) => s + i.netAmountMinor, 0);
@@ -286,17 +374,41 @@ export default function PayrollDetailPage() {
                       : 'inline-flex items-center rounded-full bg-amber-500/20 px-4 py-1.5 text-sm font-medium text-amber-400'
                   }
                 >
-                  {run.status === 'CONFIRMED' ? 'ยืนยันแล้ว' : 'แบบร่าง'}
+                  {run.status === 'CONFIRMED' ? 'Finalized' : 'Draft'}
                 </span>
+                {(user.role === 'SUPER_ADMIN' || user.role === 'AUDIT') && run.status === 'CONFIRMED' && (
+                  <Link href="/reports" prefetch={false}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-[#374151] text-[#E5E7EB] hover:bg-[#1F2937]"
+                    >
+                      <FileText className="h-4 w-4 mr-1.5" />
+                      Generate Report
+                    </Button>
+                  </Link>
+                )}
                 {user.role === 'SUPER_ADMIN' && run.status === 'CONFIRMED' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={reopenForEdit}
+                      disabled={reopening}
+                      className="border-amber-500/50 text-amber-400 hover:bg-amber-500/10"
+                    >
+                      {reopening ? 'กำลังเปิดแก้ไข...' : 'เปิดแก้ไข'}
+                    </Button>
+                )}
+                {user.role === 'SUPER_ADMIN' && run.status === 'DRAFT' && (
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={reopenForEdit}
-                    disabled={reopening}
-                    className="border-amber-500/50 text-amber-400 hover:bg-amber-500/10"
+                    onClick={handleDeleteDraft}
+                    disabled={deleting}
+                    className="border-red-500/50 text-red-400 hover:bg-red-500/10"
                   >
-                    {reopening ? 'กำลังเปิดแก้ไข...' : 'เปิดแก้ไข'}
+                    <Trash2 className="h-4 w-4 mr-1.5" />
+                    {deleting ? 'กำลังลบ...' : 'Delete Draft'}
                   </Button>
                 )}
               </div>
@@ -338,42 +450,69 @@ export default function PayrollDetailPage() {
                   เงินหลังหักวันหยุด + โบนัส + รายการเพิ่ม (ค่าไฟ/ค่าข้าว/ฯลฯ) − รายการหัก = ยอดสุทธิ
                 </p>
                 {run.status === 'DRAFT' && user.role === 'SUPER_ADMIN' && (
-                  <p className="text-sm text-[#D4AF37]/90">
-                    → ใส่ค่าข้าว / รายการเพิ่มอื่น และหักเงินเดือนได้ที่ปุ่ม <strong>กรอกรายการ</strong> ในแถวของแต่ละคน
-                    <br />
-                    → เลือก <strong>ไม่รับโบนัส</strong> สำหรับพนักงานที่ไม่ได้รับโบนัส (จะไม่นับวันทำงานเข้าไปหารโบนัส)
-                  </p>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={openBulkExclude}
+                      className="border-[#374151] text-[#E5E7EB] hover:bg-[#1F2937]"
+                    >
+                      <Users className="h-4 w-4 mr-1.5" />
+                      เลือกพนักงานที่ไม่รับโบนัส (รวม)
+                    </Button>
+                    <p className="text-sm text-[#D4AF37]/90">
+                      → ใส่ค่าข้าว / รายการเพิ่มอื่น และหักเงินเดือนได้ที่ปุ่ม <strong>กรอกรายการ</strong> ในแถวของแต่ละคน
+                      <br />
+                      → เลือก <strong>ไม่รับโบนัส</strong> สำหรับพนักงานที่ไม่ได้รับโบนัส (จะไม่นับวันทำงานเข้าไปหารโบนัส)
+                    </p>
+                  </div>
                 )}
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto rounded-lg border border-[#1F2937]">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-[#1F2937] bg-[#111827]">
-                        <th className="px-4 py-3 text-left font-medium text-[#9CA3AF]">ชื่อ</th>
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-[#1F2937] bg-[#111827] hover:bg-[#111827]">
+                        <TableHead
+                          className="px-4 py-3 font-medium text-[#9CA3AF] cursor-pointer select-none"
+                          onClick={() => toggleSort('name')}
+                        >
+                          <span className="flex items-center gap-1">
+                            ชื่อ
+                            {sortBy === 'name' ? sortDir === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" /> : <ArrowUpDown className="h-4 w-4 opacity-50" />}
+                          </span>
+                        </TableHead>
                         {run.status === 'DRAFT' && user.role === 'SUPER_ADMIN' && (
-                          <th className="px-4 py-3 text-center font-medium text-[#9CA3AF]" title="ไม่นับเข้าไปหารโบนัส">
+                          <TableHead className="px-4 py-3 text-center font-medium text-[#9CA3AF]" title="ไม่นับเข้าไปหารโบนัส">
                             ไม่รับโบนัส
-                          </th>
+                          </TableHead>
                         )}
-                        <th className="px-4 py-3 text-right font-medium text-[#9CA3AF]">วันทำงาน</th>
-                        <th className="px-4 py-3 text-right font-medium text-[#9CA3AF]">เงินหลังหักวันหยุด</th>
-                        <th className="px-4 py-3 text-right font-medium text-[#9CA3AF]">โบนัส</th>
-                        <th className="px-4 py-3 text-right font-medium text-[#9CA3AF]">รายการเพิ่ม</th>
-                        <th className="px-4 py-3 text-right font-medium text-[#9CA3AF]">มาสาย</th>
-                        <th className="px-4 py-3 text-right font-medium text-[#9CA3AF]">รายการหัก</th>
-                        <th className="px-4 py-3 text-right font-medium text-[#D4AF37]">ยอดสุทธิ</th>
+                        <TableHead className="px-4 py-3 text-right font-medium text-[#9CA3AF]">วันทำงาน</TableHead>
+                        <TableHead className="px-4 py-3 text-right font-medium text-[#9CA3AF]">เงินหลังหักวันหยุด</TableHead>
+                        <TableHead className="px-4 py-3 text-right font-medium text-[#9CA3AF]">โบนัส</TableHead>
+                        <TableHead className="px-4 py-3 text-right font-medium text-[#9CA3AF]">รายการเพิ่ม</TableHead>
+                        <TableHead className="px-4 py-3 text-right font-medium text-[#9CA3AF]">มาสาย</TableHead>
+                        <TableHead className="px-4 py-3 text-right font-medium text-[#9CA3AF]">รายการหัก</TableHead>
+                        <TableHead
+                          className="px-4 py-3 text-right font-medium text-[#D4AF37] cursor-pointer select-none"
+                          onClick={() => toggleSort('net')}
+                        >
+                          <span className="flex items-center gap-1 justify-end">
+                            ยอดสุทธิ
+                            {sortBy === 'net' ? sortDir === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" /> : <ArrowUpDown className="h-4 w-4 opacity-50" />}
+                          </span>
+                        </TableHead>
                         {run.status === 'DRAFT' && (
-                          <th className="px-4 py-3 text-left font-medium text-[#9CA3AF]">ดำเนินการ</th>
+                          <TableHead className="px-4 py-3 text-left font-medium text-[#9CA3AF]">ดำเนินการ</TableHead>
                         )}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {items.map((item) => (
-                        <tr key={item.id} className="border-b border-[#1F2937] hover:bg-[#111827]/50 transition-colors">
-                          <td className="px-4 py-3 font-medium text-[#E5E7EB]">{item.username}</td>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sortedItems.map((item) => (
+                        <TableRow key={item.id} className="border-[#1F2937] hover:bg-[#111827]/50">
+                          <TableCell className="px-4 py-3 font-medium text-[#E5E7EB]">{item.username}</TableCell>
                           {run.status === 'DRAFT' && user.role === 'SUPER_ADMIN' && (
-                            <td className="px-4 py-3 text-center">
+                            <TableCell className="px-4 py-3 text-center">
                               <label className="flex items-center justify-center gap-1.5 cursor-pointer">
                                 <input
                                   type="checkbox"
@@ -386,19 +525,19 @@ export default function PayrollDetailPage() {
                                   <span className="text-xs text-[#9CA3AF]">...</span>
                                 )}
                               </label>
-                            </td>
+                            </TableCell>
                           )}
-                          <td className="px-4 py-3 text-right text-[#9CA3AF]">{item.workingDays} วัน</td>
-                          <td className="px-4 py-3 text-right text-[#E5E7EB]">{formatPayroll(item.salaryAfterHolidayMinor)}</td>
-                          <td className="px-4 py-3 text-right text-[#E5E7EB]">{formatPayroll(item.bonusPortionMinor)}</td>
-                          <td className="px-4 py-3 text-right">
+                          <TableCell className="px-4 py-3 text-right text-[#9CA3AF]">{item.workingDays} วัน</TableCell>
+                          <TableCell className="px-4 py-3 text-right text-[#E5E7EB]">{formatPayroll(item.salaryAfterHolidayMinor)}</TableCell>
+                          <TableCell className="px-4 py-3 text-right text-[#E5E7EB]">{formatPayroll(item.bonusPortionMinor)}</TableCell>
+                          <TableCell className="px-4 py-3 text-right">
                             {(item.totalAllowancesMinor ?? 0) > 0 ? (
                               <span className="text-green-400">+{formatPayroll(item.totalAllowancesMinor ?? 0)}</span>
                             ) : (
                               <span className="text-[#6B7280]">-</span>
                             )}
-                          </td>
-                          <td className="px-4 py-3 text-right">
+                          </TableCell>
+                          <TableCell className="px-4 py-3 text-right">
                             {(item.lateDeductionMinor ?? 0) > 0 ? (
                               <span className="text-orange-400" title={`${item.lateMinutes ?? 0} นาที`}>
                                 −{formatPayroll(item.lateDeductionMinor ?? 0)}
@@ -406,26 +545,26 @@ export default function PayrollDetailPage() {
                             ) : (
                               <span className="text-[#6B7280]">-</span>
                             )}
-                          </td>
-                          <td className="px-4 py-3 text-right">
+                          </TableCell>
+                          <TableCell className="px-4 py-3 text-right">
                             {(item.totalDeductionsMinor ?? 0) > 0 ? (
                               <span className="text-red-400">−{formatPayroll(item.totalDeductionsMinor ?? 0)}</span>
                             ) : (
                               <span className="text-[#6B7280]">-</span>
                             )}
-                          </td>
-                          <td className="px-4 py-3 text-right font-semibold text-[#D4AF37]">{formatPayroll(item.netAmountMinor)} กีบ</td>
+                          </TableCell>
+                          <TableCell className="px-4 py-3 text-right font-semibold text-[#D4AF37]">{formatPayroll(item.netAmountMinor)} กีบ</TableCell>
                           {run.status === 'DRAFT' && (
-                            <td className="px-4 py-3">
+                            <TableCell className="px-4 py-3">
                               <Button variant="outline" size="sm" onClick={() => openEdit(item)} className="border-[#374151] text-[#E5E7EB] hover:bg-[#1F2937]">
                                 กรอกรายการ
                               </Button>
-                            </td>
+                            </TableCell>
                           )}
-                        </tr>
+                        </TableRow>
                       ))}
-                    </tbody>
-                  </table>
+                    </TableBody>
+                  </Table>
                 </div>
                 {run.status === 'DRAFT' && (
                   <div className="mt-6 flex justify-end">
@@ -439,6 +578,58 @@ export default function PayrollDetailPage() {
           </>
         ) : null}
       </div>
+
+      <Dialog open={bulkExcludeOpen} onOpenChange={setBulkExcludeOpen}>
+        <DialogContent className="border-[#1F2937] bg-[#0F172A] text-[#E5E7EB] max-w-md max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              เลือกพนักงานที่ไม่รับโบนัส
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-[#9CA3AF]">
+            เลือกพนักงานที่ต้องการยกเว้นจากโบนัส — จะไม่นับวันทำงานเข้าไปหารโบนัส
+          </p>
+          <div className="space-y-2 max-h-60 overflow-y-auto py-2">
+            {items.map((item) => (
+              <label
+                key={item.userId}
+                className="flex items-center gap-3 rounded-lg border border-[#1F2937] px-3 py-2 cursor-pointer hover:bg-[#111827] transition-colors"
+              >
+                <input
+                  type="checkbox"
+                  checked={bulkExcludeSelected.has(item.userId)}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setBulkExcludeSelected((prev) => {
+                      const next = new Set(prev);
+                      if (checked) next.add(item.userId);
+                      else next.delete(item.userId);
+                      return next;
+                    });
+                  }}
+                  disabled={bulkExcludeSaving}
+                  className="h-4 w-4 rounded border-[#374151] bg-[#1F2937] text-[#D4AF37]"
+                />
+                <span className="font-medium">{item.username}</span>
+                <span className="text-sm text-[#9CA3AF]">{item.workingDays} วัน</span>
+              </label>
+            ))}
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setBulkExcludeOpen(false)} className="border-[#374151]">
+              ยกเลิก
+            </Button>
+            <Button
+              onClick={() => handleBulkExclude(Array.from(bulkExcludeSelected))}
+              disabled={bulkExcludeSaving}
+              className="bg-[#D4AF37] text-[#0F172A] hover:bg-[#D4AF37]/90"
+            >
+              {bulkExcludeSaving ? 'กำลังบันทึก...' : 'บันทึก'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!editOpen} onOpenChange={(o) => !o && setEditOpen(null)}>
         <DialogContent className="border-[#1F2937] bg-[#0F172A] text-[#E5E7EB] max-w-lg max-h-[90vh] overflow-y-auto">
