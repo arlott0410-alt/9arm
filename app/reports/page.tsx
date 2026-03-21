@@ -13,6 +13,9 @@ import {
 } from '@/components/ui/select';
 import { formatMinorToDisplay, formatDateThailand } from '@/lib/utils';
 import { useAuth } from '@/components/providers/AuthProvider';
+import { Button } from '@/components/ui/button';
+import { Download } from 'lucide-react';
+import { downloadReportSummaryXls } from '@/lib/report-export';
 
 const now = new Date(Date.now() + 7 * 60 * 60 * 1000); // Thailand UTC+7
 const currentYear = now.getUTCFullYear();
@@ -97,6 +100,22 @@ export default function ReportsPage() {
   if (authLoading || !user) return null;
 
   const dispCur = data?.displayCurrency || 'THB';
+
+  const websiteLabel =
+    filterWebsite === '__all__'
+      ? 'ทั้งหมด'
+      : websites.find((w) => String(w.id) === filterWebsite)?.name ?? filterWebsite;
+
+  const handleExportReport = () => {
+    if (!data) return;
+    downloadReportSummaryXls({
+      periodKey: period,
+      websiteLabel,
+      data,
+      bonusData,
+      creditCutData,
+    });
+  };
 
   return (
     <AppLayout user={user}>
@@ -230,6 +249,23 @@ export default function ReportsPage() {
               </Select>
             </div>
           )}
+          <div className="flex w-full flex-col gap-1 sm:ml-auto sm:w-auto">
+            <Button
+              type="button"
+              variant="outline"
+              className="border-[#334155] text-[#E5E7EB] hover:bg-[#0F172A] hover:text-[#D4AF37]"
+              disabled={!data}
+              onClick={handleExportReport}
+            >
+              <Download className="mr-2 h-4 w-4" aria-hidden />
+              ส่งออกชีท (Excel)
+            </Button>
+            <p className="max-w-[min(100%,22rem)] text-xs leading-relaxed text-[#6B7280]">
+              ไฟล์ .xls เปิดใน Excel ได้ทันที — ถ้าใช้ Google Sheets ให้ไปที่ ไฟล์ → นำเข้า →
+              อัปโหลด แล้วเลือกไฟล์ที่ดาวน์โหลด (การเชื่อมแบบอัตโนมัติกับ Google ต้องตั้งค่า API
+              แยก)
+            </p>
+          </div>
         </div>
 
         {data && (
