@@ -1,6 +1,6 @@
 {
-  "name": "9arm Ledger",
-  "short_name": "9arm Ledger",
+  "name": "Admin",
+  "short_name": "Admin",
   "description": "Internal gambling ledger",
   "start_url": "/",
   "display": "standalone",

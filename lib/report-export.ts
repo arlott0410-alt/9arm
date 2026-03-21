@@ -15,6 +15,11 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
+/** จำนวน + สกุลเงิน ให้สอดคล้องการ์ดโบนัส (เช่น 72,244 THB) */
+function fmtMinorWithCurrency(minor: number, currency: string): string {
+  return `${escapeHtml(formatMinorToDisplay(minor, currency))} ${escapeHtml(currency)}`;
+}
+
 export type ReportExportData = {
   period: string;
   dateFrom: string;
@@ -81,7 +86,7 @@ export function buildReportSummaryHtml(opts: {
   const rows: string[] = [];
 
   rows.push(
-    `<tr><td colspan="2" style="border:1px solid #334155;background:#1e293b;color:#fbbf24;font-weight:700;padding:14px 14px;font-size:16px;text-align:center;">9arm Ledger — รายงานสรุป</td></tr>`
+    `<tr><td colspan="2" style="border:1px solid #334155;background:#1e293b;color:#fbbf24;font-weight:700;padding:14px 14px;font-size:16px;text-align:center;">Admin — รายงานสรุป</td></tr>`
   );
   rows.push(pairRow('ช่วงเวลา', escapeHtml(periodLabel)));
   rows.push(pairRow('วันที่ / ช่วงที่เลือก', escapeHtml(range)));
@@ -162,7 +167,7 @@ export function buildReportSummaryHtml(opts: {
         `<tr><td colspan="2" style="border:1px solid #334155;padding:6px 10px;color:#64748b;font-size:11px;">แยกตามสกุลเงิน</td></tr>`
       );
       for (const [cur, amt] of fees) {
-        rows.push(pairRow(`  ${cur}`, escapeHtml(formatMinorToDisplay(amt, cur))));
+        rows.push(pairRow(`  ${cur}`, fmtMinorWithCurrency(amt, cur)));
       }
     }
 
@@ -175,7 +180,7 @@ export function buildReportSummaryHtml(opts: {
       rows.push(dashRow());
     } else {
       for (const [cur, amt] of internal) {
-        rows.push(pairRow(`  ${cur}`, escapeHtml(formatMinorToDisplay(amt, cur))));
+        rows.push(pairRow(`  ${cur}`, fmtMinorWithCurrency(amt, cur)));
       }
     }
 
@@ -187,7 +192,7 @@ export function buildReportSummaryHtml(opts: {
       rows.push(dashRow());
     } else {
       for (const [cur, amt] of extIn) {
-        rows.push(pairRow(`  ${cur}`, escapeHtml(formatMinorToDisplay(amt, cur))));
+        rows.push(pairRow(`  ${cur}`, fmtMinorWithCurrency(amt, cur)));
       }
     }
 
@@ -199,7 +204,7 @@ export function buildReportSummaryHtml(opts: {
       rows.push(dashRow());
     } else {
       for (const [cur, amt] of extOut) {
-        rows.push(pairRow(`  ${cur}`, escapeHtml(formatMinorToDisplay(amt, cur))));
+        rows.push(pairRow(`  ${cur}`, fmtMinorWithCurrency(amt, cur)));
       }
     }
 
@@ -227,7 +232,7 @@ export function buildReportSummaryHtml(opts: {
         rows.push(
           pairRow(
             `  ${cur}`,
-            `${escapeHtml(formatMinorToDisplay(Math.abs(net), cur))}${escapeHtml(suffix)}`,
+            `${fmtMinorWithCurrency(Math.abs(net), cur)}${escapeHtml(suffix)}`,
             `text-align:right;font-weight:600;color:${net >= 0 ? '#b45309' : '#b91c1c'};`
           )
         );
@@ -237,7 +242,7 @@ export function buildReportSummaryHtml(opts: {
 
   const table = `<table style="border-collapse:collapse;width:100%;max-width:560px;">${rows.join('')}</table>`;
 
-  return `<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"/><meta name="ExcelCreated" content="9arm Ledger"/><style>body{margin:16px;background:#f1f5f9;font-family:Calibri,'Segoe UI',sans-serif;}</style></head><body>${table}<p style="color:#94a3b8;font-size:11px;margin-top:12px;">สร้างจาก 9arm Ledger — นำเข้า Google Sheets: เมนู ไฟล์ → นำเข้า → อัปโหลด แล้วเลือกไฟล์นี้</p></body></html>`;
+  return `<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"/><meta name="ExcelCreated" content="Admin"/><style>body{margin:16px;background:#f1f5f9;font-family:Calibri,'Segoe UI',sans-serif;}</style></head><body>${table}<p style="color:#94a3b8;font-size:11px;margin-top:12px;">สร้างจาก Admin — นำเข้า Google Sheets: เมนู ไฟล์ → นำเข้า → อัปโหลด แล้วเลือกไฟล์นี้</p></body></html>`;
 }
 
 export function downloadReportSummaryXls(opts: Parameters<typeof buildReportSummaryHtml>[0]): void {
@@ -246,7 +251,7 @@ export function downloadReportSummaryXls(opts: Parameters<typeof buildReportSumm
   const dt = opts.data?.dateTo ?? df;
   const safe = (s: string) => s.replace(/[^\d-]/g, '');
   const name =
-    df === dt ? `9arm-รายงาน-${safe(df)}.xls` : `9arm-รายงาน-${safe(df)}_${safe(dt)}.xls`;
+    df === dt ? `admin-รายงาน-${safe(df)}.xls` : `admin-รายงาน-${safe(df)}_${safe(dt)}.xls`;
 
   const blob = new Blob([`\ufeff${html}`], {
     type: 'application/vnd.ms-excel;charset=utf-8',

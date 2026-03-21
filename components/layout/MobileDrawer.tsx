@@ -99,7 +99,7 @@ export function MobileDrawer({
       >
         <div className="flex h-16 shrink-0 items-center justify-between border-b border-[#1F2937] px-4">
           <span className="text-lg font-semibold text-[#D4AF37]">
-            9arm Ledger
+            Admin
           </span>
           <button
             type="button"

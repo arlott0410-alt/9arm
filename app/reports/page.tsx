@@ -380,7 +380,7 @@ export default function ReportsPage() {
                         <li key={cur} className="flex justify-between text-sm">
                           <span className="text-[#9CA3AF]">{cur}</span>
                           <span className="font-medium text-[#D4AF37]">
-                            {formatMinorToDisplay(amt, cur)}
+                            {formatMinorToDisplay(amt, cur)} {cur}
                           </span>
                         </li>
                       ))}
@@ -410,7 +410,7 @@ export default function ReportsPage() {
                         <li key={cur} className="flex justify-between text-sm">
                           <span className="text-[#9CA3AF]">{cur}</span>
                           <span className="font-medium text-[#D4AF37]">
-                            {formatMinorToDisplay(amt, cur)}
+                            {formatMinorToDisplay(amt, cur)} {cur}
                           </span>
                         </li>
                       ))}
@@ -429,7 +429,7 @@ export default function ReportsPage() {
                         <li key={cur} className="flex justify-between text-sm">
                           <span className="text-[#9CA3AF]">{cur}</span>
                           <span className="font-medium text-[#D4AF37]">
-                            {formatMinorToDisplay(amt, cur)}
+                            {formatMinorToDisplay(amt, cur)} {cur}
                           </span>
                         </li>
                       ))}
@@ -448,7 +448,7 @@ export default function ReportsPage() {
                         <li key={cur} className="flex justify-between text-sm">
                           <span className="text-[#9CA3AF]">{cur}</span>
                           <span className="font-medium text-[#D4AF37]">
-                            {formatMinorToDisplay(amt, cur)}
+                            {formatMinorToDisplay(amt, cur)} {cur}
                           </span>
                         </li>
                       ))}
@@ -481,7 +481,7 @@ export default function ReportsPage() {
                               net >= 0 ? 'text-[#D4AF37]' : 'text-red-400'
                             }`}
                           >
-                            {formatMinorToDisplay(Math.abs(net), cur)}
+                            {formatMinorToDisplay(Math.abs(net), cur)} {cur}
                             {net < 0 ? ' (ถอนออก)' : ' (รับเข้า)'}
                           </span>
                         </li>

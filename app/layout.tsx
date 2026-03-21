@@ -12,7 +12,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: '9arm Ledger',
+  title: 'Admin',
   description: 'Internal gambling ledger',
   manifest: '/manifest.webmanifest',
   icons: {
