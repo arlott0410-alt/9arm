@@ -114,6 +114,8 @@ export default function ReportsPage() {
       data,
       bonusData,
       creditCutData,
+      year,
+      month,
     });
   };
 

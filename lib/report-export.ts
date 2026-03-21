@@ -67,6 +67,66 @@ function sortedEntries(rec: Record<string, number> | undefined, filter: (n: numb
     .sort(([a], [b]) => a.localeCompare(b));
 }
 
+/** หัวข้อหลักในไฟล์ — สอดคล้องตัวกรองบนหน้ารายงาน */
+function buildExportMainTitle(
+  periodKey: string,
+  websiteLabel: string,
+  data: ReportExportData | null,
+  year?: string,
+  month?: string
+): string {
+  const periodLabel = PERIOD_TH[periodKey] ?? periodKey;
+  const bits: string[] = [periodLabel];
+  if (data) {
+    if (periodKey === 'daily') {
+      bits.push(formatDateThailand(data.dateFrom));
+    } else if (periodKey === 'monthly') {
+      const y = year ?? data.dateFrom.slice(0, 4);
+      const m = month ?? data.dateFrom.slice(5, 7);
+      bits.push(`${m}/${y}`);
+    } else if (periodKey === 'yearly') {
+      bits.push(year ?? data.dateFrom.slice(0, 4));
+    } else if (periodKey === 'custom') {
+      bits.push(
+        `${formatDateThailand(data.dateFrom)} – ${formatDateThailand(data.dateTo)}`
+      );
+    }
+  }
+  bits.push(`เว็บ ${websiteLabel}`);
+  return `Admin — รายงานสรุป — ${bits.join(' · ')}`;
+}
+
+function pushFilterRows(
+  rows: string[],
+  periodKey: string,
+  websiteLabel: string,
+  data: ReportExportData | null,
+  year?: string,
+  month?: string
+) {
+  const periodLabel = PERIOD_TH[periodKey] ?? periodKey;
+  rows.push(pairRow('ช่วงเวลา', escapeHtml(periodLabel)));
+  if (data) {
+    if (periodKey === 'daily') {
+      rows.push(pairRow('วันที่', escapeHtml(formatDateThailand(data.dateFrom))));
+    } else if (periodKey === 'monthly') {
+      const y = year ?? data.dateFrom.slice(0, 4);
+      const m = month ?? data.dateFrom.slice(5, 7);
+      rows.push(pairRow('ปี', escapeHtml(y)));
+      rows.push(pairRow('เดือน', escapeHtml(m)));
+    } else if (periodKey === 'yearly') {
+      rows.push(pairRow('ปี', escapeHtml(year ?? data.dateFrom.slice(0, 4))));
+    } else if (periodKey === 'custom') {
+      rows.push(pairRow('ตั้งแต่', escapeHtml(formatDateThailand(data.dateFrom))));
+      rows.push(pairRow('ถึง', escapeHtml(formatDateThailand(data.dateTo))));
+    }
+  }
+  rows.push(pairRow('เว็บ', escapeHtml(websiteLabel)));
+  rows.push(
+    `<tr><td colspan="2" style="border:1px solid #334155;padding:4px;background:#f8fafc;"></td></tr>`
+  );
+}
+
 /** สร้าง HTML ที่ Excel / Google Sheets เปิดเป็นตารางได้ (นามสกุล .xls) */
 export function buildReportSummaryHtml(opts: {
   periodKey: string;
@@ -74,26 +134,21 @@ export function buildReportSummaryHtml(opts: {
   data: ReportExportData | null;
   bonusData: BonusExportData;
   creditCutData: CreditCutExportData;
+  /** ตรงกับตัวกรองปี/เดือน (รายเดือน / รายปี) */
+  year?: string;
+  month?: string;
 }): string {
-  const { periodKey, websiteLabel, data, bonusData, creditCutData } = opts;
+  const { periodKey, websiteLabel, data, bonusData, creditCutData, year, month } = opts;
   const dispCur = data?.displayCurrency || 'THB';
-  const periodLabel = PERIOD_TH[periodKey] ?? periodKey;
-  const range =
-    data?.dateFrom === data?.dateTo
-      ? formatDateThailand(data?.dateFrom ?? '')
-      : `${formatDateThailand(data?.dateFrom ?? '')} – ${formatDateThailand(data?.dateTo ?? '')}`;
 
   const rows: string[] = [];
 
   rows.push(
-    `<tr><td colspan="2" style="border:1px solid #334155;background:#1e293b;color:#fbbf24;font-weight:700;padding:14px 14px;font-size:16px;text-align:center;">Admin — รายงานสรุป</td></tr>`
+    `<tr><td colspan="2" style="border:1px solid #334155;background:#1e293b;color:#fbbf24;font-weight:700;padding:14px 14px;font-size:15px;text-align:center;line-height:1.45;">${escapeHtml(
+      buildExportMainTitle(periodKey, websiteLabel, data, year, month)
+    )}</td></tr>`
   );
-  rows.push(pairRow('ช่วงเวลา', escapeHtml(periodLabel)));
-  rows.push(pairRow('วันที่ / ช่วงที่เลือก', escapeHtml(range)));
-  rows.push(pairRow('เว็บ', escapeHtml(websiteLabel)));
-  rows.push(
-    `<tr><td colspan="2" style="border:1px solid #334155;padding:4px;background:#f8fafc;"></td></tr>`
-  );
+  pushFilterRows(rows, periodKey, websiteLabel, data, year, month);
 
   if (data) {
     rows.push(sectionRow('ธุรกรรม'));
@@ -250,8 +305,11 @@ export function downloadReportSummaryXls(opts: Parameters<typeof buildReportSumm
   const df = opts.data?.dateFrom ?? 'report';
   const dt = opts.data?.dateTo ?? df;
   const safe = (s: string) => s.replace(/[^\d-]/g, '');
+  const periodTag = PERIOD_TH[opts.periodKey] ?? opts.periodKey;
   const name =
-    df === dt ? `admin-รายงาน-${safe(df)}.xls` : `admin-รายงาน-${safe(df)}_${safe(dt)}.xls`;
+    df === dt
+      ? `admin-รายงาน-${periodTag}-${safe(df)}.xls`
+      : `admin-รายงาน-${periodTag}-${safe(df)}_${safe(dt)}.xls`;
 
   const blob = new Blob([`\ufeff${html}`], {
     type: 'application/vnd.ms-excel;charset=utf-8',
