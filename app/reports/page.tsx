@@ -123,37 +123,38 @@ export default function ReportsPage() {
         <h1 className="text-2xl font-semibold text-[#E5E7EB]">รายงาน</h1>
 
         <div className="flex flex-wrap items-end gap-4">
-          <div>
-            <label className="mb-1 block text-sm text-[#9CA3AF]">ช่วงเวลา</label>
-            <Select
-              value={period}
-              onValueChange={(v: 'daily' | 'monthly' | 'yearly' | 'custom') =>
-                setPeriod(v)
-              }
-            >
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="daily">รายวัน</SelectItem>
-                <SelectItem value="monthly">รายเดือน</SelectItem>
-                <SelectItem value="yearly">รายปี</SelectItem>
-                <SelectItem value="custom">กำหนดช่วงวันที่</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {period === 'daily' && (
+          <div className="flex flex-wrap items-end gap-4">
             <div>
-              <label className="mb-1 block text-sm text-[#9CA3AF]">วันที่</label>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="h-10 w-40 rounded-md border border-[#1F2937] bg-[#0B0F1A] px-3 text-[#E5E7EB] focus:border-[#D4AF37] focus:outline-none"
-              />
+              <label className="mb-1 block text-sm text-[#9CA3AF]">ช่วงเวลา</label>
+              <Select
+                value={period}
+                onValueChange={(v: 'daily' | 'monthly' | 'yearly' | 'custom') =>
+                  setPeriod(v)
+                }
+              >
+                <SelectTrigger className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daily">รายวัน</SelectItem>
+                  <SelectItem value="monthly">รายเดือน</SelectItem>
+                  <SelectItem value="yearly">รายปี</SelectItem>
+                  <SelectItem value="custom">กำหนดช่วงวันที่</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          )}
-          {period === 'monthly' && (
+            {period === 'daily' && (
+              <div>
+                <label className="mb-1 block text-sm text-[#9CA3AF]">วันที่</label>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="h-10 w-40 rounded-md border border-[#1F2937] bg-[#0B0F1A] px-3 text-[#E5E7EB] focus:border-[#D4AF37] focus:outline-none"
+                />
+              </div>
+            )}
+            {period === 'monthly' && (
             <>
               <div>
                 <label className="mb-1 block text-sm text-[#9CA3AF]">ปี</label>
@@ -191,8 +192,8 @@ export default function ReportsPage() {
                 </Select>
               </div>
             </>
-          )}
-          {period === 'custom' && (
+            )}
+            {period === 'custom' && (
             <>
               <div>
                 <label className="mb-1 block text-sm text-[#9CA3AF]">ตั้งแต่</label>
@@ -215,56 +216,54 @@ export default function ReportsPage() {
                 />
               </div>
             </>
-          )}
-          <div>
-            <label className="mb-1 block text-sm text-[#9CA3AF]">เว็บ</label>
-            <Select value={filterWebsite} onValueChange={setFilterWebsite}>
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">ทั้งหมด</SelectItem>
-                {websites.map((w) => (
-                  <SelectItem key={w.id} value={String(w.id)}>
-                    {w.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {period === 'yearly' && (
+            )}
             <div>
-              <label className="mb-1 block text-sm text-[#9CA3AF]">ปี</label>
-              <Select value={year} onValueChange={setYear}>
-                <SelectTrigger className="w-32">
+              <label className="mb-1 block text-sm text-[#9CA3AF]">เว็บ</label>
+              <Select value={filterWebsite} onValueChange={setFilterWebsite}>
+                <SelectTrigger className="w-40">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {[currentYear, currentYear - 1, currentYear - 2].map((y) => (
-                    <SelectItem key={y} value={String(y)}>
-                      {y}
+                  <SelectItem value="__all__">ทั้งหมด</SelectItem>
+                  {websites.map((w) => (
+                    <SelectItem key={w.id} value={String(w.id)}>
+                      {w.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-          )}
-          <div className="flex w-full flex-col gap-1 sm:ml-auto sm:w-auto">
+            {period === 'yearly' && (
+              <div>
+                <label className="mb-1 block text-sm text-[#9CA3AF]">ปี</label>
+                <Select value={year} onValueChange={setYear}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[currentYear, currentYear - 1, currentYear - 2].map((y) => (
+                      <SelectItem key={y} value={String(y)}>
+                        {y}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+          <div className="ml-auto shrink-0">
             <Button
               type="button"
               variant="outline"
-              className="border-[#334155] text-[#E5E7EB] hover:bg-[#0F172A] hover:text-[#D4AF37]"
+              size="sm"
+              className="h-10 gap-1.5 border-[#1F2937] bg-[#0B0F1A] px-3 text-xs text-[#E5E7EB] hover:border-[#334155] hover:bg-[#0F172A] hover:text-[#D4AF37]"
               disabled={!data}
               onClick={handleExportReport}
+              title="ส่งออกชีท (Excel)"
             >
-              <Download className="mr-2 h-4 w-4" aria-hidden />
-              ส่งออกชีท (Excel)
+              <Download className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              Excel
             </Button>
-            <p className="max-w-[min(100%,22rem)] text-xs leading-relaxed text-[#6B7280]">
-              ไฟล์ .xls เปิดใน Excel ได้ทันที — ถ้าใช้ Google Sheets ให้ไปที่ ไฟล์ → นำเข้า →
-              อัปโหลด แล้วเลือกไฟล์ที่ดาวน์โหลด (การเชื่อมแบบอัตโนมัติกับ Google ต้องตั้งค่า API
-              แยก)
-            </p>
           </div>
         </div>
 
