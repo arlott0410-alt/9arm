@@ -186,8 +186,8 @@ export async function PATCH(
 
       const recalc = recalcBonusPortions(itemsForRecalc, bonusPoolMinor);
 
-      for (const r of recalc) {
-        await db
+      const recalcStatements = recalc.map((r) =>
+        db
           .update(payrollItems)
           .set({
             bonusPortionMinor: r.bonusPortionMinor,
@@ -198,7 +198,10 @@ export async function PATCH(
               eq(payrollItems.payrollRunId, runId),
               eq(payrollItems.userId, r.userId)
             )
-          );
+          )
+      );
+      if (recalcStatements.length > 0) {
+        await db.batch(recalcStatements as unknown as Parameters<import('@/db').Db['batch']>[0]);
       }
 
       const updated = recalc.find((r) => r.userId === userId);

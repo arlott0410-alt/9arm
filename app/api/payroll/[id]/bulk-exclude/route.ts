@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireSettings } from '@/lib/api-helpers';
 import { payrollRuns, payrollItems } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import {
   recalcBonusPortions,
   type PayrollDeduction,
@@ -56,14 +56,34 @@ export async function POST(
       .from(payrollItems)
       .where(eq(payrollItems.payrollRunId, runId));
 
+    const excludeIds: number[] = [];
+    const includeIds: number[] = [];
     for (const item of allItems) {
+      if (excludeSet.has(item.userId)) {
+        excludeIds.push(item.userId);
+      } else {
+        includeIds.push(item.userId);
+      }
+    }
+    if (excludeIds.length > 0) {
       await db
         .update(payrollItems)
-        .set({ excludeFromBonus: excludeSet.has(item.userId) })
+        .set({ excludeFromBonus: true })
         .where(
           and(
             eq(payrollItems.payrollRunId, runId),
-            eq(payrollItems.userId, item.userId)
+            inArray(payrollItems.userId, excludeIds)
+          )
+        );
+    }
+    if (includeIds.length > 0) {
+      await db
+        .update(payrollItems)
+        .set({ excludeFromBonus: false })
+        .where(
+          and(
+            eq(payrollItems.payrollRunId, runId),
+            inArray(payrollItems.userId, includeIds)
           )
         );
     }
@@ -81,8 +101,8 @@ export async function POST(
     const bonusPoolMinor = runRows[0].bonusPoolMinor ?? 0;
     const recalc = recalcBonusPortions(itemsForRecalc, bonusPoolMinor);
 
-    for (const r of recalc) {
-      await db
+    const recalcStatements = recalc.map((r) =>
+      db
         .update(payrollItems)
         .set({
           bonusPortionMinor: r.bonusPortionMinor,
@@ -93,7 +113,10 @@ export async function POST(
             eq(payrollItems.payrollRunId, runId),
             eq(payrollItems.userId, r.userId)
           )
-        );
+        )
+    );
+    if (recalcStatements.length > 0) {
+      await db.batch(recalcStatements as unknown as Parameters<import('@/db').Db['batch']>[0]);
     }
 
     return NextResponse.json({

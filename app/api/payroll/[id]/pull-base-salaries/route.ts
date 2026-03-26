@@ -69,7 +69,7 @@ export async function POST(
     );
     const policy = await getSalaryPolicySettings(db);
 
-    let updatedCount = 0;
+    const updatesToApply: { userId: number; newBase: number; salaryAfterHolidayMinor: number }[] = [];
     for (const item of allItems) {
       const sal = salaryMap.get(item.userId);
       const newBase = sal?.baseSalaryMinor ?? item.baseSalaryMinor;
@@ -83,20 +83,21 @@ export async function POST(
         policy.deductMultiplierPerDay
       );
 
-      await db
+      updatesToApply.push({ userId: item.userId, newBase, salaryAfterHolidayMinor });
+    }
+    const updatedCount = updatesToApply.length;
+    const updateStatements = updatesToApply.map((u) =>
+      db
         .update(payrollItems)
         .set({
-          baseSalaryMinor: newBase,
-          salaryAfterHolidayMinor,
+          baseSalaryMinor: u.newBase,
+          salaryAfterHolidayMinor: u.salaryAfterHolidayMinor,
           overrideBaseSalaryMinor: null,
         })
-        .where(
-          and(
-            eq(payrollItems.payrollRunId, id),
-            eq(payrollItems.userId, item.userId)
-          )
-        );
-      updatedCount++;
+        .where(and(eq(payrollItems.payrollRunId, id), eq(payrollItems.userId, u.userId)))
+    );
+    if (updateStatements.length > 0) {
+      await db.batch(updateStatements as unknown as Parameters<import('@/db').Db['batch']>[0]);
     }
 
     const itemsForRecalc = await db
@@ -113,14 +114,17 @@ export async function POST(
       lateDeductionMinor: i.lateDeductionMinor ?? 0,
     }));
     const recalc = recalcBonusPortions(recalcInput, bonusPoolMinor);
-    for (const r of recalc) {
-      await db
+    const recalcStatements = recalc.map((r) =>
+      db
         .update(payrollItems)
         .set({
           bonusPortionMinor: r.bonusPortionMinor,
           netAmountMinor: r.netAmountMinor,
         })
-        .where(and(eq(payrollItems.payrollRunId, id), eq(payrollItems.userId, r.userId)));
+        .where(and(eq(payrollItems.payrollRunId, id), eq(payrollItems.userId, r.userId)))
+    );
+    if (recalcStatements.length > 0) {
+      await db.batch(recalcStatements as unknown as Parameters<import('@/db').Db['batch']>[0]);
     }
 
     return NextResponse.json({ updated: updatedCount });

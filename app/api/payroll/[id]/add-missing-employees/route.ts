@@ -165,8 +165,8 @@ export async function POST(
     }
 
     const now = new Date();
-    for (const d of newItems) {
-      await db.insert(payrollItems).values({
+    const insertStatements = newItems.map((d) =>
+      db.insert(payrollItems).values({
         payrollRunId: id,
         userId: d.userId,
         baseSalaryMinor: d.baseSalaryMinor,
@@ -183,7 +183,10 @@ export async function POST(
         lateDeductionMinor: d.lateDeductionMinor,
         netAmountMinor: d.netAmountMinor,
         createdAt: now,
-      });
+      })
+    );
+    if (insertStatements.length > 0) {
+      await db.batch(insertStatements as unknown as Parameters<import('@/db').Db['batch']>[0]);
     }
 
     const allItemsAfter = await db
@@ -200,14 +203,17 @@ export async function POST(
       lateDeductionMinor: i.lateDeductionMinor ?? 0,
     }));
     const recalc = recalcBonusPortions(itemsForRecalc, bonusPoolMinor);
-    for (const r of recalc) {
-      await db
+    const recalcStatements = recalc.map((r) =>
+      db
         .update(payrollItems)
         .set({
           bonusPortionMinor: r.bonusPortionMinor,
           netAmountMinor: r.netAmountMinor,
         })
-        .where(and(eq(payrollItems.payrollRunId, id), eq(payrollItems.userId, r.userId)));
+        .where(and(eq(payrollItems.payrollRunId, id), eq(payrollItems.userId, r.userId)))
+    );
+    if (recalcStatements.length > 0) {
+      await db.batch(recalcStatements as unknown as Parameters<import('@/db').Db['batch']>[0]);
     }
 
     return NextResponse.json({ added: newItems.length });
