@@ -92,7 +92,7 @@ export const transfers = sqliteTable('transfers', {
   txnDate: text('txn_date').notNull(),
   txnTime: text('txn_time'),
   type: text('type', {
-    enum: ['INTERNAL', 'EXTERNAL_OUT', 'EXTERNAL_IN'],
+    enum: ['INTERNAL', 'EXTERNAL_OUT', 'EXTERNAL_IN', 'MISTAKE_OUT'],
   }).notNull(),
   fromWalletId: integer('from_wallet_id').references(() => wallets.id, {
     onDelete: 'restrict',

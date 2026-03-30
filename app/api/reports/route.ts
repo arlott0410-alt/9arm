@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth } from '@/lib/api-helpers';
 import { transactions, transfers, wallets } from '@/db/schema';
-import { eq, sql, gte, lte, and, isNull } from 'drizzle-orm';
+import { eq, inArray, sql, gte, lte, and, isNull } from 'drizzle-orm';
 import { convertToDisplay, type Currency, type RateSnapshot } from '@/lib/rates';
 import { todayStrThailand } from '@/lib/utils';
 import { getSettingValueCached } from '@/lib/get-setting-cached';
@@ -152,7 +152,7 @@ export async function GET(request: Request) {
         })
         .from(transfers)
         .innerJoin(wallets, eq(transfers.fromWalletId, wallets.id))
-        .where(and(eq(transfers.type, 'EXTERNAL_OUT'), ...transferConditions))
+        .where(and(inArray(transfers.type, ['EXTERNAL_OUT', 'MISTAKE_OUT']), ...transferConditions))
         .groupBy(wallets.currency),
       db
         .select({

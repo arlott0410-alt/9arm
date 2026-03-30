@@ -77,7 +77,7 @@ export default function TransfersPage() {
   const [form, setForm] = useState({
     txnDate: todayStr(),
     txnTime: '00:00',
-    type: 'INTERNAL' as 'INTERNAL' | 'EXTERNAL_OUT' | 'EXTERNAL_IN',
+    type: 'INTERNAL' as 'INTERNAL' | 'EXTERNAL_OUT' | 'EXTERNAL_IN' | 'MISTAKE_OUT',
     fromWalletId: null as number | null,
     toWalletId: null as number | null,
     inputAmountMinor: 0,
@@ -151,7 +151,7 @@ export default function TransfersPage() {
     ? balances.get(form.fromWalletId) ?? 0
     : 0;
   const insufficientBalance =
-    (form.type === 'INTERNAL' || form.type === 'EXTERNAL_OUT') &&
+    (form.type === 'INTERNAL' || form.type === 'EXTERNAL_OUT' || form.type === 'MISTAKE_OUT') &&
     form.fromWalletId &&
     form.inputAmountMinor > 0 &&
     fromBalance < form.inputAmountMinor;
@@ -182,7 +182,7 @@ export default function TransfersPage() {
           txnTime: form.txnTime || undefined,
           type: form.type,
           fromWalletId: form.type === 'EXTERNAL_IN' ? null : (form.fromWalletId || null),
-          toWalletId: form.type === 'EXTERNAL_OUT' ? null : (form.toWalletId || null),
+          toWalletId: form.type === 'EXTERNAL_OUT' || form.type === 'MISTAKE_OUT' ? null : (form.toWalletId || null),
           inputAmountMinor: form.inputAmountMinor,
           note: form.note || undefined,
         }),
@@ -211,7 +211,7 @@ export default function TransfersPage() {
   }
 
   function getTransferAmountAndCurrency(t: Transfer): { amount: number; currency: string } {
-    if (t.type === 'EXTERNAL_OUT') {
+    if (t.type === 'EXTERNAL_OUT' || t.type === 'MISTAKE_OUT') {
       const amt = t.fromWalletAmountMinor ?? t.inputAmountMinor;
       const cur = t.fromWalletCurrency ?? 'THB';
       return { amount: amt, currency: cur };
@@ -226,7 +226,7 @@ export default function TransfersPage() {
       ? wallets.find((w) => w.id === form.fromWalletId)
       : null;
   const toWallet =
-    form.type !== 'EXTERNAL_OUT' && form.toWalletId
+    form.type !== 'EXTERNAL_OUT' && form.type !== 'MISTAKE_OUT' && form.toWalletId
       ? wallets.find((w) => w.id === form.toWalletId)
       : null;
   const inputCurrency: Currency =
@@ -327,7 +327,13 @@ export default function TransfersPage() {
                         )}
                       </td>
                       <td className="py-3 text-[#9CA3AF]">
-                        {t.type === 'INTERNAL' ? 'ภายใน' : t.type === 'EXTERNAL_IN' ? 'รับจากภายนอก' : 'โอนออกภายนอก'}
+                        {t.type === 'INTERNAL'
+                          ? 'ภายใน'
+                          : t.type === 'EXTERNAL_IN'
+                            ? 'รับจากภายนอก'
+                            : t.type === 'MISTAKE_OUT'
+                              ? 'โอนผิด'
+                              : 'โอนออกภายนอก'}
                       </td>
                       <td className="py-3 text-[#E5E7EB]">
                         {t.fromWalletName || '-'}
@@ -415,7 +421,13 @@ export default function TransfersPage() {
                         )}
                       </td>
                       <td className="py-3 text-[#9CA3AF]">
-                        {t.type === 'INTERNAL' ? 'ภายใน' : t.type === 'EXTERNAL_IN' ? 'รับจากภายนอก' : 'โอนออกภายนอก'}
+                        {t.type === 'INTERNAL'
+                          ? 'ภายใน'
+                          : t.type === 'EXTERNAL_IN'
+                            ? 'รับจากภายนอก'
+                            : t.type === 'MISTAKE_OUT'
+                              ? 'โอนผิด'
+                              : 'โอนออกภายนอก'}
                       </td>
                       <td className="py-3 text-[#E5E7EB]">{t.fromWalletName || '-'}</td>
                       <td className="py-3 text-[#E5E7EB]">{t.toWalletName || '-'}</td>
@@ -546,13 +558,13 @@ export default function TransfersPage() {
                 <Select
                   value={form.type}
                   onValueChange={(
-                    v: 'INTERNAL' | 'EXTERNAL_OUT' | 'EXTERNAL_IN'
+                    v: 'INTERNAL' | 'EXTERNAL_OUT' | 'EXTERNAL_IN' | 'MISTAKE_OUT'
                   ) =>
                     setForm({
                       ...form,
                       type: v,
                       fromWalletId: v === 'EXTERNAL_IN' ? null : form.fromWalletId,
-                      toWalletId: v === 'EXTERNAL_OUT' ? null : form.toWalletId,
+                      toWalletId: v === 'EXTERNAL_OUT' || v === 'MISTAKE_OUT' ? null : form.toWalletId,
                     })
                   }
                 >
@@ -563,6 +575,7 @@ export default function TransfersPage() {
                     <SelectItem value="INTERNAL">ภายใน</SelectItem>
                     <SelectItem value="EXTERNAL_OUT">โอนออกภายนอก</SelectItem>
                     <SelectItem value="EXTERNAL_IN">โอนเข้ามาภายนอก</SelectItem>
+                    <SelectItem value="MISTAKE_OUT">โอนผิด</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -596,7 +609,7 @@ export default function TransfersPage() {
                   </Select>
                 </div>
               )}
-              {form.type !== 'EXTERNAL_OUT' && (
+              {form.type !== 'EXTERNAL_OUT' && form.type !== 'MISTAKE_OUT' && (
                 <div>
                   <Label>ไปยังกระเป๋า</Label>
                   <Select

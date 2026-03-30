@@ -42,7 +42,7 @@ export async function GET(request: Request) {
     const conditions: Parameters<typeof and>[0][] = [];
     if (dateFrom) conditions.push(gte(transfers.txnDate, dateFrom));
     if (dateTo) conditions.push(lte(transfers.txnDate, dateTo));
-    if (type) conditions.push(eq(transfers.type, type as 'INTERNAL' | 'EXTERNAL_OUT' | 'EXTERNAL_IN'));
+    if (type) conditions.push(eq(transfers.type, type as 'INTERNAL' | 'EXTERNAL_OUT' | 'EXTERNAL_IN' | 'MISTAKE_OUT'));
     conditions.push(deletedOnly ? isNotNull(transfers.deletedAt) : isNull(transfers.deletedAt));
     if (useCursor) conditions.push(lt(transfers.id, cursorParams!.cursorId!));
 
@@ -279,7 +279,7 @@ export async function POST(request: Request) {
         displayCurrency,
         rateSnapshot
       );
-    } else if (type === 'EXTERNAL_OUT' && parsed.data.fromWalletId) {
+    } else if ((type === 'EXTERNAL_OUT' || type === 'MISTAKE_OUT') && parsed.data.fromWalletId) {
       const [fromW] = await db
         .select()
         .from(wallets)
@@ -333,7 +333,7 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
-      if (type === 'EXTERNAL_OUT') {
+      if (type === 'EXTERNAL_OUT' || type === 'MISTAKE_OUT') {
         return NextResponse.json(
           { error: 'ต้องระบุกระเป๋าต้นทางสำหรับโอนออก' },
           { status: 400 }
@@ -361,8 +361,8 @@ export async function POST(request: Request) {
         txnDate: parsed.data.txnDate,
         txnTime,
         type,
-        fromWalletId: parsed.data.fromWalletId,
-        toWalletId: parsed.data.toWalletId,
+        fromWalletId: type === 'EXTERNAL_IN' ? null : parsed.data.fromWalletId,
+        toWalletId: type === 'EXTERNAL_OUT' || type === 'MISTAKE_OUT' ? null : parsed.data.toWalletId,
         displayCurrency,
         inputAmountMinor: inputAmountMinorStored,
         fromWalletAmountMinor,
@@ -374,8 +374,16 @@ export async function POST(request: Request) {
       })
       .returning();
     const walletIds = [
-      ...(parsed.data.fromWalletId ? [parsed.data.fromWalletId] : []),
-      ...(parsed.data.toWalletId ? [parsed.data.toWalletId] : []),
+      ...(type === 'EXTERNAL_IN'
+        ? []
+        : parsed.data.fromWalletId
+          ? [parsed.data.fromWalletId]
+          : []),
+      ...(type === 'EXTERNAL_OUT' || type === 'MISTAKE_OUT'
+        ? []
+        : parsed.data.toWalletId
+          ? [parsed.data.toWalletId]
+          : []),
     ].filter((v, i, a) => a.indexOf(v) === i);
     invalidateDataCaches(result.env);
     invalidateWalletDetails(walletIds);

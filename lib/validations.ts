@@ -64,7 +64,7 @@ export const transferSchema = z
   .object({
     txnDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     txnTime: z.string().optional(),
-    type: z.enum(['INTERNAL', 'EXTERNAL_OUT', 'EXTERNAL_IN']),
+    type: z.enum(['INTERNAL', 'EXTERNAL_OUT', 'EXTERNAL_IN', 'MISTAKE_OUT']),
     fromWalletId: z
       .union([z.number().int(), z.null(), z.undefined()])
       .optional()
@@ -84,7 +84,7 @@ export const transferSchema = z
   (data) => {
     if (data.type === 'INTERNAL')
       return (data.fromWalletId ?? 0) > 0 && (data.toWalletId ?? 0) > 0;
-    if (data.type === 'EXTERNAL_OUT') return (data.fromWalletId ?? 0) > 0;
+    if (data.type === 'EXTERNAL_OUT' || data.type === 'MISTAKE_OUT') return (data.fromWalletId ?? 0) > 0;
     if (data.type === 'EXTERNAL_IN') return (data.toWalletId ?? 0) > 0;
     return false;
   },
