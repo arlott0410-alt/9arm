@@ -294,6 +294,10 @@ export default function PayrollDetailPage() {
     return arr;
   }, [items, sortBy, sortDir]);
 
+  const payoutItems = useMemo(() => {
+    return [...items].sort((a, b) => a.username.localeCompare(b.username));
+  }, [items]);
+
   const toggleSort = (col: 'name' | 'net') => {
     if (sortBy === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     else {
@@ -349,6 +353,25 @@ export default function PayrollDetailPage() {
   if (authLoading || !user) return null;
 
   const totalNet = items.reduce((s, i) => s + i.netAmountMinor, 0);
+  const payoutTotals = payoutItems.reduce(
+    (acc, i) => {
+      const add = i.totalAllowancesMinor ?? 0;
+      const deduct = (i.totalDeductionsMinor ?? 0) + (i.lateDeductionMinor ?? 0);
+      acc.salaryAfterHolidayMinor += i.salaryAfterHolidayMinor ?? 0;
+      acc.bonusPortionMinor += i.bonusPortionMinor ?? 0;
+      acc.totalAllowancesMinor += add;
+      acc.totalDeductionsMinor += deduct;
+      acc.netAmountMinor += i.netAmountMinor ?? 0;
+      return acc;
+    },
+    {
+      salaryAfterHolidayMinor: 0,
+      bonusPortionMinor: 0,
+      totalAllowancesMinor: 0,
+      totalDeductionsMinor: 0,
+      netAmountMinor: 0,
+    }
+  );
 
   return (
     <AppLayout user={user}>
@@ -458,6 +481,94 @@ export default function PayrollDetailPage() {
                 </CardContent>
               </Card>
             </div>
+
+            {run.status === 'CONFIRMED' && (
+              <Card className="border-[#1F2937] bg-[#0F172A]">
+                <CardHeader>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <CardTitle className="text-[#E5E7EB]">ตารางส่งต่อแจ้งรับเงิน</CardTitle>
+                      <p className="mt-1 text-sm text-[#9CA3AF]">
+                        สรุปยอดสำหรับส่งให้ทีมแจ้งรับเงิน (แคปหน้าจอได้ทันที)
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-2 text-right">
+                      <p className="text-xs text-[#9CA3AF]">ยอดรวมที่ต้องจ่ายทั้งหมด</p>
+                      <p className="text-lg font-semibold text-[#D4AF37] tabular-nums">
+                        {formatPayroll(payoutTotals.netAmountMinor)} กีบ
+                      </p>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto rounded-lg border border-[#1F2937]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-[#1F2937] bg-[#111827] hover:bg-[#111827]">
+                          <TableHead className="px-4 py-3 w-14 text-center font-medium text-[#9CA3AF]">#</TableHead>
+                          <TableHead className="px-4 py-3 min-w-[180px] font-medium text-[#9CA3AF]">พนักงาน</TableHead>
+                          <TableHead className="px-4 py-3 text-right font-medium text-[#9CA3AF]">เงินหลังหักวันหยุด</TableHead>
+                          <TableHead className="px-4 py-3 text-right font-medium text-[#9CA3AF]">โบนัส</TableHead>
+                          <TableHead className="px-4 py-3 text-right font-medium text-[#9CA3AF]">รายการเพิ่มรวม</TableHead>
+                          <TableHead className="px-4 py-3 text-right font-medium text-[#9CA3AF]">รายการหักรวม</TableHead>
+                          <TableHead className="px-4 py-3 text-right font-medium text-[#D4AF37]">ยอดสุทธิที่จ่าย</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {payoutItems.map((item, idx) => {
+                          const add = item.totalAllowancesMinor ?? 0;
+                          const deduct = (item.totalDeductionsMinor ?? 0) + (item.lateDeductionMinor ?? 0);
+                          return (
+                            <TableRow key={`payout-${item.id}`} className="border-[#1F2937] hover:bg-[#111827]/40">
+                              <TableCell className="px-4 py-3 text-center text-[#9CA3AF]">{idx + 1}</TableCell>
+                              <TableCell className="px-4 py-3 font-medium text-[#E5E7EB]">{item.username}</TableCell>
+                              <TableCell className="px-4 py-3 text-right text-[#E5E7EB] tabular-nums">
+                                {formatPayroll(item.salaryAfterHolidayMinor)}
+                              </TableCell>
+                              <TableCell className="px-4 py-3 text-right text-[#E5E7EB] tabular-nums">
+                                {formatPayroll(item.bonusPortionMinor)}
+                              </TableCell>
+                              <TableCell className="px-4 py-3 text-right text-green-400 tabular-nums">
+                                {add > 0 ? `+${formatPayroll(add)}` : '-'}
+                              </TableCell>
+                              <TableCell className="px-4 py-3 text-right text-red-400 tabular-nums">
+                                {deduct > 0 ? `−${formatPayroll(deduct)}` : '-'}
+                              </TableCell>
+                              <TableCell className="px-4 py-3 text-right font-semibold text-[#D4AF37] tabular-nums">
+                                {formatPayroll(item.netAmountMinor)}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                        <TableRow className="border-t border-[#D4AF37]/40 bg-[#0B1220] hover:bg-[#0B1220]">
+                          <TableCell className="px-4 py-3" />
+                          <TableCell className="px-4 py-3 font-semibold text-[#E5E7EB]">รวมทั้งหมด</TableCell>
+                          <TableCell className="px-4 py-3 text-right font-semibold text-[#E5E7EB] tabular-nums">
+                            {formatPayroll(payoutTotals.salaryAfterHolidayMinor)}
+                          </TableCell>
+                          <TableCell className="px-4 py-3 text-right font-semibold text-[#E5E7EB] tabular-nums">
+                            {formatPayroll(payoutTotals.bonusPortionMinor)}
+                          </TableCell>
+                          <TableCell className="px-4 py-3 text-right font-semibold text-green-400 tabular-nums">
+                            {payoutTotals.totalAllowancesMinor > 0
+                              ? `+${formatPayroll(payoutTotals.totalAllowancesMinor)}`
+                              : '-'}
+                          </TableCell>
+                          <TableCell className="px-4 py-3 text-right font-semibold text-red-400 tabular-nums">
+                            {payoutTotals.totalDeductionsMinor > 0
+                              ? `−${formatPayroll(payoutTotals.totalDeductionsMinor)}`
+                              : '-'}
+                          </TableCell>
+                          <TableCell className="px-4 py-3 text-right text-lg font-bold text-[#D4AF37] tabular-nums">
+                            {formatPayroll(payoutTotals.netAmountMinor)}
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             <Card className="border-[#1F2937] bg-[#0F172A]">
               <CardHeader>
