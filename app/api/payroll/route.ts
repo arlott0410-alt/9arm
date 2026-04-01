@@ -16,7 +16,7 @@ import {
   type PayrollAllowance,
 } from '@/lib/payroll';
 
-/** GET: รายการรอบเงินเดือน. SUPER_ADMIN เห็นทุกรอบ, ADMIN เห็นเฉพาะ CONFIRMED */
+/** GET: รายการรอบเงินเดือน. SUPER_ADMIN/AUDIT เห็นทุกรอบ, ADMIN เห็นเฉพาะ CONFIRMED */
 export async function GET(request: Request) {
   try {
     const result = await getDbAndUser(request);
@@ -39,10 +39,7 @@ export async function GET(request: Request) {
       .where(isNull(payrollRuns.deletedAt))
       .orderBy(desc(payrollRuns.yearMonth));
 
-    const list =
-      role === 'SUPER_ADMIN'
-        ? rows
-        : rows.filter((r) => r.status === 'CONFIRMED');
+    const list = role === 'ADMIN' ? rows.filter((r) => r.status === 'CONFIRMED') : rows;
 
     return NextResponse.json({ runs: list });
   } catch (e) {

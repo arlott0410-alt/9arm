@@ -27,6 +27,7 @@ import {
   ArrowDown,
   UserPlus,
   RefreshCw,
+  Download,
 } from 'lucide-react';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { formatMinorToDisplay, parseDisplayToMinor } from '@/lib/utils';
@@ -80,6 +81,149 @@ const PAYROLL_CURRENCY = 'LAK';
 
 function formatPayroll(amount: number): string {
   return formatMinorToDisplay(amount, PAYROLL_CURRENCY);
+}
+
+type PayoutExportRow = {
+  username: string;
+  salaryAfterHolidayMinor: number;
+  bonusPortionMinor: number;
+  totalAllowancesMinor: number;
+  totalDeductionsMinor: number;
+  netAmountMinor: number;
+};
+
+function drawCell(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  align: 'left' | 'center' | 'right',
+  color = '#0f172a',
+  font = '12px Segoe UI'
+) {
+  ctx.fillStyle = color;
+  ctx.font = font;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = align;
+  const px = align === 'left' ? x + 10 : align === 'right' ? x + w - 10 : x + w / 2;
+  ctx.fillText(text, px, y + h / 2);
+}
+
+function exportPayrollPayoutImage(opts: {
+  yearMonth: string;
+  rows: PayoutExportRow[];
+  totals: {
+    salaryAfterHolidayMinor: number;
+    bonusPortionMinor: number;
+    totalAllowancesMinor: number;
+    totalDeductionsMinor: number;
+    netAmountMinor: number;
+  };
+}) {
+  const headers = ['#', 'พนักงาน', 'เงินหลังหักวันหยุด', 'โบนัส', 'รายการเพิ่มรวม', 'รายการหักรวม', 'ยอดสุทธิที่จ่าย'];
+  const widths = [44, 200, 170, 120, 140, 140, 170];
+  const rowH = 34;
+  const headerH = 38;
+  const topH = 84;
+  const pad = 16;
+  const tableW = widths.reduce((a, b) => a + b, 0);
+  const canvasW = pad * 2 + tableW;
+  const canvasH = pad * 2 + topH + headerH + rowH * (opts.rows.length + 1) + 20;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = canvasW;
+  canvas.height = canvasH;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(0, 0, canvasW, canvasH);
+
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 20px Segoe UI';
+  ctx.textAlign = 'left';
+  ctx.fillText(`ตารางแจ้งรับเงินเดือน ${opts.yearMonth}`, pad, pad + 30);
+  ctx.font = '13px Segoe UI';
+  ctx.fillStyle = '#475569';
+  ctx.fillText('Admin Payroll - สรุปยอดสำหรับส่งต่อแจ้งรับเงิน', pad, pad + 52);
+  ctx.fillStyle = '#b45309';
+  ctx.font = 'bold 14px Segoe UI';
+  ctx.fillText(`ยอดรวมที่ต้องจ่าย: ${formatPayroll(opts.totals.netAmountMinor)} กีบ`, pad, pad + 74);
+
+  let x = pad;
+  const tableTop = pad + topH;
+  ctx.fillStyle = '#e2e8f0';
+  ctx.fillRect(pad, tableTop, tableW, headerH);
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(pad, tableTop, tableW, headerH + rowH * (opts.rows.length + 1));
+
+  headers.forEach((h, i) => {
+    drawCell(ctx, h, x, tableTop, widths[i], headerH, i <= 1 ? 'left' : 'right', '#334155', 'bold 12px Segoe UI');
+    x += widths[i];
+  });
+
+  for (let r = 0; r < opts.rows.length; r++) {
+    const y = tableTop + headerH + rowH * r;
+    if (r % 2 === 1) {
+      ctx.fillStyle = '#f1f5f9';
+      ctx.fillRect(pad, y, tableW, rowH);
+    }
+    const item = opts.rows[r];
+    const values = [
+      String(r + 1),
+      item.username,
+      formatPayroll(item.salaryAfterHolidayMinor),
+      formatPayroll(item.bonusPortionMinor),
+      item.totalAllowancesMinor > 0 ? `+${formatPayroll(item.totalAllowancesMinor)}` : '-',
+      item.totalDeductionsMinor > 0 ? `-${formatPayroll(item.totalDeductionsMinor)}` : '-',
+      formatPayroll(item.netAmountMinor),
+    ];
+    let cx = pad;
+    values.forEach((v, i) => {
+      drawCell(ctx, v, cx, y, widths[i], rowH, i <= 1 ? (i === 0 ? 'center' : 'left') : 'right');
+      cx += widths[i];
+    });
+  }
+
+  const totalY = tableTop + headerH + rowH * opts.rows.length;
+  ctx.fillStyle = '#dbeafe';
+  ctx.fillRect(pad, totalY, tableW, rowH);
+  const totalVals = [
+    '',
+    'รวมทั้งหมด',
+    formatPayroll(opts.totals.salaryAfterHolidayMinor),
+    formatPayroll(opts.totals.bonusPortionMinor),
+    opts.totals.totalAllowancesMinor > 0 ? `+${formatPayroll(opts.totals.totalAllowancesMinor)}` : '-',
+    opts.totals.totalDeductionsMinor > 0 ? `-${formatPayroll(opts.totals.totalDeductionsMinor)}` : '-',
+    formatPayroll(opts.totals.netAmountMinor),
+  ];
+  let tx = pad;
+  totalVals.forEach((v, i) => {
+    drawCell(
+      ctx,
+      v,
+      tx,
+      totalY,
+      widths[i],
+      rowH,
+      i <= 1 ? 'left' : 'right',
+      i === 6 ? '#b45309' : '#0f172a',
+      i >= 1 ? 'bold 12px Segoe UI' : '12px Segoe UI'
+    );
+    tx += widths[i];
+  });
+
+  const url = canvas.toDataURL('image/png');
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `admin-payroll-${opts.yearMonth}.png`;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 
 export default function PayrollDetailPage() {
@@ -372,6 +516,14 @@ export default function PayrollDetailPage() {
       netAmountMinor: 0,
     }
   );
+  const payoutExportRows: PayoutExportRow[] = payoutItems.map((i) => ({
+    username: i.username,
+    salaryAfterHolidayMinor: i.salaryAfterHolidayMinor ?? 0,
+    bonusPortionMinor: i.bonusPortionMinor ?? 0,
+    totalAllowancesMinor: i.totalAllowancesMinor ?? 0,
+    totalDeductionsMinor: (i.totalDeductionsMinor ?? 0) + (i.lateDeductionMinor ?? 0),
+    netAmountMinor: i.netAmountMinor ?? 0,
+  }));
 
   return (
     <AppLayout user={user}>
@@ -492,11 +644,30 @@ export default function PayrollDetailPage() {
                         สรุปยอดสำหรับส่งให้ทีมแจ้งรับเงิน (แคปหน้าจอได้ทันที)
                       </p>
                     </div>
-                    <div className="rounded-lg border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-2 text-right">
-                      <p className="text-xs text-[#9CA3AF]">ยอดรวมที่ต้องจ่ายทั้งหมด</p>
-                      <p className="text-lg font-semibold text-[#D4AF37] tabular-nums">
-                        {formatPayroll(payoutTotals.netAmountMinor)} กีบ
-                      </p>
+                    <div className="flex items-start gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          exportPayrollPayoutImage({
+                            yearMonth: run.yearMonth,
+                            rows: payoutExportRows,
+                            totals: payoutTotals,
+                          })
+                        }
+                        className="border-[#374151] text-[#E5E7EB] hover:bg-[#1F2937]"
+                        title="Export ตารางแจ้งรับเงินเป็นรูป PNG"
+                      >
+                        <Download className="mr-1.5 h-4 w-4" />
+                        Export รูป
+                      </Button>
+                      <div className="rounded-lg border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-2 text-right">
+                        <p className="text-xs text-[#9CA3AF]">ยอดรวมที่ต้องจ่ายทั้งหมด</p>
+                        <p className="text-lg font-semibold text-[#D4AF37] tabular-nums">
+                          {formatPayroll(payoutTotals.netAmountMinor)} กีบ
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </CardHeader>
