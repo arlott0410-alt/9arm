@@ -226,6 +226,102 @@ function exportPayrollPayoutImage(opts: {
   document.body.removeChild(a);
 }
 
+function exportPayrollPayoutImageMobile(opts: {
+  yearMonth: string;
+  rows: PayoutExportRow[];
+  totals: {
+    salaryAfterHolidayMinor: number;
+    bonusPortionMinor: number;
+    totalAllowancesMinor: number;
+    totalDeductionsMinor: number;
+    netAmountMinor: number;
+  };
+}) {
+  const pad = 16;
+  const cardGap = 10;
+  const cardH = 122;
+  const topH = 92;
+  const footerH = 112;
+  const canvasW = 1080;
+  const innerW = canvasW - pad * 2;
+  const canvasH = pad * 2 + topH + opts.rows.length * (cardH + cardGap) + footerH;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = canvasW;
+  canvas.height = canvasH;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  ctx.fillStyle = '#020617';
+  ctx.fillRect(0, 0, canvasW, canvasH);
+
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = '700 40px Segoe UI';
+  ctx.textAlign = 'left';
+  ctx.fillText(`สรุปแจ้งรับเงินเดือน ${opts.yearMonth}`, pad, pad + 42);
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '26px Segoe UI';
+  ctx.fillText('Admin Payroll - Mobile Portrait Export', pad, pad + 76);
+
+  let y = pad + topH;
+  opts.rows.forEach((row, idx) => {
+    ctx.fillStyle = idx % 2 === 0 ? '#0f172a' : '#111827';
+    ctx.strokeStyle = '#1f2937';
+    ctx.lineWidth = 2;
+    ctx.fillRect(pad, y, innerW, cardH);
+    ctx.strokeRect(pad, y, innerW, cardH);
+
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = '700 30px Segoe UI';
+    ctx.fillText(`${idx + 1}. ${row.username}`, pad + 16, y + 34);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '24px Segoe UI';
+    ctx.fillText(
+      `หลังหักวันหยุด ${formatPayroll(row.salaryAfterHolidayMinor)} | โบนัส ${formatPayroll(row.bonusPortionMinor)}`,
+      pad + 16,
+      y + 66
+    );
+    ctx.fillText(
+      `เพิ่ม ${row.totalAllowancesMinor > 0 ? '+' : ''}${formatPayroll(row.totalAllowancesMinor)} | หัก ${row.totalDeductionsMinor > 0 ? '-' : ''}${formatPayroll(row.totalDeductionsMinor)}`,
+      pad + 16,
+      y + 96
+    );
+
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = '700 30px Segoe UI';
+    ctx.textAlign = 'right';
+    ctx.fillText(`${formatPayroll(row.netAmountMinor)} กีบ`, pad + innerW - 16, y + 34);
+    ctx.textAlign = 'left';
+
+    y += cardH + cardGap;
+  });
+
+  ctx.fillStyle = '#1e293b';
+  ctx.strokeStyle = '#334155';
+  ctx.fillRect(pad, y + 8, innerW, footerH - 16);
+  ctx.strokeRect(pad, y + 8, innerW, footerH - 16);
+
+  ctx.fillStyle = '#cbd5e1';
+  ctx.font = '26px Segoe UI';
+  ctx.fillText(`รวมเงินหลังหักวันหยุด: ${formatPayroll(opts.totals.salaryAfterHolidayMinor)}`, pad + 16, y + 46);
+  ctx.fillText(`รวมโบนัส: ${formatPayroll(opts.totals.bonusPortionMinor)}`, pad + 16, y + 78);
+
+  ctx.fillStyle = '#fbbf24';
+  ctx.font = '700 34px Segoe UI';
+  ctx.textAlign = 'right';
+  ctx.fillText(`รวมต้องจ่าย: ${formatPayroll(opts.totals.netAmountMinor)} กีบ`, pad + innerW - 16, y + 78);
+
+  const url = canvas.toDataURL('image/png');
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `admin-payroll-${opts.yearMonth}-mobile.png`;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
 export default function PayrollDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -661,6 +757,23 @@ export default function PayrollDetailPage() {
                       >
                         <Download className="mr-1.5 h-4 w-4" />
                         Export รูป
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          exportPayrollPayoutImageMobile({
+                            yearMonth: run.yearMonth,
+                            rows: payoutExportRows,
+                            totals: payoutTotals,
+                          })
+                        }
+                        className="border-[#374151] text-[#E5E7EB] hover:bg-[#1F2937]"
+                        title="Export รูปโหมดแนวตั้งสำหรับมือถือ"
+                      >
+                        <Download className="mr-1.5 h-4 w-4" />
+                        มือถือ
                       </Button>
                       <div className="rounded-lg border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-2 text-right">
                         <p className="text-xs text-[#9CA3AF]">ยอดรวมที่ต้องจ่ายทั้งหมด</p>
