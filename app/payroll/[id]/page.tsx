@@ -238,13 +238,15 @@ function exportPayrollPayoutImageMobile(opts: {
   };
 }) {
   const pad = 16;
-  const cardGap = 10;
-  const cardH = 122;
   const topH = 92;
-  const footerH = 112;
+  const headerH = 38;
+  const rowH = 32;
+  const footerH = 42;
   const canvasW = 1080;
-  const innerW = canvasW - pad * 2;
-  const canvasH = pad * 2 + topH + opts.rows.length * (cardH + cardGap) + footerH;
+  const widths = [42, 188, 150, 106, 110, 110, 150];
+  const tableW = widths.reduce((a, b) => a + b, 0);
+  const tableX = Math.floor((canvasW - tableW) / 2);
+  const canvasH = pad * 2 + topH + headerH + rowH * (opts.rows.length + 1) + footerH;
 
   const canvas = document.createElement('canvas');
   canvas.width = canvasW;
@@ -263,54 +265,82 @@ function exportPayrollPayoutImageMobile(opts: {
   ctx.font = '26px Segoe UI';
   ctx.fillText('Admin Payroll - Mobile Portrait Export', pad, pad + 76);
 
-  let y = pad + topH;
-  opts.rows.forEach((row, idx) => {
-    ctx.fillStyle = idx % 2 === 0 ? '#0f172a' : '#111827';
-    ctx.strokeStyle = '#1f2937';
-    ctx.lineWidth = 2;
-    ctx.fillRect(pad, y, innerW, cardH);
-    ctx.strokeRect(pad, y, innerW, cardH);
+  const tableTop = pad + topH;
+  const headers = ['#', 'พนักงาน', 'หลังหักวันหยุด', 'โบนัส', 'เพิ่ม', 'หัก', 'สุทธิ'];
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(tableX, tableTop, tableW, headerH);
 
-    ctx.fillStyle = '#e2e8f0';
-    ctx.font = '700 30px Segoe UI';
-    ctx.fillText(`${idx + 1}. ${row.username}`, pad + 16, y + 34);
-
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '24px Segoe UI';
-    ctx.fillText(
-      `หลังหักวันหยุด ${formatPayroll(row.salaryAfterHolidayMinor)} | โบนัส ${formatPayroll(row.bonusPortionMinor)}`,
-      pad + 16,
-      y + 66
-    );
-    ctx.fillText(
-      `เพิ่ม ${row.totalAllowancesMinor > 0 ? '+' : ''}${formatPayroll(row.totalAllowancesMinor)} | หัก ${row.totalDeductionsMinor > 0 ? '-' : ''}${formatPayroll(row.totalDeductionsMinor)}`,
-      pad + 16,
-      y + 96
-    );
-
-    ctx.fillStyle = '#fbbf24';
-    ctx.font = '700 30px Segoe UI';
-    ctx.textAlign = 'right';
-    ctx.fillText(`${formatPayroll(row.netAmountMinor)} กีบ`, pad + innerW - 16, y + 34);
-    ctx.textAlign = 'left';
-
-    y += cardH + cardGap;
+  let hx = tableX;
+  headers.forEach((h, i) => {
+    drawCell(ctx, h, hx, tableTop, widths[i], headerH, i <= 1 ? 'left' : 'right', '#cbd5e1', '700 18px Segoe UI');
+    hx += widths[i];
   });
 
+  opts.rows.forEach((row, idx) => {
+    const y = tableTop + headerH + rowH * idx;
+    ctx.fillStyle = idx % 2 === 0 ? '#0f172a' : '#111827';
+    ctx.fillRect(tableX, y, tableW, rowH);
+    const vals = [
+      String(idx + 1),
+      row.username,
+      formatPayroll(row.salaryAfterHolidayMinor),
+      formatPayroll(row.bonusPortionMinor),
+      row.totalAllowancesMinor > 0 ? `+${formatPayroll(row.totalAllowancesMinor)}` : '-',
+      row.totalDeductionsMinor > 0 ? `-${formatPayroll(row.totalDeductionsMinor)}` : '-',
+      formatPayroll(row.netAmountMinor),
+    ];
+    let x = tableX;
+    vals.forEach((v, i) => {
+      drawCell(
+        ctx,
+        v,
+        x,
+        y,
+        widths[i],
+        rowH,
+        i === 0 ? 'center' : i === 1 ? 'left' : 'right',
+        i === 6 ? '#fbbf24' : '#e2e8f0',
+        i === 6 ? '700 17px Segoe UI' : '16px Segoe UI'
+      );
+      x += widths[i];
+    });
+  });
+
+  const totalY = tableTop + headerH + rowH * opts.rows.length;
   ctx.fillStyle = '#1e293b';
+  ctx.fillRect(tableX, totalY, tableW, rowH);
+  const totalVals = [
+    '',
+    'รวมทั้งหมด',
+    formatPayroll(opts.totals.salaryAfterHolidayMinor),
+    formatPayroll(opts.totals.bonusPortionMinor),
+    opts.totals.totalAllowancesMinor > 0 ? `+${formatPayroll(opts.totals.totalAllowancesMinor)}` : '-',
+    opts.totals.totalDeductionsMinor > 0 ? `-${formatPayroll(opts.totals.totalDeductionsMinor)}` : '-',
+    formatPayroll(opts.totals.netAmountMinor),
+  ];
+  let tx = tableX;
+  totalVals.forEach((v, i) => {
+    drawCell(
+      ctx,
+      v,
+      tx,
+      totalY,
+      widths[i],
+      rowH,
+      i <= 1 ? 'left' : 'right',
+      i === 6 ? '#fbbf24' : '#e2e8f0',
+      '700 17px Segoe UI'
+    );
+    tx += widths[i];
+  });
+
   ctx.strokeStyle = '#334155';
-  ctx.fillRect(pad, y + 8, innerW, footerH - 16);
-  ctx.strokeRect(pad, y + 8, innerW, footerH - 16);
-
-  ctx.fillStyle = '#cbd5e1';
-  ctx.font = '26px Segoe UI';
-  ctx.fillText(`รวมเงินหลังหักวันหยุด: ${formatPayroll(opts.totals.salaryAfterHolidayMinor)}`, pad + 16, y + 46);
-  ctx.fillText(`รวมโบนัส: ${formatPayroll(opts.totals.bonusPortionMinor)}`, pad + 16, y + 78);
-
-  ctx.fillStyle = '#fbbf24';
-  ctx.font = '700 34px Segoe UI';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(tableX, tableTop, tableW, headerH + rowH * (opts.rows.length + 1));
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '18px Segoe UI';
   ctx.textAlign = 'right';
-  ctx.fillText(`รวมต้องจ่าย: ${formatPayroll(opts.totals.netAmountMinor)} กีบ`, pad + innerW - 16, y + 78);
+  ctx.fillText(`ยอดรวมที่ต้องจ่าย: ${formatPayroll(opts.totals.netAmountMinor)} กีบ`, tableX + tableW, totalY + rowH + 28);
 
   const url = canvas.toDataURL('image/png');
   const a = document.createElement('a');
