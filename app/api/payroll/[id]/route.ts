@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDbAndUser, requireAuth, requireSettings } from '@/lib/api-helpers';
 import { payrollRuns, payrollItems, users } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, SQL } from 'drizzle-orm';
 import {
   recalcBonusPortions,
   type PayrollDeduction,
@@ -42,6 +42,14 @@ export async function GET(
       return NextResponse.json({ error: 'ไม่มีสิทธิ์ดูรอบนี้' }, { status: 403 });
     }
 
+    const itemWhere: SQL<unknown> =
+      role === 'ADMIN'
+        ? and(
+            eq(payrollItems.payrollRunId, id),
+            eq(payrollItems.userId, user!.id)
+          )!
+        : eq(payrollItems.payrollRunId, id);
+
     const itemRows = await db
       .select({
         id: payrollItems.id,
@@ -66,7 +74,7 @@ export async function GET(
       })
       .from(payrollItems)
       .innerJoin(users, eq(payrollItems.userId, users.id))
-      .where(eq(payrollItems.payrollRunId, id));
+      .where(itemWhere);
 
     let items = itemRows.map((r) => ({
       id: r.id,
@@ -90,11 +98,8 @@ export async function GET(
       overrideBaseSalaryMinor: r.overrideBaseSalaryMinor ?? null,
     }));
 
-    if (role === 'ADMIN') {
-      items = items.filter((i) => i.userId === user!.id);
-      if (items.length === 0) {
-        return NextResponse.json({ error: 'ไม่มีข้อมูลเงินเดือนของคุณในรอบนี้' }, { status: 404 });
-      }
+    if (role === 'ADMIN' && items.length === 0) {
+      return NextResponse.json({ error: 'ไม่มีข้อมูลเงินเดือนของคุณในรอบนี้' }, { status: 404 });
     }
     // SUPER_ADMIN และ AUDIT เห็นรายการทุกคน (AUDIT เฉพาะรอบ CONFIRMED)
 
@@ -190,8 +195,8 @@ export async function PATCH(
         lateDeductionMinor: i.lateDeductionMinor ?? 0,
       }));
       const recalc = recalcBonusPortions(itemsForRecalc, newBonusPool);
-      for (const r of recalc) {
-        await db
+      const recalcStatements = recalc.map((r) =>
+        db
           .update(payrollItems)
           .set({
             bonusPortionMinor: r.bonusPortionMinor,
@@ -203,6 +208,9 @@ export async function PATCH(
               eq(payrollItems.userId, r.userId)
             )
           );
+      );
+      if (recalcStatements.length > 0) {
+        await db.batch(recalcStatements as unknown as Parameters<import('@/db').Db['batch']>[0]);
       }
 
       return NextResponse.json({

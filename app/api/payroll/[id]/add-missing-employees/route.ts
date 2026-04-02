@@ -189,31 +189,33 @@ export async function POST(
       await db.batch(insertStatements as unknown as Parameters<import('@/db').Db['batch']>[0]);
     }
 
-    const allItemsAfter = await db
-      .select()
-      .from(payrollItems)
-      .where(eq(payrollItems.payrollRunId, id));
-    const itemsForRecalc = allItemsAfter.map((i) => ({
-      userId: i.userId,
-      workingDays: i.workingDays,
-      excludeFromBonus: !!i.excludeFromBonus,
-      salaryAfterHolidayMinor: i.salaryAfterHolidayMinor,
-      allowances: (Array.isArray(i.allowances) ? i.allowances : []) as PayrollAllowance[],
-      deductions: (Array.isArray(i.deductions) ? i.deductions : []) as PayrollDeduction[],
-      lateDeductionMinor: i.lateDeductionMinor ?? 0,
-    }));
-    const recalc = recalcBonusPortions(itemsForRecalc, bonusPoolMinor);
-    const recalcStatements = recalc.map((r) =>
-      db
-        .update(payrollItems)
-        .set({
-          bonusPortionMinor: r.bonusPortionMinor,
-          netAmountMinor: r.netAmountMinor,
-        })
-        .where(and(eq(payrollItems.payrollRunId, id), eq(payrollItems.userId, r.userId)))
-    );
-    if (recalcStatements.length > 0) {
-      await db.batch(recalcStatements as unknown as Parameters<import('@/db').Db['batch']>[0]);
+    if (bonusPoolMinor > 0) {
+      const allItemsAfter = await db
+        .select()
+        .from(payrollItems)
+        .where(eq(payrollItems.payrollRunId, id));
+      const itemsForRecalc = allItemsAfter.map((i) => ({
+        userId: i.userId,
+        workingDays: i.workingDays,
+        excludeFromBonus: !!i.excludeFromBonus,
+        salaryAfterHolidayMinor: i.salaryAfterHolidayMinor,
+        allowances: (Array.isArray(i.allowances) ? i.allowances : []) as PayrollAllowance[],
+        deductions: (Array.isArray(i.deductions) ? i.deductions : []) as PayrollDeduction[],
+        lateDeductionMinor: i.lateDeductionMinor ?? 0,
+      }));
+      const recalc = recalcBonusPortions(itemsForRecalc, bonusPoolMinor);
+      const recalcStatements = recalc.map((r) =>
+        db
+          .update(payrollItems)
+          .set({
+            bonusPortionMinor: r.bonusPortionMinor,
+            netAmountMinor: r.netAmountMinor,
+          })
+          .where(and(eq(payrollItems.payrollRunId, id), eq(payrollItems.userId, r.userId)))
+      );
+      if (recalcStatements.length > 0) {
+        await db.batch(recalcStatements as unknown as Parameters<import('@/db').Db['batch']>[0]);
+      }
     }
 
     return NextResponse.json({ added: newItems.length });

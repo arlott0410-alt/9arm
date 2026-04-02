@@ -70,6 +70,7 @@ export async function POST(
     const policy = await getSalaryPolicySettings(db);
 
     const updatesToApply: { userId: number; newBase: number; salaryAfterHolidayMinor: number }[] = [];
+    const updatedByUserId = new Map<number, { newBase: number; salaryAfterHolidayMinor: number }>();
     for (const item of allItems) {
       const sal = salaryMap.get(item.userId);
       const newBase = sal?.baseSalaryMinor ?? item.baseSalaryMinor;
@@ -83,7 +84,9 @@ export async function POST(
         policy.deductMultiplierPerDay
       );
 
-      updatesToApply.push({ userId: item.userId, newBase, salaryAfterHolidayMinor });
+      const update = { userId: item.userId, newBase, salaryAfterHolidayMinor };
+      updatesToApply.push(update);
+      updatedByUserId.set(item.userId, { newBase, salaryAfterHolidayMinor });
     }
     const updatedCount = updatesToApply.length;
     const updateStatements = updatesToApply.map((u) =>
@@ -100,19 +103,22 @@ export async function POST(
       await db.batch(updateStatements as unknown as Parameters<import('@/db').Db['batch']>[0]);
     }
 
-    const itemsForRecalc = await db
-      .select()
-      .from(payrollItems)
-      .where(eq(payrollItems.payrollRunId, id));
-    const recalcInput = itemsForRecalc.map((i) => ({
+    if (updatedCount === 0) {
+      return NextResponse.json({ updated: 0 });
+    }
+
+    const recalcInput = allItems.map((i) => {
+      const updated = updatedByUserId.get(i.userId);
+      return {
       userId: i.userId,
       workingDays: i.workingDays,
       excludeFromBonus: !!i.excludeFromBonus,
-      salaryAfterHolidayMinor: i.salaryAfterHolidayMinor,
+      salaryAfterHolidayMinor: updated?.salaryAfterHolidayMinor ?? i.salaryAfterHolidayMinor,
       allowances: (Array.isArray(i.allowances) ? i.allowances : []) as PayrollAllowance[],
       deductions: (Array.isArray(i.deductions) ? i.deductions : []) as PayrollDeduction[],
       lateDeductionMinor: i.lateDeductionMinor ?? 0,
-    }));
+      };
+    });
     const recalc = recalcBonusPortions(recalcInput, bonusPoolMinor);
     const recalcStatements = recalc.map((r) =>
       db
