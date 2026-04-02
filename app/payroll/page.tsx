@@ -39,6 +39,7 @@ export default function PayrollPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [yearMonth, setYearMonth] = useState('');
   const [bonusPool, setBonusPool] = useState('');
+  const [mealRatePerDay, setMealRatePerDay] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
@@ -77,6 +78,10 @@ export default function PayrollPage() {
         body: JSON.stringify({
           yearMonth,
           bonusPoolMinor: bonusPool === '' ? 0 : parseDisplayToMinor(bonusPool, PAYROLL_CURRENCY),
+          mealRatePerDayMinor:
+            mealRatePerDay === ''
+              ? 0
+              : parseDisplayToMinor(mealRatePerDay, PAYROLL_CURRENCY),
         }),
       });
       const data = (await res.json()) as { run?: { id: number }; error?: string };
@@ -84,6 +89,7 @@ export default function PayrollPage() {
         setCreateOpen(false);
         setYearMonth('');
         setBonusPool('');
+        setMealRatePerDay('');
         setRuns((prev) => [
           { id: data.run!.id, yearMonth, status: 'DRAFT', bonusPoolMinor: bonusPool ? parseDisplayToMinor(bonusPool, PAYROLL_CURRENCY) : null, createdAt: new Date().toISOString(), createdBy: 0 },
           ...prev,
@@ -173,6 +179,21 @@ export default function PayrollPage() {
                         onBlur={() => {
                           const parsed = parseDisplayToMinor(bonusPool, PAYROLL_CURRENCY);
                           if (parsed > 0) setBonusPool(formatMinorToDisplay(parsed, PAYROLL_CURRENCY));
+                        }}
+                        className="mt-1 bg-[#1F2937] border-[#374151] text-right tabular-nums"
+                      />
+                    </div>
+                    <div>
+                      <Label>ค่าข้าวต่อวัน (กีบ) — คิดจากวันทำงาน (ไม่นับวันหยุด)</Label>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="0"
+                        value={mealRatePerDay}
+                        onChange={(e) => setMealRatePerDay(e.target.value)}
+                        onBlur={() => {
+                          const parsed = parseDisplayToMinor(mealRatePerDay, PAYROLL_CURRENCY);
+                          if (parsed > 0) setMealRatePerDay(formatMinorToDisplay(parsed, PAYROLL_CURRENCY));
                         }}
                         className="mt-1 bg-[#1F2937] border-[#374151] text-right tabular-nums"
                       />

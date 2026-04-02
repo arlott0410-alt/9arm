@@ -63,6 +63,7 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       yearMonth?: string;
       bonusPoolMinor?: number;
+      mealRatePerDayMinor?: number;
     };
     const yearMonth =
       typeof body.yearMonth === 'string' && /^\d{4}-\d{2}$/.test(body.yearMonth)
@@ -93,6 +94,10 @@ export async function POST(request: Request) {
     const bonusPoolMinor =
       typeof body.bonusPoolMinor === 'number' && body.bonusPoolMinor >= 0
         ? Math.round(body.bonusPoolMinor)
+        : 0;
+    const mealRatePerDayMinor =
+      typeof body.mealRatePerDayMinor === 'number' && body.mealRatePerDayMinor >= 0
+        ? Math.round(body.mealRatePerDayMinor)
         : 0;
 
     const [holidayByUser, policy, adminList] = await Promise.all([
@@ -142,6 +147,11 @@ export async function POST(request: Request) {
       );
       const lateMin = lateByUser.get(u.id) ?? 0;
       const lateDeductionMinor = lateMin * latePenalty;
+      const mealAllowanceMinor = workingDays * mealRatePerDayMinor;
+      const allowances: PayrollAllowance[] =
+        mealAllowanceMinor > 0
+          ? [{ name: 'ค่าข้าว', amountMinor: mealAllowanceMinor }]
+          : [];
       itemsData.push({
         userId: u.id,
         baseSalaryMinor,
@@ -150,13 +160,16 @@ export async function POST(request: Request) {
         workingDays,
         salaryAfterHolidayMinor,
         bonusPortionMinor: 0,
-        allowances: [],
-        totalAllowancesMinor: 0,
+        allowances,
+        totalAllowancesMinor: mealAllowanceMinor,
         deductions: [],
         totalDeductionsMinor: 0,
         lateMinutes: lateMin,
         lateDeductionMinor,
-        netAmountMinor: Math.max(0, salaryAfterHolidayMinor - lateDeductionMinor),
+        netAmountMinor: Math.max(
+          0,
+          salaryAfterHolidayMinor + mealAllowanceMinor - lateDeductionMinor
+        ),
       });
       totalWorkingDaysAll += workingDays;
     }
