@@ -378,6 +378,8 @@ export default function PayrollDetailPage() {
   const [deleting, setDeleting] = useState(false);
   const [addingMissing, setAddingMissing] = useState(false);
   const [pullingSalaries, setPullingSalaries] = useState(false);
+  const [bonusPoolDraft, setBonusPoolDraft] = useState<string>('');
+  const [updatingBonusPool, setUpdatingBonusPool] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -407,6 +409,11 @@ export default function PayrollDetailPage() {
         setItems(payroll.items ?? []);
         setAllowanceTypes(Array.isArray(a?.items) ? a.items : []);
         setDeductionTypes(Array.isArray(d?.items) ? d.items : []);
+        setBonusPoolDraft(
+          payroll.run?.bonusPoolMinor !== null && typeof payroll.run?.bonusPoolMinor === 'number'
+            ? formatPayroll(payroll.run.bonusPoolMinor)
+            : ''
+        );
       })
       .catch(() => router.replace('/payroll'))
       .finally(() => setLoading(false));
@@ -617,6 +624,45 @@ export default function PayrollDetailPage() {
       }
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleUpdateBonusPoolDraft = async () => {
+    if (!run || run.status !== 'DRAFT' || !id) return;
+    setUpdatingBonusPool(true);
+    try {
+      const minor = parseDisplayToMinor(bonusPoolDraft, PAYROLL_CURRENCY);
+      if (minor < 0) {
+        alert('โบนัสก้อนรวมต้องมีค่ามากกว่าเท่ากับ 0');
+        return;
+      }
+
+      const res = await fetch(`/api/payroll/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bonusPoolMinor: minor }),
+      });
+
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        alert(data.error ?? 'อัปเดตโบนัสไม่สำเร็จ');
+        return;
+      }
+
+      const payrollRes = await fetch(`/api/payroll/${id}`);
+      const payrollData = (await payrollRes.json()) as { run: Run; items: PayrollItem[] };
+      setRun(payrollData.run);
+      setItems(payrollData.items ?? []);
+      setBonusPoolDraft(
+        payrollData.run?.bonusPoolMinor !== null && typeof payrollData.run?.bonusPoolMinor === 'number'
+          ? formatPayroll(payrollData.run.bonusPoolMinor)
+          : ''
+      );
+    } catch (e) {
+      console.error(e);
+      alert('อัปเดตโบนัสไม่สำเร็จ');
+    } finally {
+      setUpdatingBonusPool(false);
     }
   };
 
@@ -892,6 +938,32 @@ export default function PayrollDetailPage() {
                 </p>
                 {run.status === 'DRAFT' && user.role === 'SUPER_ADMIN' && (
                   <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm text-[#9CA3AF] whitespace-nowrap">โบนัสก้อนรวม (แก้ได้)</p>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="0"
+                        value={bonusPoolDraft}
+                        onChange={(e) => setBonusPoolDraft(e.target.value)}
+                        onBlur={() => {
+                          const parsed = parseDisplayToMinor(bonusPoolDraft, PAYROLL_CURRENCY);
+                          if (parsed >= 0) setBonusPoolDraft(formatPayroll(parsed));
+                        }}
+                        className="w-36 bg-[#1F2937] border-[#374151] text-right tabular-nums"
+                      />
+                      <span className="text-xs text-[#6B7280] whitespace-nowrap">กีบ</span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={updatingBonusPool}
+                        onClick={handleUpdateBonusPoolDraft}
+                        className="border-[#374151] text-[#E5E7EB] hover:bg-[#1F2937]"
+                      >
+                        {updatingBonusPool ? 'กำลังอัปเดต...' : 'อัปเดตโบนัส'}
+                      </Button>
+                    </div>
                     <Button
                       variant="outline"
                       size="sm"
