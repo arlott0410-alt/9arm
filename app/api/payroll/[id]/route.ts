@@ -207,7 +207,7 @@ export async function PATCH(
               eq(payrollItems.payrollRunId, id),
               eq(payrollItems.userId, r.userId)
             )
-          );
+          )
       );
       if (recalcStatements.length > 0) {
         await db.batch(recalcStatements as unknown as Parameters<import('@/db').Db['batch']>[0]);
